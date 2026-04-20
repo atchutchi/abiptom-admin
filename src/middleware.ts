@@ -38,8 +38,6 @@ export async function middleware(request: NextRequest) {
 
   // MFA obrigatório para ca e dg
   if ((role === "ca" || role === "dg") && user.user_metadata?.mfa_enabled !== true) {
-    const aal = (user as any).aal;
-    // Verifica AAL via header injectado pelo Supabase
     const mfaHeader = request.headers.get("x-supabase-aal");
     if (mfaHeader !== "aal2" && !pathname.startsWith("/setup-mfa")) {
       return NextResponse.redirect(new URL("/setup-mfa", request.url));

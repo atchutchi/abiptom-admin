@@ -126,7 +126,7 @@ export function Sidebar({ role, userName }: SidebarProps) {
               pathname === item.href ||
               (item.href !== "/admin/dashboard" &&
                 item.href !== "/staff/me/dashboard" &&
-                pathname.startsWith(item.href));
+                (pathname?.startsWith(item.href) ?? false));
 
             return (
               <li key={item.href}>

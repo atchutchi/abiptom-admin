@@ -29,7 +29,7 @@ export async function createUser(formData: UserFormData) {
     return { error: issues[0]?.message ?? parsed.error.message };
   }
 
-  const actor = await getCurrentUser();
+  const { dbUser: actor } = await getCurrentUser();
   if (!actor || (actor.role !== "ca" && actor.role !== "dg")) {
     return { error: "Sem permissão." };
   }
@@ -78,7 +78,7 @@ export async function createUser(formData: UserFormData) {
 }
 
 export async function updateUser(id: string, formData: Partial<UserFormData>) {
-  const actor = await getCurrentUser();
+  const { dbUser: actor } = await getCurrentUser();
   if (!actor || (actor.role !== "ca" && actor.role !== "dg")) {
     return { error: "Sem permissão." };
   }
@@ -112,7 +112,7 @@ export async function updateUser(id: string, formData: Partial<UserFormData>) {
 }
 
 export async function deactivateUser(id: string) {
-  const actor = await getCurrentUser();
+  const { dbUser: actor } = await getCurrentUser();
   if (!actor || (actor.role !== "ca" && actor.role !== "dg")) {
     return { error: "Sem permissão." };
   }

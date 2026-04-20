@@ -60,11 +60,11 @@ export async function getCurrentUser() {
     error,
   } = await supabase.auth.getUser();
 
-  if (error || !user) return null;
+  if (error || !user) return { user: null, dbUser: null };
 
   const dbUser = await db.query.users.findFirst({
     where: eq(users.authUserId, user.id),
   });
 
-  return dbUser ?? null;
+  return { user, dbUser: dbUser ?? null };
 }
