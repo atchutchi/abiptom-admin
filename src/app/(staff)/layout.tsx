@@ -3,10 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { getDefaultRoute } from "@/lib/auth/rbac";
+import { Sidebar } from "@/components/layout/Sidebar";
 import type { UserRole } from "@/lib/db/schema";
 
-export default async function RootPage() {
+export default async function StaffLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -18,6 +22,16 @@ export default async function RootPage() {
     where: eq(users.authUserId, user.id),
   });
 
-  const role = (dbUser?.role ?? "staff") as UserRole;
-  redirect(getDefaultRoute(role));
+  if (!dbUser) redirect("/login");
+
+  const role = dbUser.role as UserRole;
+
+  return (
+    <div className="flex min-h-screen">
+      <Sidebar role={role} userName={dbUser.nomeCurto} />
+      <div className="flex-1 flex flex-col min-w-0">
+        {children}
+      </div>
+    </div>
+  );
 }

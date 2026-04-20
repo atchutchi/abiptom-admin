@@ -1,0 +1,71 @@
+import { notFound, redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db";
+import { users } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+import { Header } from "@/components/layout/Header";
+import { UserForm } from "@/components/forms/UserForm";
+import { updateUser, deactivateUser } from "@/lib/users/actions";
+import { DeactivateUserButton } from "@/components/forms/DeactivateUserButton";
+
+export const metadata = { title: "Editar utilizador — ABIPTOM Admin" };
+
+interface Props {
+  params: Promise<{ id: string }>;
+}
+
+export default async function EditUserPage({ params }: Props) {
+  const { id } = await params;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const actor = await db.query.users.findFirst({
+    where: eq(users.authUserId, user.id),
+  });
+
+  if (!actor || (actor.role !== "ca" && actor.role !== "dg")) {
+    redirect("/admin/dashboard");
+  }
+
+  const target = await db.query.users.findFirst({
+    where: eq(users.id, id),
+  });
+
+  if (!target) notFound();
+
+  const updateWithId = updateUser.bind(null, id);
+
+  return (
+    <>
+      <Header title="Editar utilizador" />
+      <main className="flex-1 p-6">
+        <div className="max-w-2xl mx-auto space-y-6">
+          <div className="bg-white rounded-lg border p-6">
+            <UserForm
+              defaultValues={target}
+              onSubmit={updateWithId}
+              isEdit
+            />
+          </div>
+
+          {target.id !== actor.id && (
+            <div className="bg-white rounded-lg border p-6">
+              <h2 className="text-sm font-medium text-gray-900 mb-4">
+                Zona de perigo
+              </h2>
+              <DeactivateUserButton
+                userId={id}
+                isActive={target.activo}
+                onDeactivate={deactivateUser}
+              />
+            </div>
+          )}
+        </div>
+      </main>
+    </>
+  );
+}
