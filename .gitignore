@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Internal docs (não versionar)
+docs/
+ABIPTOM_ADMIN_SPEC.md
+README.md.bak
