@@ -555,17 +555,6 @@ export const projectPaymentsRelations = relations(projectPayments, ({ one }) => 
   }),
 }));
 
-export const expensesRelations = relations(expenses, ({ one }) => ({
-  project: one(projects, {
-    fields: [expenses.projectoId],
-    references: [projects.id],
-  }),
-  registadoPor: one(users, {
-    fields: [expenses.registadoPor],
-    references: [users.id],
-  }),
-}));
-
 export const invoiceItemsRelations = relations(invoiceItems, ({ one }) => ({
   invoice: one(invoices, {
     fields: [invoiceItems.invoiceId],
