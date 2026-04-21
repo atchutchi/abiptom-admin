@@ -37,11 +37,13 @@ export async function middleware(request: NextRequest) {
   }
 
   // MFA obrigatório para ca e dg
-  if ((role === "ca" || role === "dg") && user.user_metadata?.mfa_enabled !== true) {
-    const mfaHeader = request.headers.get("x-supabase-aal");
-    if (mfaHeader !== "aal2" && !pathname.startsWith("/setup-mfa")) {
-      return NextResponse.redirect(new URL("/setup-mfa", request.url));
-    }
+  // Verifica user_metadata.mfa_enabled (marcado após verificação TOTP bem-sucedida)
+  if (
+    (role === "ca" || role === "dg") &&
+    user.user_metadata?.mfa_enabled !== true &&
+    !pathname.startsWith("/setup-mfa")
+  ) {
+    return NextResponse.redirect(new URL("/setup-mfa", request.url));
   }
 
   // RBAC

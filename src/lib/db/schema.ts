@@ -41,6 +41,28 @@ export const periodicidadeEnum = pgEnum("periodicidade", [
   "bienal",
 ]);
 
+export const projectStateEnum = pgEnum("project_state", [
+  "proposta",
+  "activo",
+  "pausado",
+  "concluido",
+  "cancelado",
+]);
+
+export const salaryPeriodStateEnum = pgEnum("salary_period_state", [
+  "aberto",
+  "calculado",
+  "confirmado",
+  "pago",
+]);
+
+export const projectRoleEnum = pgEnum("project_role", [
+  "pf",
+  "aux",
+  "dg",
+  "coord",
+]);
+
 // ─── Sequences ───────────────────────────────────────────────────────────────
 
 export const invoiceNumberSeq = pgSequence("invoice_number_seq", {
@@ -138,6 +160,54 @@ export const servicesCatalog = pgTable("services_catalog", {
   activo: boolean("activo").notNull().default(true),
 });
 
+// ─── projects ────────────────────────────────────────────────────────────────
+
+export const projects = pgTable("projects", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clientId: uuid("client_id")
+    .notNull()
+    .references(() => clients.id, { onDelete: "restrict" }),
+  servicoId: uuid("servico_id").references(() => servicesCatalog.id, {
+    onDelete: "set null",
+  }),
+  titulo: text("titulo").notNull(),
+  descricao: text("descricao"),
+  dataInicio: date("data_inicio").notNull(),
+  dataFimEstimada: date("data_fim_estimada"),
+  estado: projectStateEnum("estado").notNull().default("proposta"),
+  pontoFocalId: uuid("ponto_focal_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  valorPrevisto: numeric("valor_previsto", { precision: 14, scale: 2 }),
+  moeda: currencyEnum("moeda").notNull().default("XOF"),
+  notas: text("notas"),
+  createdBy: uuid("created_by").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ─── project_assistants ───────────────────────────────────────────────────────
+
+export const projectAssistants = pgTable("project_assistants", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  projectId: uuid("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  percentagemOverride: numeric("percentagem_override", {
+    precision: 5,
+    scale: 2,
+  }),
+});
+
 // ─── invoices ────────────────────────────────────────────────────────────────
 
 export const invoices = pgTable("invoices", {
@@ -162,6 +232,9 @@ export const invoices = pgTable("invoices", {
   ),
   observacoes: text("observacoes"),
   pdfUrl: text("pdf_url"),
+  projectId: uuid("project_id").references(() => projects.id, {
+    onDelete: "set null",
+  }),
   enviadaEm: timestamp("enviada_em", { withTimezone: true }),
   createdBy: uuid("created_by").references(() => users.id, {
     onDelete: "set null",
@@ -212,6 +285,114 @@ export const invoicePayments = pgTable("invoice_payments", {
     .defaultNow(),
 });
 
+// ─── salary_policies ──────────────────────────────────────────────────────────
+
+export const salaryPolicies = pgTable("salary_policies", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  nome: varchar("nome", { length: 100 }).notNull(),
+  versao: varchar("versao", { length: 20 }).notNull(),
+  descricao: text("descricao"),
+  dataInicio: date("data_inicio").notNull(),
+  dataFim: date("data_fim"),
+  activo: boolean("activo").notNull().default(true),
+  configuracaoJson: jsonb("configuracao_json").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ─── salary_periods ───────────────────────────────────────────────────────────
+
+export const salaryPeriods = pgTable("salary_periods", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ano: integer("ano").notNull(),
+  mes: integer("mes").notNull(),
+  policyId: uuid("policy_id")
+    .notNull()
+    .references(() => salaryPolicies.id, { onDelete: "restrict" }),
+  estado: salaryPeriodStateEnum("estado").notNull().default("aberto"),
+  totalBruto: numeric("total_bruto", { precision: 14, scale: 2 }).default("0"),
+  totalLiquido: numeric("total_liquido", { precision: 14, scale: 2 }).default("0"),
+  totalFolha: numeric("total_folha", { precision: 14, scale: 2 }).default("0"),
+  criadoPor: uuid("criado_por").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  confirmadoEm: timestamp("confirmado_em", { withTimezone: true }),
+  confirmadoPor: uuid("confirmado_por").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ─── salary_lines ─────────────────────────────────────────────────────────────
+
+export const salaryLines = pgTable("salary_lines", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  periodId: uuid("period_id")
+    .notNull()
+    .references(() => salaryPeriods.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "restrict" }),
+  salarioBase: numeric("salario_base", { precision: 14, scale: 2 }).notNull().default("0"),
+  componenteDinamica: jsonb("componente_dinamica").default("[]"),
+  subsidios: jsonb("subsidios").default("{}"),
+  outrosBeneficios: numeric("outros_beneficios", { precision: 14, scale: 2 }).default("0"),
+  descontos: numeric("descontos", { precision: 14, scale: 2 }).default("0"),
+  totalBruto: numeric("total_bruto", { precision: 14, scale: 2 }).notNull().default("0"),
+  totalLiquido: numeric("total_liquido", { precision: 14, scale: 2 }).notNull().default("0"),
+  pago: boolean("pago").notNull().default(false),
+  dataPagamento: date("data_pagamento"),
+  referenciaPagamento: varchar("referencia_pagamento", { length: 200 }),
+  reciboUrl: text("recibo_url"),
+  overrideMotivo: text("override_motivo"),
+});
+
+// ─── project_payments ─────────────────────────────────────────────────────────
+
+export const projectPayments = pgTable("project_payments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  periodId: uuid("period_id")
+    .notNull()
+    .references(() => salaryPeriods.id, { onDelete: "cascade" }),
+  projectId: uuid("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "restrict" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "restrict" }),
+  papel: projectRoleEnum("papel").notNull(),
+  percentagemAplicada: numeric("percentagem_aplicada", { precision: 5, scale: 2 }).notNull(),
+  valorLiquidoProjecto: numeric("valor_liquido_projecto", { precision: 14, scale: 2 }).notNull(),
+  valorRecebido: numeric("valor_recebido", { precision: 14, scale: 2 }).notNull(),
+});
+
+// ─── expenses ─────────────────────────────────────────────────────────────────
+
+export const expenses = pgTable("expenses", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  data: date("data").notNull(),
+  categoria: varchar("categoria", { length: 100 }).notNull(),
+  descricao: text("descricao").notNull(),
+  valor: numeric("valor", { precision: 14, scale: 2 }).notNull(),
+  moeda: currencyEnum("moeda").notNull().default("XOF"),
+  taxaCambio: numeric("taxa_cambio", { precision: 10, scale: 6 }).default("1"),
+  projectoId: uuid("projecto_id").references(() => projects.id, {
+    onDelete: "set null",
+  }),
+  beneficiario: text("beneficiario"),
+  formaPagamento: varchar("forma_pagamento", { length: 100 }),
+  comprativoUrl: text("comprovativo_url"),
+  registadoPor: uuid("registado_por").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 // ─── audit_log ────────────────────────────────────────────────────────────────
 
 export const auditLog = pgTable("audit_log", {
@@ -235,6 +416,10 @@ export const usersRelations = relations(users, ({ many }) => ({
   partnerShares: many(partnerShares),
   auditLogs: many(auditLog),
   invoicesCreated: many(invoices),
+  projectsAsPF: many(projects, { relationName: "pontoFocal" }),
+  projectAssistants: many(projectAssistants),
+  salaryLines: many(salaryLines),
+  projectPayments: many(projectPayments),
 }));
 
 export const partnerSharesRelations = relations(partnerShares, ({ one }) => ({
@@ -244,6 +429,7 @@ export const partnerSharesRelations = relations(partnerShares, ({ one }) => ({
 export const clientsRelations = relations(clients, ({ many }) => ({
   contacts: many(contacts),
   invoices: many(invoices),
+  projects: many(projects),
 }));
 
 export const contactsRelations = relations(contacts, ({ one }) => ({
@@ -258,12 +444,97 @@ export const invoicesRelations = relations(invoices, ({ one, many }) => ({
     fields: [invoices.clientId],
     references: [clients.id],
   }),
+  project: one(projects, {
+    fields: [invoices.projectId],
+    references: [projects.id],
+  }),
   createdBy: one(users, {
     fields: [invoices.createdBy],
     references: [users.id],
   }),
   items: many(invoiceItems),
   payments: many(invoicePayments),
+}));
+
+export const projectsRelations = relations(projects, ({ one, many }) => ({
+  client: one(clients, {
+    fields: [projects.clientId],
+    references: [clients.id],
+  }),
+  servico: one(servicesCatalog, {
+    fields: [projects.servicoId],
+    references: [servicesCatalog.id],
+  }),
+  pontoFocal: one(users, {
+    fields: [projects.pontoFocalId],
+    references: [users.id],
+    relationName: "pontoFocal",
+  }),
+  assistants: many(projectAssistants),
+  invoices: many(invoices),
+  projectPayments: many(projectPayments),
+  expenses: many(expenses),
+}));
+
+export const projectAssistantsRelations = relations(projectAssistants, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectAssistants.projectId],
+    references: [projects.id],
+  }),
+  user: one(users, {
+    fields: [projectAssistants.userId],
+    references: [users.id],
+  }),
+}));
+
+export const salaryPoliciesRelations = relations(salaryPolicies, ({ many }) => ({
+  periods: many(salaryPeriods),
+}));
+
+export const salaryPeriodsRelations = relations(salaryPeriods, ({ one, many }) => ({
+  policy: one(salaryPolicies, {
+    fields: [salaryPeriods.policyId],
+    references: [salaryPolicies.id],
+  }),
+  lines: many(salaryLines),
+  projectPayments: many(projectPayments),
+}));
+
+export const salaryLinesRelations = relations(salaryLines, ({ one }) => ({
+  period: one(salaryPeriods, {
+    fields: [salaryLines.periodId],
+    references: [salaryPeriods.id],
+  }),
+  user: one(users, {
+    fields: [salaryLines.userId],
+    references: [users.id],
+  }),
+}));
+
+export const projectPaymentsRelations = relations(projectPayments, ({ one }) => ({
+  period: one(salaryPeriods, {
+    fields: [projectPayments.periodId],
+    references: [salaryPeriods.id],
+  }),
+  project: one(projects, {
+    fields: [projectPayments.projectId],
+    references: [projects.id],
+  }),
+  user: one(users, {
+    fields: [projectPayments.userId],
+    references: [users.id],
+  }),
+}));
+
+export const expensesRelations = relations(expenses, ({ one }) => ({
+  project: one(projects, {
+    fields: [expenses.projectoId],
+    references: [projects.id],
+  }),
+  registadoPor: one(users, {
+    fields: [expenses.registadoPor],
+    references: [users.id],
+  }),
 }));
 
 export const invoiceItemsRelations = relations(invoiceItems, ({ one }) => ({
@@ -315,3 +586,18 @@ export type UserRole = (typeof roleEnum.enumValues)[number];
 export type InvoiceState = (typeof invoiceStateEnum.enumValues)[number];
 export type InvoiceType = (typeof invoiceTypeEnum.enumValues)[number];
 export type Currency = (typeof currencyEnum.enumValues)[number];
+export type ProjectState = (typeof projectStateEnum.enumValues)[number];
+export type SalaryPeriodState = (typeof salaryPeriodStateEnum.enumValues)[number];
+export type ProjectRole = (typeof projectRoleEnum.enumValues)[number];
+export type Project = typeof projects.$inferSelect;
+export type NewProject = typeof projects.$inferInsert;
+export type ProjectAssistant = typeof projectAssistants.$inferSelect;
+export type SalaryPolicy = typeof salaryPolicies.$inferSelect;
+export type NewSalaryPolicy = typeof salaryPolicies.$inferInsert;
+export type SalaryPeriod = typeof salaryPeriods.$inferSelect;
+export type NewSalaryPeriod = typeof salaryPeriods.$inferInsert;
+export type SalaryLine = typeof salaryLines.$inferSelect;
+export type NewSalaryLine = typeof salaryLines.$inferInsert;
+export type ProjectPayment = typeof projectPayments.$inferSelect;
+export type Expense = typeof expenses.$inferSelect;
+export type NewExpense = typeof expenses.$inferInsert;

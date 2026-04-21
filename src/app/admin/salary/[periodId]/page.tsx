@@ -1,0 +1,269 @@
+import { getSalaryPeriod } from "@/lib/salary/actions";
+import { getCurrentUser } from "@/lib/auth/actions";
+import { redirect, notFound } from "next/navigation";
+import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { formatCurrency, formatDate } from "@/lib/utils/format";
+import { ConfirmPeriodButton } from "@/components/forms/ConfirmPeriodButton";
+import { MarkLinePaidButton } from "@/components/forms/MarkLinePaidButton";
+import { ArrowLeft, CheckCircle2 } from "lucide-react";
+import type { ProjectPaymentRecord } from "@/lib/salary/types";
+
+const PERIOD_STATE_LABELS: Record<string, string> = {
+  aberto: "Aberto",
+  calculado: "Calculado",
+  confirmado: "Confirmado",
+  pago: "Pago",
+};
+
+const PERIOD_STATE_COLORS: Record<string, string> = {
+  aberto: "bg-gray-100 text-gray-700",
+  calculado: "bg-blue-100 text-blue-700",
+  confirmado: "bg-orange-100 text-orange-700",
+  pago: "bg-green-100 text-green-700",
+};
+
+const MES_LABELS = [
+  "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+];
+
+interface PageProps {
+  params: Promise<{ periodId: string }>;
+}
+
+export default async function SalaryPeriodPage({ params }: PageProps) {
+  const { user, dbUser } = await getCurrentUser();
+  if (!user || !dbUser) redirect("/login");
+
+  const { periodId } = await params;
+  const period = await getSalaryPeriod(periodId);
+  if (!period) notFound();
+
+  const canConfirm =
+    ["ca", "dg"].includes(dbUser.role) && period.estado === "calculado";
+  const canMarkPaid =
+    ["ca", "dg"].includes(dbUser.role) && period.estado === "confirmado";
+
+  // Group project payments by project for summary table
+  type PaymentRow = (typeof period.projectPayments)[number];
+  const paymentsByProject = period.projectPayments.reduce<
+    Map<string, { titulo: string; payments: PaymentRow[] }>
+  >((acc, pp) => {
+    if (!acc.has(pp.projectId)) {
+      acc.set(pp.projectId, { titulo: pp.project.titulo, payments: [] });
+    }
+    acc.get(pp.projectId)!.payments.push(pp);
+    return acc;
+  }, new Map());
+
+  return (
+    <div className="max-w-5xl space-y-6">
+      {/* Header */}
+      <div>
+        <Link
+          href="/admin/salary"
+          className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-3"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Folha Salarial
+        </Link>
+
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {MES_LABELS[period.mes]} {period.ano}
+            </h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {period.policy.nome} v{period.policy.versao}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Badge
+              className={
+                PERIOD_STATE_COLORS[period.estado] ?? "bg-gray-100 text-gray-700"
+              }
+            >
+              {PERIOD_STATE_LABELS[period.estado] ?? period.estado}
+            </Badge>
+            {canConfirm && <ConfirmPeriodButton periodId={period.id} />}
+          </div>
+        </div>
+      </div>
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          { label: "Total Bruto", value: period.totalBruto },
+          { label: "Total Líquido", value: period.totalLiquido },
+          { label: "Total Folha", value: period.totalFolha },
+        ].map((card) => (
+          <div
+            key={card.label}
+            className="rounded-lg border bg-white px-5 py-4"
+          >
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+              {card.label}
+            </p>
+            <p className="text-xl font-bold tabular-nums mt-1">
+              {formatCurrency(card.value)}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Salary lines */}
+      <section className="rounded-lg border bg-white overflow-hidden">
+        <div className="px-5 py-3 border-b bg-gray-50">
+          <h2 className="font-semibold text-gray-800">Linhas salariais</h2>
+        </div>
+        <table className="w-full text-sm">
+          <thead className="border-b bg-gray-50">
+            <tr>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">
+                Colaborador
+              </th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">
+                Sal. Base
+              </th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">
+                Componente
+              </th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">
+                Subsídio
+              </th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">
+                Outros
+              </th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600">
+                Descontos
+              </th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600 font-bold">
+                Total Líq.
+              </th>
+              <th className="px-4 py-3 font-medium text-gray-600 text-center">
+                Pago
+              </th>
+              <th className="px-4 py-3" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {period.lines.map((line) => {
+              // Sum up dynamic component
+              const componenteTotal = (
+                line.componenteDinamica as ProjectPaymentRecord[]
+              ).reduce((sum, c) => sum + c.valorRecebido, 0);
+
+              // Sum subsidios
+              const subsidioTotal = Object.values(
+                (line.subsidios as Record<string, number>) ?? {}
+              ).reduce((sum, v) => sum + v, 0);
+
+              return (
+                <tr key={line.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <p className="font-medium">{line.user.nomeCurto}</p>
+                    <p className="text-xs text-gray-400 uppercase">
+                      {line.user.role}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    {formatCurrency(line.salarioBase)}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    {formatCurrency(componenteTotal)}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    {subsidioTotal > 0 ? formatCurrency(subsidioTotal) : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    {Number(line.outrosBeneficios) > 0
+                      ? formatCurrency(line.outrosBeneficios)
+                      : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums text-red-600">
+                    {Number(line.descontos) > 0
+                      ? `-${formatCurrency(line.descontos)}`
+                      : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums font-bold">
+                    {formatCurrency(line.totalLiquido)}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {line.pago ? (
+                      <div className="flex flex-col items-center gap-0.5">
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        {line.dataPagamento && (
+                          <span className="text-xs text-gray-400">
+                            {formatDate(line.dataPagamento)}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-gray-300 text-xs">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {canMarkPaid && !line.pago && (
+                      <MarkLinePaidButton
+                        lineId={line.id}
+                        nomeCurto={line.user.nomeCurto}
+                      />
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </section>
+
+      {/* Project payments breakdown */}
+      {paymentsByProject.size > 0 && (
+        <section className="rounded-lg border bg-white overflow-hidden">
+          <div className="px-5 py-3 border-b bg-gray-50">
+            <h2 className="font-semibold text-gray-800">
+              Distribuição por projecto
+            </h2>
+          </div>
+          {Array.from(paymentsByProject.entries()).map(
+            ([projectId, { titulo, payments }]) => (
+              <div key={projectId} className="border-b last:border-0">
+                <div className="px-5 py-2 bg-gray-50/50">
+                  <p className="text-sm font-medium text-gray-700">{titulo}</p>
+                </div>
+                <table className="w-full text-sm">
+                  <tbody className="divide-y divide-gray-50">
+                    {payments.map((pp) => (
+                      <tr key={pp.id}>
+                        <td className="px-6 py-2 text-gray-700">
+                          {pp.user.nomeCurto}
+                        </td>
+                        <td className="px-4 py-2 text-gray-500 uppercase text-xs">
+                          {pp.papel}
+                        </td>
+                        <td className="px-4 py-2 text-gray-500 tabular-nums">
+                          {Number(pp.percentagemAplicada) * 100}%
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums font-medium">
+                          {formatCurrency(pp.valorRecebido)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          )}
+        </section>
+      )}
+
+      <div className="pt-2">
+        <Button variant="outline" asChild>
+          <Link href="/admin/salary">Voltar à lista</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}

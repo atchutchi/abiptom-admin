@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,13 +9,17 @@ import { Label } from "@/components/ui/label";
 import { getDefaultRoute } from "@/lib/auth/rbac";
 import type { UserRole } from "@/lib/db/schema";
 
-type Step = "enroll" | "verify" | "done";
+// init   → a verificar factores existentes
+// enroll → novo factor: mostra QR code
+// verify → factor já existe: só pede código
+// done   → sucesso
+type Step = "init" | "enroll" | "verify" | "done";
 
 export function SetupMfaForm() {
   const router = useRouter();
   const supabase = createClient();
 
-  const [step, setStep] = useState<Step>("enroll");
+  const [step, setStep] = useState<Step>("init");
   const [qrCode, setQrCode] = useState("");
   const [secret, setSecret] = useState("");
   const [factorId, setFactorId] = useState("");
@@ -25,15 +28,28 @@ export function SetupMfaForm() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    async function enroll() {
+    async function init() {
       setLoading(true);
+      setError("");
       try {
-        const { data, error } = await supabase.auth.mfa.enroll({
+        // 1. Verificar se já existe um factor TOTP verificado
+        const { data: factorsData } = await supabase.auth.mfa.listFactors();
+        const verified = factorsData?.totp?.find((f) => f.status === "verified");
+
+        if (verified) {
+          // Factor já existe — vai directamente para o passo de verificação
+          setFactorId(verified.id);
+          setStep("verify");
+          return;
+        }
+
+        // 2. Nenhum factor verificado — inscrever novo
+        const { data, error: enrollError } = await supabase.auth.mfa.enroll({
           factorType: "totp",
           issuer: "ABIPTOM Admin",
         });
 
-        if (error || !data) {
+        if (enrollError || !data) {
           setError("Erro ao gerar QR code. Tenta novamente.");
           return;
         }
@@ -41,12 +57,14 @@ export function SetupMfaForm() {
         setFactorId(data.id);
         setQrCode(data.totp.qr_code);
         setSecret(data.totp.secret);
+        setStep("enroll");
       } finally {
         setLoading(false);
       }
     }
 
-    enroll();
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleVerify(e: React.FormEvent) {
@@ -74,17 +92,21 @@ export function SetupMfaForm() {
         return;
       }
 
+      // Marcar MFA como activo nos metadados — o middleware lê este campo
+      await supabase.auth.updateUser({ data: { mfa_enabled: true } });
+
       setStep("done");
       const {
         data: { user },
       } = await supabase.auth.getUser();
       const role = (user?.user_metadata?.role ?? "staff") as UserRole;
-
       setTimeout(() => router.push(getDefaultRoute(role)), 1500);
     } finally {
       setLoading(false);
     }
   }
+
+  // ── Renderização ──────────────────────────────────────────────────────────────
 
   if (step === "done") {
     return (
@@ -95,17 +117,19 @@ export function SetupMfaForm() {
     );
   }
 
+  if (step === "init") {
+    return (
+      <p className="text-center text-sm text-gray-500">A carregar...</p>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {loading && !qrCode && (
-        <p className="text-center text-sm text-gray-500">A gerar QR code...</p>
-      )}
-
-      {qrCode && (
+      {/* ── Novo factor: instrução + QR code ── */}
+      {step === "enroll" && qrCode && (
         <div className="space-y-4">
           <p className="text-sm text-gray-700">
-            1. Abre a tua aplicação autenticadora (Google Authenticator, Authy,
-            etc.)
+            1. Abre a tua aplicação autenticadora (Google Authenticator, Authy, etc.)
           </p>
           <p className="text-sm text-gray-700">
             2. Digitaliza o QR code ou insere o código manualmente:
@@ -120,46 +144,44 @@ export function SetupMfaForm() {
             <p className="text-xs text-gray-500 mb-1">Código manual:</p>
             <code className="text-sm font-mono break-all">{secret}</code>
           </div>
-
-          <form onSubmit={handleVerify} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="code">
-                3. Insere o código de 6 dígitos para confirmar
-              </Label>
-              <Input
-                id="code"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9 ]*"
-                maxLength={7}
-                placeholder="000 000"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                required
-              />
-            </div>
-
-            {error && <p className="text-sm text-red-600">{error}</p>}
-
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "A verificar..." : "Confirmar e activar MFA"}
-            </Button>
-          </form>
         </div>
       )}
 
-      {error && !qrCode && (
-        <div className="space-y-3">
-          <p className="text-sm text-red-600">{error}</p>
-          <Button
-            onClick={() => window.location.reload()}
-            variant="outline"
-            className="w-full"
-          >
-            Tentar novamente
-          </Button>
-        </div>
+      {/* ── Factor existente: mensagem informativa ── */}
+      {step === "verify" && (
+        <p className="text-sm text-gray-700">
+          MFA já configurado. Introduz o código da tua aplicação autenticadora
+          para confirmar o acesso.
+        </p>
       )}
+
+      {/* ── Formulário de verificação (common a enroll e verify) ── */}
+      <form onSubmit={handleVerify} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="code">
+            {step === "enroll"
+              ? "3. Insere o código de 6 dígitos para confirmar"
+              : "Código de 6 dígitos"}
+          </Label>
+          <Input
+            id="code"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9 ]*"
+            maxLength={7}
+            placeholder="000 000"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            required
+          />
+        </div>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <Button type="submit" className="w-full" disabled={loading}>
+          {loading ? "A verificar..." : "Confirmar e activar MFA"}
+        </Button>
+      </form>
     </div>
   );
 }
