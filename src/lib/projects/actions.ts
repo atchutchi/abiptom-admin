@@ -2,14 +2,8 @@
 
 import { z } from "zod";
 import { dbAdmin } from "@/lib/db";
-import {
-  projects,
-  projectAssistants,
-  users,
-  clients,
-  servicesCatalog,
-} from "@/lib/db/schema";
-import { eq, and, ilike, or, inArray } from "drizzle-orm";
+import { projects, projectAssistants } from "@/lib/db/schema";
+import { eq, ilike, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/actions";
 import { insertAuditLog } from "@/lib/db/audit";

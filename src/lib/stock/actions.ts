@@ -6,7 +6,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/actions";
 import { insertAuditLog } from "@/lib/db/audit";
-import { dbAdmin } from "@/lib/db";
+import { withAuthenticatedDb } from "@/lib/db";
 import { stockItems, stockMovements } from "@/lib/db/schema";
 
 const stockItemSchema = z.object({
@@ -52,49 +52,53 @@ async function requireStockAccess() {
 }
 
 export async function listStockItems() {
-  await requireStockAccess();
+  const { user } = await requireStockAccess();
 
-  return dbAdmin.query.stockItems.findMany({
-    orderBy: [asc(stockItems.nome)],
-    with: {
-      movements: {
-        columns: {
-          id: true,
-        },
-      },
-    },
-  });
-}
-
-export async function getStockItem(id: string) {
-  await requireStockAccess();
-
-  return dbAdmin.query.stockItems.findFirst({
-    where: eq(stockItems.id, id),
-    with: {
-      movements: {
-        orderBy: [desc(stockMovements.createdAt)],
-        with: {
-          criadoPor: {
-            columns: {
-              id: true,
-              nomeCurto: true,
-            },
+  return withAuthenticatedDb(user, async (db) =>
+    db.query.stockItems.findMany({
+      orderBy: [asc(stockItems.nome)],
+      with: {
+        movements: {
+          columns: {
+            id: true,
           },
         },
       },
-      createdBy: {
-        columns: {
-          id: true,
-          nomeCurto: true,
+    })
+  );
+}
+
+export async function getStockItem(id: string) {
+  const { user } = await requireStockAccess();
+
+  return withAuthenticatedDb(user, async (db) =>
+    db.query.stockItems.findFirst({
+      where: eq(stockItems.id, id),
+      with: {
+        movements: {
+          orderBy: [desc(stockMovements.createdAt)],
+          with: {
+            criadoPor: {
+              columns: {
+                id: true,
+                nomeCurto: true,
+              },
+            },
+          },
+        },
+        createdBy: {
+          columns: {
+            id: true,
+            nomeCurto: true,
+          },
         },
       },
-    },
-  });
+    })
+  );
 }
 
 export async function createStockItem(_: unknown, formData: FormData) {
-  const { dbUser } = await requireStockAccess();
+  const { user, dbUser } = await requireStockAccess();
 
   const parsed = stockItemSchema.safeParse({
     nome: formData.get("nome"),
@@ -116,35 +120,39 @@ export async function createStockItem(_: unknown, formData: FormData) {
   let created: typeof stockItems.$inferSelect;
 
   try {
-    [created] = await dbAdmin
-      .insert(stockItems)
-      .values({
-        nome: data.nome,
-        sku: data.sku || null,
-        categoria: data.categoria || null,
-        unidade: data.unidade,
-        quantidadeAtual: Number(data.quantidadeAtual).toFixed(3),
-        quantidadeMinima: Number(data.quantidadeMinima).toFixed(3),
-        custoUnitario: data.custoUnitario
-          ? Number(data.custoUnitario).toFixed(2)
-          : null,
-        localizacao: data.localizacao || null,
-        createdBy: dbUser.id,
-      })
-      .returning();
+    [created] = await withAuthenticatedDb(user, async (db) =>
+      db
+        .insert(stockItems)
+        .values({
+          nome: data.nome,
+          sku: data.sku || null,
+          categoria: data.categoria || null,
+          unidade: data.unidade,
+          quantidadeAtual: Number(data.quantidadeAtual).toFixed(3),
+          quantidadeMinima: Number(data.quantidadeMinima).toFixed(3),
+          custoUnitario: data.custoUnitario
+            ? Number(data.custoUnitario).toFixed(2)
+            : null,
+          localizacao: data.localizacao || null,
+          createdBy: dbUser.id,
+        })
+        .returning()
+    );
   } catch {
     return { error: "Não foi possível criar o item. Verifique se o SKU já existe." };
   }
 
   if (Number(data.quantidadeAtual) > 0) {
-    await dbAdmin.insert(stockMovements).values({
-      itemId: created.id,
-      tipo: "entrada",
-      quantidade: Number(data.quantidadeAtual).toFixed(3),
-      custoUnitario: data.custoUnitario ? Number(data.custoUnitario).toFixed(2) : null,
-      referencia: "Saldo inicial",
-      criadoPor: dbUser.id,
-    });
+    await withAuthenticatedDb(user, async (db) =>
+      db.insert(stockMovements).values({
+        itemId: created.id,
+        tipo: "entrada",
+        quantidade: Number(data.quantidadeAtual).toFixed(3),
+        custoUnitario: data.custoUnitario ? Number(data.custoUnitario).toFixed(2) : null,
+        referencia: "Saldo inicial",
+        criadoPor: dbUser.id,
+      })
+    );
   }
 
   const hdrs = await headers();
@@ -163,7 +171,7 @@ export async function createStockItem(_: unknown, formData: FormData) {
 }
 
 export async function registerStockMovement(itemId: string, _: unknown, formData: FormData) {
-  const { dbUser } = await requireStockAccess();
+  const { user, dbUser } = await requireStockAccess();
 
   const parsed = stockMovementSchema.safeParse({
     tipo: formData.get("tipo"),
@@ -185,8 +193,8 @@ export async function registerStockMovement(itemId: string, _: unknown, formData
   }
 
   try {
-    await dbAdmin.transaction(async (tx) => {
-      const item = await tx.query.stockItems.findFirst({
+    await withAuthenticatedDb(user, async (db) => {
+      const item = await db.query.stockItems.findFirst({
         where: eq(stockItems.id, itemId),
       });
 
@@ -206,7 +214,7 @@ export async function registerStockMovement(itemId: string, _: unknown, formData
         proxima = quantidade;
       }
 
-      await tx.insert(stockMovements).values({
+      await db.insert(stockMovements).values({
         itemId,
         tipo: data.tipo,
         quantidade: quantidade.toFixed(3),
@@ -216,7 +224,7 @@ export async function registerStockMovement(itemId: string, _: unknown, formData
         criadoPor: dbUser.id,
       });
 
-      await tx
+      await db
         .update(stockItems)
         .set({
           quantidadeAtual: proxima.toFixed(3),

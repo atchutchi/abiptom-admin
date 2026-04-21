@@ -1,0 +1,32 @@
+export const E2E_USERS = {
+  ca: {
+    email: process.env.E2E_CA_EMAIL ?? "e2e.ca@abiptom.gw",
+    password: process.env.E2E_CA_PASSWORD ?? "SenhaSegura_CA_2026!",
+    role: "ca" as const,
+    nomeCompleto: "E2E Conselho de Administração",
+    nomeCurto: "E2E CA",
+    cargo: "Administrador de Testes",
+    salarioBaseMensal: "0",
+    mfaEnabled: true,
+  },
+  dg: {
+    email: process.env.E2E_DG_EMAIL ?? "e2e.dg@abiptom.gw",
+    password: process.env.E2E_DG_PASSWORD ?? "SenhaSegura_DG_2026!",
+    role: "dg" as const,
+    nomeCompleto: "E2E Director Geral",
+    nomeCurto: "E2E DG",
+    cargo: "Director Geral de Testes",
+    salarioBaseMensal: "37500",
+    mfaEnabled: true,
+  },
+  staff: {
+    email: process.env.E2E_STAFF_EMAIL ?? "e2e.staff@abiptom.gw",
+    password: process.env.E2E_STAFF_PASSWORD ?? "SenhaSegura_STAFF_2026!",
+    role: "staff" as const,
+    nomeCompleto: "E2E Colaborador",
+    nomeCurto: "E2E Staff",
+    cargo: "Colaborador de Testes",
+    salarioBaseMensal: "30000",
+    mfaEnabled: false,
+  },
+} as const;

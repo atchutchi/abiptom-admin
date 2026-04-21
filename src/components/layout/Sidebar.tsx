@@ -18,6 +18,7 @@ import {
   IdCard,
   Package,
   CheckSquare,
+  Wallet,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -117,6 +118,18 @@ const STAFF_NAV_ITEMS: NavItem[] = [
     label: "O meu painel",
     href: "/staff/me/dashboard",
     icon: LayoutDashboard,
+    roles: ["staff", "coord"],
+  },
+  {
+    label: "Meus projectos",
+    href: "/staff/me/projects",
+    icon: ClipboardList,
+    roles: ["staff", "coord"],
+  },
+  {
+    label: "Histórico salarial",
+    href: "/staff/me/salary-history",
+    icon: Wallet,
     roles: ["staff", "coord"],
   },
   {

@@ -47,7 +47,6 @@ export function Header({ title }: HeaderProps) {
           variant="ghost"
           size="sm"
           onClick={handleLogout}
-          aria-label="Terminar sessão"
         >
           <LogOut className="h-4 w-4 mr-2" aria-hidden="true" />
           Sair

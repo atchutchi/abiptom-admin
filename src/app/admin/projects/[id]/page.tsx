@@ -7,7 +7,6 @@ import { eq } from "drizzle-orm";
 import { Header } from "@/components/layout/Header";
 import ProjectForm from "@/components/forms/ProjectForm";
 import { getProject } from "@/lib/projects/actions";
-import { Badge } from "@/components/ui/badge";
 
 export const metadata = { title: "Projecto — ABIPTOM Admin" };
 

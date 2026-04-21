@@ -1,23 +1,22 @@
 import { test, expect } from "@playwright/test";
+import { E2E_USERS } from "./credentials";
 
 /**
  * Fase 1 — Testes de autenticação e RBAC
  *
- * Pré-requisitos (configurar em .env.test.local):
- *   E2E_CA_EMAIL      — email de um utilizador CA com MFA activo
+ * Variáveis opcionais:
+ *   E2E_CA_EMAIL      — email de um utilizador CA de teste
  *   E2E_CA_PASSWORD   — password do CA
- *   E2E_STAFF_EMAIL   — email de um utilizador staff
+ *   E2E_STAFF_EMAIL   — email de um utilizador staff de teste
  *   E2E_STAFF_PASSWORD
  *   E2E_DG_EMAIL
  *   E2E_DG_PASSWORD
  */
 
-const CA_EMAIL = process.env.E2E_CA_EMAIL ?? "ca@abiptom.gw";
-const CA_PASSWORD = process.env.E2E_CA_PASSWORD ?? "senha_ca_teste";
-const STAFF_EMAIL = process.env.E2E_STAFF_EMAIL ?? "staff@abiptom.gw";
-const STAFF_PASSWORD = process.env.E2E_STAFF_PASSWORD ?? "senha_staff_teste";
-const DG_EMAIL = process.env.E2E_DG_EMAIL ?? "dg@abiptom.gw";
-const DG_PASSWORD = process.env.E2E_DG_PASSWORD ?? "senha_dg_teste";
+const STAFF_EMAIL = E2E_USERS.staff.email;
+const STAFF_PASSWORD = E2E_USERS.staff.password;
+const DG_EMAIL = E2E_USERS.dg.email;
+const DG_PASSWORD = E2E_USERS.dg.password;
 
 test.describe("Login", () => {
   test("mostra formulário de login na raiz sem sessão", async ({ page }) => {
@@ -103,7 +102,7 @@ test.describe("CRUD Utilizadores (CA/DG)", () => {
 });
 
 test.describe("RLS — isolamento de dados", () => {
-  test("staff não consegue consultar lista de utilizadores via API", async ({ page, request }) => {
+  test("staff não consegue consultar lista de utilizadores via API", async ({ page }) => {
     // Login como staff
     await page.goto("/login");
     await page.getByLabel("Email").fill(STAFF_EMAIL);

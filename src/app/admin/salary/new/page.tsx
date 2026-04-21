@@ -18,8 +18,7 @@ export default async function NewSalaryPeriodPage() {
 
   // Load active projects with PF + assistants
   const projectRows = await dbAdmin.query.projects.findMany({
-    where: (p, { eq, inArray }) =>
-      inArray(p.estado, ["activo", "proposta"]),
+    where: (p, { inArray }) => inArray(p.estado, ["activo", "proposta"]),
     with: {
       client: { columns: { id: true, nome: true } },
       pontoFocal: { columns: { id: true, nomeCurto: true } },

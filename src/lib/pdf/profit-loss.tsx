@@ -264,7 +264,6 @@ export function ProfitLossPDF({
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          {/* eslint-disable-next-line jsx-a11y/alt-text */}
           <Image src="/brand/abiptom-logo.png" style={styles.logo} />
           <View style={styles.titleBox}>
             <Text style={styles.titleLabel}>{title}</Text>

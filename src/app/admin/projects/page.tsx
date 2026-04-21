@@ -6,7 +6,6 @@ import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,

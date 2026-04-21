@@ -15,10 +15,18 @@ const eslintConfig = [
     ignores: [
       "node_modules/**",
       ".next/**",
+      ".claude/**",
       "out/**",
       "build/**",
+      "test-results/**",
       "next-env.d.ts",
     ],
+  },
+  {
+    files: ["src/lib/pdf/**/*.tsx"],
+    rules: {
+      "jsx-a11y/alt-text": "off",
+    },
   },
 ];
 

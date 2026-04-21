@@ -1,10 +1,10 @@
 "use server";
 
 import { z } from "zod";
-import { and, desc, eq, gte, ilike, lte } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, lte, type SQL } from "drizzle-orm";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { dbAdmin } from "@/lib/db";
+import { withAuthenticatedDb } from "@/lib/db";
 import { insertAuditLog } from "@/lib/db/audit";
 import { clients, tasks, users } from "@/lib/db/schema";
 import { getCurrentUser } from "@/lib/auth/actions";
@@ -48,9 +48,9 @@ function canManageTasks(role: string) {
 }
 
 export async function listTasks(filters: TaskFilters = {}) {
-  const { dbUser } = await requireTaskAccess();
+  const { user, dbUser } = await requireTaskAccess();
 
-  const conditions = [];
+  const conditions: SQL[] = [];
 
   if (dbUser.role === "staff") {
     conditions.push(eq(tasks.atribuidaA, dbUser.id));
@@ -84,73 +84,77 @@ export async function listTasks(filters: TaskFilters = {}) {
     conditions.push(ilike(tasks.titulo, `%${filters.q}%`));
   }
 
-  return dbAdmin.query.tasks.findMany({
-    where: conditions.length ? and(...conditions) : undefined,
-    orderBy: [desc(tasks.createdAt)],
-    with: {
-      atribuidaA: {
-        columns: {
-          id: true,
-          nomeCurto: true,
-          role: true,
+  return withAuthenticatedDb(user, async (db) =>
+    db.query.tasks.findMany({
+      where: conditions.length ? and(...conditions) : undefined,
+      orderBy: [desc(tasks.createdAt)],
+      with: {
+        atribuidaA: {
+          columns: {
+            id: true,
+            nomeCurto: true,
+            role: true,
+          },
+        },
+        atribuidaPor: {
+          columns: {
+            id: true,
+            nomeCurto: true,
+          },
+        },
+        projecto: {
+          columns: {
+            id: true,
+            titulo: true,
+          },
+        },
+        cliente: {
+          columns: {
+            id: true,
+            nome: true,
+          },
         },
       },
-      atribuidaPor: {
-        columns: {
-          id: true,
-          nomeCurto: true,
-        },
-      },
-      projecto: {
-        columns: {
-          id: true,
-          titulo: true,
-        },
-      },
-      cliente: {
-        columns: {
-          id: true,
-          nome: true,
-        },
-      },
-    },
-  });
+    })
+  );
 }
 
 export async function getTask(id: string) {
-  const { dbUser } = await requireTaskAccess();
+  const { user, dbUser } = await requireTaskAccess();
 
-  const task = await dbAdmin.query.tasks.findFirst({
-    where: eq(tasks.id, id),
-    with: {
-      atribuidaA: {
-        columns: {
-          id: true,
-          nomeCurto: true,
-          role: true,
-          email: true,
+  const task = await withAuthenticatedDb(user, async (db) =>
+    db.query.tasks.findFirst({
+      where: eq(tasks.id, id),
+      with: {
+        atribuidaA: {
+          columns: {
+            id: true,
+            nomeCurto: true,
+            role: true,
+            email: true,
+          },
+        },
+        atribuidaPor: {
+          columns: {
+            id: true,
+            nomeCurto: true,
+          },
+        },
+        projecto: {
+          columns: {
+            id: true,
+            titulo: true,
+          },
+        },
+        cliente: {
+          columns: {
+            id: true,
+            nome: true,
+          },
         },
       },
-      atribuidaPor: {
-        columns: {
-          id: true,
-          nomeCurto: true,
-        },
-      },
-      projecto: {
-        columns: {
-          id: true,
-          titulo: true,
-        },
-      },
-      cliente: {
-        columns: {
-          id: true,
-          nome: true,
-        },
-      },
-    },
-  });
+    })
+  );
 
   if (!task) return null;
 
@@ -162,49 +166,55 @@ export async function getTask(id: string) {
 }
 
 export async function listAssignableUsers() {
-  const { dbUser } = await requireTaskAccess();
+  const { user, dbUser } = await requireTaskAccess();
   if (!canManageTasks(dbUser.role)) return [];
 
-  return dbAdmin.query.users.findMany({
-    where: eq(users.activo, true),
-    orderBy: (u, { asc }) => [asc(u.nomeCurto)],
-    columns: {
-      id: true,
-      nomeCurto: true,
-      role: true,
-    },
-  });
+  return withAuthenticatedDb(user, async (db) =>
+    db.query.users.findMany({
+      where: eq(users.activo, true),
+      orderBy: (u, { asc }) => [asc(u.nomeCurto)],
+      columns: {
+        id: true,
+        nomeCurto: true,
+        role: true,
+      },
+    })
+  );
 }
 
 export async function listTaskProjectOptions() {
-  const { dbUser } = await requireTaskAccess();
+  const { user, dbUser } = await requireTaskAccess();
   if (!canManageTasks(dbUser.role)) return [];
 
-  return dbAdmin.query.projects.findMany({
-    orderBy: (p, { asc }) => [asc(p.titulo)],
-    columns: {
-      id: true,
-      titulo: true,
-    },
-  });
+  return withAuthenticatedDb(user, async (db) =>
+    db.query.projects.findMany({
+      orderBy: (p, { asc }) => [asc(p.titulo)],
+      columns: {
+        id: true,
+        titulo: true,
+      },
+    })
+  );
 }
 
 export async function listTaskClientOptions() {
-  const { dbUser } = await requireTaskAccess();
+  const { user, dbUser } = await requireTaskAccess();
   if (!canManageTasks(dbUser.role)) return [];
 
-  return dbAdmin.query.clients.findMany({
-    where: eq(clients.activo, true),
-    orderBy: (c, { asc }) => [asc(c.nome)],
-    columns: {
-      id: true,
-      nome: true,
-    },
-  });
+  return withAuthenticatedDb(user, async (db) =>
+    db.query.clients.findMany({
+      where: eq(clients.activo, true),
+      orderBy: (c, { asc }) => [asc(c.nome)],
+      columns: {
+        id: true,
+        nome: true,
+      },
+    })
+  );
 }
 
 export async function createTask(_: unknown, formData: FormData) {
-  const { dbUser } = await requireTaskAccess();
+  const { user, dbUser } = await requireTaskAccess();
   if (!canManageTasks(dbUser.role)) return { error: "Sem permissão" };
 
   const parsed = taskSchema.safeParse({
@@ -224,21 +234,23 @@ export async function createTask(_: unknown, formData: FormData) {
 
   const data = parsed.data;
 
-  const [created] = await dbAdmin
-    .insert(tasks)
-    .values({
-      titulo: data.titulo,
-      descricao: data.descricao || null,
-      atribuidaA: data.atribuidaA,
-      atribuidaPor: dbUser.id,
-      projectoId: data.projectoId || null,
-      clienteId: data.clienteId || null,
-      prazo: data.prazo || null,
-      prioridade: data.prioridade,
-      estado: data.estado,
-      concluidaEm: data.estado === "concluida" ? new Date() : null,
-    })
-    .returning();
+  const [created] = await withAuthenticatedDb(user, async (db) =>
+    db
+      .insert(tasks)
+      .values({
+        titulo: data.titulo,
+        descricao: data.descricao || null,
+        atribuidaA: data.atribuidaA,
+        atribuidaPor: dbUser.id,
+        projectoId: data.projectoId || null,
+        clienteId: data.clienteId || null,
+        prazo: data.prazo || null,
+        prioridade: data.prioridade,
+        estado: data.estado,
+        concluidaEm: data.estado === "concluida" ? new Date() : null,
+      })
+      .returning()
+  );
 
   const hdrs = await headers();
   await insertAuditLog({
@@ -259,10 +271,12 @@ export async function createTask(_: unknown, formData: FormData) {
 }
 
 export async function updateTask(id: string, _: unknown, formData: FormData) {
-  const { dbUser } = await requireTaskAccess();
+  const { user, dbUser } = await requireTaskAccess();
   if (!canManageTasks(dbUser.role)) return { error: "Sem permissão" };
 
-  const existing = await dbAdmin.query.tasks.findFirst({ where: eq(tasks.id, id) });
+  const existing = await withAuthenticatedDb(user, async (db) =>
+    db.query.tasks.findFirst({ where: eq(tasks.id, id) })
+  );
   if (!existing) return { error: "Tarefa não encontrada" };
 
   const parsed = taskSchema.safeParse({
@@ -282,25 +296,27 @@ export async function updateTask(id: string, _: unknown, formData: FormData) {
 
   const data = parsed.data;
 
-  const [updated] = await dbAdmin
-    .update(tasks)
-    .set({
-      titulo: data.titulo,
-      descricao: data.descricao || null,
-      atribuidaA: data.atribuidaA,
-      projectoId: data.projectoId || null,
-      clienteId: data.clienteId || null,
-      prazo: data.prazo || null,
-      prioridade: data.prioridade,
-      estado: data.estado,
-      concluidaEm:
-        data.estado === "concluida"
-          ? existing.concluidaEm ?? new Date()
-          : null,
-      updatedAt: new Date(),
-    })
-    .where(eq(tasks.id, id))
-    .returning();
+  const [updated] = await withAuthenticatedDb(user, async (db) =>
+    db
+      .update(tasks)
+      .set({
+        titulo: data.titulo,
+        descricao: data.descricao || null,
+        atribuidaA: data.atribuidaA,
+        projectoId: data.projectoId || null,
+        clienteId: data.clienteId || null,
+        prazo: data.prazo || null,
+        prioridade: data.prioridade,
+        estado: data.estado,
+        concluidaEm:
+          data.estado === "concluida"
+            ? existing.concluidaEm ?? new Date()
+            : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, id))
+      .returning()
+  );
 
   const hdrs = await headers();
   await insertAuditLog({
@@ -323,9 +339,11 @@ export async function updateTask(id: string, _: unknown, formData: FormData) {
 }
 
 export async function setTaskState(id: string, _: unknown, formData: FormData) {
-  const { dbUser } = await requireTaskAccess();
+  const { user, dbUser } = await requireTaskAccess();
 
-  const existing = await dbAdmin.query.tasks.findFirst({ where: eq(tasks.id, id) });
+  const existing = await withAuthenticatedDb(user, async (db) =>
+    db.query.tasks.findFirst({ where: eq(tasks.id, id) })
+  );
   if (!existing) return { error: "Tarefa não encontrada" };
 
   const canManage = canManageTasks(dbUser.role);
@@ -345,15 +363,17 @@ export async function setTaskState(id: string, _: unknown, formData: FormData) {
 
   const estado = parsed.data.estado;
 
-  const [updated] = await dbAdmin
-    .update(tasks)
-    .set({
-      estado,
-      concluidaEm: estado === "concluida" ? new Date() : null,
-      updatedAt: new Date(),
-    })
-    .where(eq(tasks.id, id))
-    .returning();
+  const [updated] = await withAuthenticatedDb(user, async (db) =>
+    db
+      .update(tasks)
+      .set({
+        estado,
+        concluidaEm: estado === "concluida" ? new Date() : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(tasks.id, id))
+      .returning()
+  );
 
   const hdrs = await headers();
   await insertAuditLog({
