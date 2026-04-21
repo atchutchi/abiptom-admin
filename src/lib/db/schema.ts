@@ -41,6 +41,26 @@ export const periodicidadeEnum = pgEnum("periodicidade", [
   "bienal",
 ]);
 
+export const expenseCategoryEnum = pgEnum("expense_category", [
+  "aluguer",
+  "servicos_publicos",
+  "material_escritorio",
+  "deslocacoes",
+  "marketing",
+  "formacao",
+  "software_licencas",
+  "manutencao",
+  "impostos_taxas",
+  "outros",
+]);
+
+export const expenseStateEnum = pgEnum("expense_state", [
+  "rascunho",
+  "aprovada",
+  "paga",
+  "anulada",
+]);
+
 // ─── Sequences ───────────────────────────────────────────────────────────────
 
 export const invoiceNumberSeq = pgSequence("invoice_number_seq", {
@@ -212,6 +232,39 @@ export const invoicePayments = pgTable("invoice_payments", {
     .defaultNow(),
 });
 
+// ─── expenses ────────────────────────────────────────────────────────────────
+
+export const expenses = pgTable("expenses", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  data: date("data").notNull(),
+  categoria: expenseCategoryEnum("categoria").notNull(),
+  descricao: text("descricao").notNull(),
+  fornecedor: text("fornecedor"),
+  nifFornecedor: varchar("nif_fornecedor", { length: 50 }),
+  valor: numeric("valor", { precision: 14, scale: 2 }).notNull(),
+  moeda: currencyEnum("moeda").notNull().default("XOF"),
+  taxaCambio: numeric("taxa_cambio", { precision: 10, scale: 6 }).default("1"),
+  valorXof: numeric("valor_xof", { precision: 14, scale: 2 }).notNull(),
+  metodoPagamento: varchar("metodo_pagamento", { length: 100 }),
+  referencia: varchar("referencia", { length: 200 }),
+  comprovativoUrl: text("comprovativo_url"),
+  estado: expenseStateEnum("estado").notNull().default("rascunho"),
+  dataPagamento: date("data_pagamento"),
+  notas: text("notas"),
+  criadoPor: uuid("criado_por").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  aprovadoPor: uuid("aprovado_por").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 // ─── audit_log ────────────────────────────────────────────────────────────────
 
 export const auditLog = pgTable("audit_log", {
@@ -291,6 +344,19 @@ export const auditLogRelations = relations(auditLog, ({ one }) => ({
   user: one(users, { fields: [auditLog.userId], references: [users.id] }),
 }));
 
+export const expensesRelations = relations(expenses, ({ one }) => ({
+  criadoPor: one(users, {
+    fields: [expenses.criadoPor],
+    references: [users.id],
+    relationName: "expense_criado_por",
+  }),
+  aprovadoPor: one(users, {
+    fields: [expenses.aprovadoPor],
+    references: [users.id],
+    relationName: "expense_aprovado_por",
+  }),
+}));
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type User = typeof users.$inferSelect;
@@ -311,7 +377,11 @@ export type InvoicePayment = typeof invoicePayments.$inferSelect;
 export type NewInvoicePayment = typeof invoicePayments.$inferInsert;
 export type AuditLog = typeof auditLog.$inferSelect;
 export type NewAuditLog = typeof auditLog.$inferInsert;
+export type Expense = typeof expenses.$inferSelect;
+export type NewExpense = typeof expenses.$inferInsert;
 export type UserRole = (typeof roleEnum.enumValues)[number];
 export type InvoiceState = (typeof invoiceStateEnum.enumValues)[number];
 export type InvoiceType = (typeof invoiceTypeEnum.enumValues)[number];
 export type Currency = (typeof currencyEnum.enumValues)[number];
+export type ExpenseCategory = (typeof expenseCategoryEnum.enumValues)[number];
+export type ExpenseState = (typeof expenseStateEnum.enumValues)[number];
