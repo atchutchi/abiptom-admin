@@ -26,13 +26,16 @@ const STATES: InvoiceState[] = [
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ estado?: string; mes?: string }>;
+  searchParams: Promise<{ estado?: string; mes?: string; vencidas?: string }>;
 }) {
-  const { estado, mes } = await searchParams;
+  const { estado, mes, vencidas } = await searchParams;
+  const isVencidas = vencidas === "1";
 
-  const estadoFilter = estado
-    ? ([estado] as InvoiceState[])
-    : (["proforma", "definitiva", "paga_parcial", "paga"] as InvoiceState[]);
+  const estadoFilter = isVencidas
+    ? undefined
+    : estado
+      ? ([estado] as InvoiceState[])
+      : (["proforma", "definitiva", "paga_parcial", "paga"] as InvoiceState[]);
 
   const mesInicio = mes ? `${mes}-01` : undefined;
   const mesFim = mes ? `${mes}-31` : undefined;
@@ -41,6 +44,7 @@ export default async function InvoicesPage({
     estado: estadoFilter,
     mesInicio,
     mesFim,
+    vencidas: isVencidas,
   });
 
   const mesAtual = new Date().toISOString().slice(0, 7);
@@ -49,7 +53,9 @@ export default async function InvoicesPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Facturas</h1>
+          <h1 className="text-2xl font-semibold">
+            {isVencidas ? "Facturas vencidas" : "Facturas"}
+          </h1>
           <p className="text-sm text-muted-foreground">{facturas.length} resultado(s)</p>
         </div>
         <div className="flex gap-2">
@@ -70,7 +76,8 @@ export default async function InvoicesPage({
           <select
             name="estado"
             defaultValue={estado ?? ""}
-            className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
+            disabled={isVencidas}
+            className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none disabled:opacity-50"
           >
             <option value="">Todos activos</option>
             {STATES.map((s) => (
@@ -87,7 +94,25 @@ export default async function InvoicesPage({
             className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
           />
         </div>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground pb-2 cursor-pointer">
+          <input
+            type="checkbox"
+            name="vencidas"
+            value="1"
+            defaultChecked={isVencidas}
+            className="rounded border-border"
+          />
+          Só vencidas
+        </label>
         <Button type="submit" variant="secondary">Filtrar</Button>
+        {isVencidas && (
+          <Link
+            href="/admin/invoices"
+            className="text-xs text-muted-foreground hover:underline pb-2"
+          >
+            Limpar
+          </Link>
+        )}
       </form>
 
       {facturas.length === 0 ? (

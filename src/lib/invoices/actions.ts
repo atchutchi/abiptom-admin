@@ -71,6 +71,7 @@ export async function listInvoices(filters?: {
   clientId?: string;
   mesInicio?: string;
   mesFim?: string;
+  vencidas?: boolean;
 }) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
@@ -84,6 +85,13 @@ export async function listInvoices(filters?: {
     conditions.push(gte(invoices.dataEmissao, filters.mesInicio));
   if (filters?.mesFim)
     conditions.push(lte(invoices.dataEmissao, filters.mesFim));
+  if (filters?.vencidas) {
+    const hoje = new Date().toISOString().split("T")[0];
+    conditions.push(
+      inArray(invoices.estado, ["definitiva", "paga_parcial"]),
+      lte(invoices.dataVencimento, hoje)
+    );
+  }
 
   return db.query.invoices.findMany({
     where: conditions.length ? and(...conditions) : undefined,
