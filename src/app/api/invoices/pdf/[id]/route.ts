@@ -1,30 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
-import { db } from "@/lib/db";
+import { withAuthenticatedDb } from "@/lib/db";
 import { invoices } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { createClient } from "@/lib/supabase/server";
 import { InvoicePDF } from "@/lib/pdf/invoice";
+import { getCurrentUser } from "@/lib/auth/actions";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return new NextResponse("Não autorizado", { status: 401 });
+  const { user, dbUser } = await getCurrentUser();
+  if (!user || !dbUser) return new NextResponse("Não autorizado", { status: 401 });
+  if (!["ca", "dg", "coord"].includes(dbUser.role)) {
+    return new NextResponse("Sem permissão", { status: 403 });
+  }
 
   const { id } = await params;
 
-  const invoice = await db.query.invoices.findFirst({
-    where: eq(invoices.id, id),
-    with: {
-      client: true,
-      items: { orderBy: (i, { asc }) => [asc(i.ordem)] },
-    },
-  });
+  const invoice = await withAuthenticatedDb(user, async (db) =>
+    db.query.invoices.findFirst({
+      where: eq(invoices.id, id),
+      with: {
+        client: true,
+        items: { orderBy: (i, { asc }) => [asc(i.ordem)] },
+      },
+    })
+  );
 
   if (!invoice) return new NextResponse("Não encontrado", { status: 404 });
+  if (dbUser.role === "coord" && invoice.estado === "rascunho") {
+    return new NextResponse("Sem permissão", { status: 403 });
+  }
 
   const data = {
     numero: invoice.numero,

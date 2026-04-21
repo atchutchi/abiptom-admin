@@ -1,6 +1,6 @@
 "use server";
 
-import { db } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import {
   invoices,
   invoicePayments,
@@ -54,7 +54,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const end = `${ano}-${String(mes).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
   const hoje = now.toISOString().split("T")[0];
 
-  const [abertasRow] = await db
+  const [abertasRow] = await dbAdmin
     .select({
       count: count(),
       total: sql<string>`coalesce(sum(${invoices.total}), 0)`,
@@ -62,7 +62,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     .from(invoices)
     .where(inArray(invoices.estado, ["definitiva", "paga_parcial"]));
 
-  const [vencidasRow] = await db
+  const [vencidasRow] = await dbAdmin
     .select({
       count: count(),
       total: sql<string>`coalesce(sum(${invoices.total}), 0)`,
@@ -75,21 +75,21 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       )
     );
 
-  const [projRow] = await db
+  const [projRow] = await dbAdmin
     .select({ count: count() })
     .from(projects)
     .where(eq(projects.estado, "activo"));
 
-  const [cliRow] = await db
+  const [cliRow] = await dbAdmin
     .select({ count: count() })
     .from(clients)
     .where(eq(clients.activo, true));
 
-  const folha = await db.query.salaryPeriods.findFirst({
+  const folha = await dbAdmin.query.salaryPeriods.findFirst({
     where: and(eq(salaryPeriods.ano, ano), eq(salaryPeriods.mes, mes)),
   });
 
-  const pagamentos = await db
+  const pagamentos = await dbAdmin
     .select({
       valor: invoicePayments.valor,
       taxaCambio: invoicePayments.taxaCambio,
@@ -104,7 +104,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     0
   );
 
-  const despesasDoMes = await db
+  const despesasDoMes = await dbAdmin
     .select({
       valorXof: expenses.valorXof,
       estado: expenses.estado,
@@ -116,7 +116,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     .filter((d) => d.estado !== "anulada")
     .reduce((s, d) => s + Number(d.valorXof), 0);
 
-  const facturasMes = await db
+  const facturasMes = await dbAdmin
     .select({ total: invoices.total })
     .from(invoices)
     .where(
@@ -128,7 +128,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     );
   const facturadoMes = facturasMes.reduce((s, f) => s + Number(f.total), 0);
 
-  const ultimas = await db
+  const ultimas = await dbAdmin
     .select({
       id: invoices.id,
       numero: invoices.numero,

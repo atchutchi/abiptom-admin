@@ -10,7 +10,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth/actions";
-import { getMonthlyProfitLoss } from "@/lib/reports/actions";
+import { getMonthlyProfitLoss, getQuarterlyProfitLoss } from "@/lib/reports/actions";
 import { formatCurrency } from "@/lib/utils/format";
 import { EXPENSE_CATEGORY_LABEL } from "@/lib/expenses/labels";
 
@@ -40,7 +40,12 @@ const SALARY_STATE_LABELS: Record<string, string> = {
 };
 
 interface PageProps {
-  searchParams: Promise<{ ano?: string; mes?: string }>;
+  searchParams: Promise<{
+    ano?: string;
+    mes?: string;
+    periodo?: string;
+    trimestre?: string;
+  }>;
 }
 
 export default async function ReportsPage({ searchParams }: PageProps) {
@@ -50,13 +55,19 @@ export default async function ReportsPage({ searchParams }: PageProps) {
 
   const sp = await searchParams;
   const now = new Date();
+  const periodo = sp.periodo === "trimestral" ? "trimestral" : "mensal";
   const ano = Number(sp.ano) || now.getFullYear();
   const mes = Number(sp.mes) || now.getMonth() + 1;
+  const trimestre = Number(sp.trimestre) || Math.ceil((now.getMonth() + 1) / 3);
 
-  const report = await getMonthlyProfitLoss(ano, mes);
+  const report =
+    periodo === "trimestral"
+      ? await getQuarterlyProfitLoss(ano, trimestre)
+      : await getMonthlyProfitLoss(ano, mes);
 
   const anos = Array.from({ length: 6 }, (_, i) => now.getFullYear() - i);
   const meses = Array.from({ length: 12 }, (_, i) => i + 1);
+  const trimestres = [1, 2, 3, 4];
 
   const categoriasOrdenadas = Object.entries(report.despesas.porCategoria).sort(
     (a, b) => b[1] - a[1]
@@ -71,10 +82,13 @@ export default async function ReportsPage({ searchParams }: PageProps) {
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            Relatório mensal (P&L)
+            {periodo === "trimestral"
+              ? "Relatório trimestral (P&L)"
+              : "Relatório mensal (P&L)"}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Receitas, despesas, salários e dividendos do período
+            Receitas, despesas, salários e dividendos do{" "}
+            {periodo === "trimestral" ? "trimestre" : "mês"} seleccionado
           </p>
         </div>
 
@@ -82,16 +96,47 @@ export default async function ReportsPage({ searchParams }: PageProps) {
           <form method="get" className="flex items-end gap-2">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">
+                Período
+              </label>
+              <select
+                name="periodo"
+                defaultValue={periodo}
+                className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
+              >
+                <option value="mensal">Mensal</option>
+                <option value="trimestral">Trimestral</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
                 Mês
               </label>
               <select
                 name="mes"
                 defaultValue={mes}
+                disabled={periodo === "trimestral"}
                 className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
               >
                 {meses.map((m) => (
                   <option key={m} value={m}>
                     {MES_LABELS[m]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Trimestre
+              </label>
+              <select
+                name="trimestre"
+                defaultValue={trimestre}
+                disabled={periodo === "mensal"}
+                className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
+              >
+                {trimestres.map((t) => (
+                  <option key={t} value={t}>
+                    T{t}
                   </option>
                 ))}
               </select>
@@ -120,9 +165,7 @@ export default async function ReportsPage({ searchParams }: PageProps) {
             </button>
           </form>
           <a
-            href={`/api/reports/pl?ano=${ano}&mes=${mes}`}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={`/api/reports/pl?periodo=${periodo}&ano=${ano}&mes=${mes}&trimestre=${trimestre}`}
             className="h-9 inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             <Download className="h-4 w-4" />
@@ -246,8 +289,9 @@ export default async function ReportsPage({ searchParams }: PageProps) {
             />
           </dl>
           <div className="px-4 py-3 text-xs text-gray-500 border-t bg-gray-50">
-            Dividendos distribuídos correspondem ao trimestre do mês seleccionado
-            (T1=Mar, T2=Jun, T3=Set, T4=Dez).
+            {periodo === "trimestral"
+              ? "Consolidação trimestral agregada por três meses consecutivos."
+              : "Dividendos distribuídos correspondem ao trimestre do mês seleccionado (T1=Mar, T2=Jun, T3=Set, T4=Dez)."}
           </div>
         </section>
       </div>

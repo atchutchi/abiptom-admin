@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { redirect } from "next/navigation";
-import { db } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import { partnerShares, users } from "@/lib/db/schema";
 import { eq, and, or, isNull, gte } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth/actions";
@@ -17,7 +17,7 @@ export default async function NewDividendPeriodPage() {
 
   const today = new Date().toISOString().split("T")[0];
 
-  const rows = await db
+  const rows = await dbAdmin
     .select({
       userId: partnerShares.userId,
       nomeCurto: users.nomeCurto,

@@ -90,6 +90,31 @@ export const dividendStateEnum = pgEnum("dividend_state", [
   "anulado",
 ]);
 
+export const stockMovementTypeEnum = pgEnum("stock_movement_type", [
+  "entrada",
+  "saida",
+  "ajuste",
+]);
+
+export const taskStateEnum = pgEnum("task_state", [
+  "pendente",
+  "em_curso",
+  "concluida",
+  "cancelada",
+]);
+
+export const taskPriorityEnum = pgEnum("task_priority", [
+  "baixa",
+  "media",
+  "alta",
+]);
+
+export const reportTypeEnum = pgEnum("report_type", [
+  "mensal",
+  "trimestral",
+  "anual",
+]);
+
 // ─── Sequences ───────────────────────────────────────────────────────────────
 
 export const invoiceNumberSeq = pgSequence("invoice_number_seq", {
@@ -429,6 +454,102 @@ export const expenses = pgTable("expenses", {
     .defaultNow(),
 });
 
+// ─── stock_items ─────────────────────────────────────────────────────────────
+
+export const stockItems = pgTable("stock_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  nome: text("nome").notNull(),
+  sku: varchar("sku", { length: 100 }).unique(),
+  categoria: varchar("categoria", { length: 100 }),
+  unidade: varchar("unidade", { length: 30 }).notNull().default("unidade"),
+  quantidadeAtual: numeric("quantidade_atual", { precision: 14, scale: 3 })
+    .notNull()
+    .default("0"),
+  quantidadeMinima: numeric("quantidade_minima", { precision: 14, scale: 3 })
+    .notNull()
+    .default("0"),
+  custoUnitario: numeric("custo_unitario", { precision: 14, scale: 2 }),
+  localizacao: text("localizacao"),
+  activo: boolean("activo").notNull().default(true),
+  createdBy: uuid("created_by").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ─── stock_movements ─────────────────────────────────────────────────────────
+
+export const stockMovements = pgTable("stock_movements", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  itemId: uuid("item_id")
+    .notNull()
+    .references(() => stockItems.id, { onDelete: "cascade" }),
+  tipo: stockMovementTypeEnum("tipo").notNull(),
+  quantidade: numeric("quantidade", { precision: 14, scale: 3 }).notNull(),
+  custoUnitario: numeric("custo_unitario", { precision: 14, scale: 2 }),
+  referencia: varchar("referencia", { length: 200 }),
+  notas: text("notas"),
+  criadoPor: uuid("criado_por").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ─── tasks ──────────────────────────────────────────────────────────────────
+
+export const tasks = pgTable("tasks", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  titulo: text("titulo").notNull(),
+  descricao: text("descricao"),
+  atribuidaA: uuid("atribuida_a")
+    .notNull()
+    .references(() => users.id, { onDelete: "restrict" }),
+  atribuidaPor: uuid("atribuida_por").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  projectoId: uuid("projecto_id").references(() => projects.id, {
+    onDelete: "set null",
+  }),
+  clienteId: uuid("cliente_id").references(() => clients.id, {
+    onDelete: "set null",
+  }),
+  prazo: date("prazo"),
+  estado: taskStateEnum("estado").notNull().default("pendente"),
+  prioridade: taskPriorityEnum("prioridade").notNull().default("media"),
+  concluidaEm: timestamp("concluida_em", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ─── reports ────────────────────────────────────────────────────────────────
+
+export const reports = pgTable("reports", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  tipo: reportTypeEnum("tipo").notNull(),
+  periodoInicio: date("periodo_inicio").notNull(),
+  periodoFim: date("periodo_fim").notNull(),
+  dadosJson: jsonb("dados_json").notNull().default("{}"),
+  pdfUrl: text("pdf_url"),
+  xlsxUrl: text("xlsx_url"),
+  geradoPor: uuid("gerado_por").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  geradoEm: timestamp("gerado_em", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 // ─── dividend_periods ─────────────────────────────────────────────────────────
 
 export const dividendPeriods = pgTable("dividend_periods", {
@@ -508,6 +629,19 @@ export const usersRelations = relations(users, ({ many }) => ({
   projectAssistants: many(projectAssistants),
   salaryLines: many(salaryLines),
   projectPayments: many(projectPayments),
+  stockItemsCreated: many(stockItems, {
+    relationName: "stock_item_created_by",
+  }),
+  stockMovements: many(stockMovements, {
+    relationName: "stock_movement_created_by",
+  }),
+  tasksAssigned: many(tasks, {
+    relationName: "task_assigned_to",
+  }),
+  tasksCreated: many(tasks, {
+    relationName: "task_assigned_by",
+  }),
+  reportsGenerated: many(reports),
 }));
 
 export const partnerSharesRelations = relations(partnerShares, ({ one }) => ({
@@ -518,6 +652,7 @@ export const clientsRelations = relations(clients, ({ many }) => ({
   contacts: many(contacts),
   invoices: many(invoices),
   projects: many(projects),
+  tasks: many(tasks),
 }));
 
 export const contactsRelations = relations(contacts, ({ one }) => ({
@@ -562,6 +697,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   invoices: many(invoices),
   projectPayments: many(projectPayments),
   expenses: many(expenses),
+  tasks: many(tasks),
 }));
 
 export const projectAssistantsRelations = relations(projectAssistants, ({ one }) => ({
@@ -652,6 +788,55 @@ export const expensesRelations = relations(expenses, ({ one }) => ({
   }),
 }));
 
+export const stockItemsRelations = relations(stockItems, ({ one, many }) => ({
+  createdBy: one(users, {
+    fields: [stockItems.createdBy],
+    references: [users.id],
+    relationName: "stock_item_created_by",
+  }),
+  movements: many(stockMovements),
+}));
+
+export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
+  item: one(stockItems, {
+    fields: [stockMovements.itemId],
+    references: [stockItems.id],
+  }),
+  criadoPor: one(users, {
+    fields: [stockMovements.criadoPor],
+    references: [users.id],
+    relationName: "stock_movement_created_by",
+  }),
+}));
+
+export const tasksRelations = relations(tasks, ({ one }) => ({
+  atribuidaA: one(users, {
+    fields: [tasks.atribuidaA],
+    references: [users.id],
+    relationName: "task_assigned_to",
+  }),
+  atribuidaPor: one(users, {
+    fields: [tasks.atribuidaPor],
+    references: [users.id],
+    relationName: "task_assigned_by",
+  }),
+  projecto: one(projects, {
+    fields: [tasks.projectoId],
+    references: [projects.id],
+  }),
+  cliente: one(clients, {
+    fields: [tasks.clienteId],
+    references: [clients.id],
+  }),
+}));
+
+export const reportsRelations = relations(reports, ({ one }) => ({
+  geradoPor: one(users, {
+    fields: [reports.geradoPor],
+    references: [users.id],
+  }),
+}));
+
 export const dividendPeriodsRelations = relations(
   dividendPeriods,
   ({ one, many }) => ({
@@ -702,6 +887,14 @@ export type AuditLog = typeof auditLog.$inferSelect;
 export type NewAuditLog = typeof auditLog.$inferInsert;
 export type Expense = typeof expenses.$inferSelect;
 export type NewExpense = typeof expenses.$inferInsert;
+export type StockItem = typeof stockItems.$inferSelect;
+export type NewStockItem = typeof stockItems.$inferInsert;
+export type StockMovement = typeof stockMovements.$inferSelect;
+export type NewStockMovement = typeof stockMovements.$inferInsert;
+export type Task = typeof tasks.$inferSelect;
+export type NewTask = typeof tasks.$inferInsert;
+export type Report = typeof reports.$inferSelect;
+export type NewReport = typeof reports.$inferInsert;
 export type UserRole = (typeof roleEnum.enumValues)[number];
 export type InvoiceState = (typeof invoiceStateEnum.enumValues)[number];
 export type InvoiceType = (typeof invoiceTypeEnum.enumValues)[number];
@@ -722,6 +915,10 @@ export type ProjectPayment = typeof projectPayments.$inferSelect;
 export type ExpenseCategory = (typeof expenseCategoryEnum.enumValues)[number];
 export type ExpenseState = (typeof expenseStateEnum.enumValues)[number];
 export type DividendState = (typeof dividendStateEnum.enumValues)[number];
+export type StockMovementType = (typeof stockMovementTypeEnum.enumValues)[number];
+export type TaskState = (typeof taskStateEnum.enumValues)[number];
+export type TaskPriority = (typeof taskPriorityEnum.enumValues)[number];
+export type ReportType = (typeof reportTypeEnum.enumValues)[number];
 export type DividendPeriod = typeof dividendPeriods.$inferSelect;
 export type NewDividendPeriod = typeof dividendPeriods.$inferInsert;
 export type DividendLine = typeof dividendLines.$inferSelect;

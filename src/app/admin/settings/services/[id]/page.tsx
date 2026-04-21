@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import { servicesCatalog } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
@@ -14,7 +14,7 @@ export default async function EditServicePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const service = await db.query.servicesCatalog.findFirst({
+  const service = await dbAdmin.query.servicesCatalog.findFirst({
     where: eq(servicesCatalog.id, id),
   });
 

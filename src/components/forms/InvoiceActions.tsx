@@ -68,7 +68,7 @@ export default function InvoiceActions({
       <div className="flex flex-wrap gap-2">
         {/* PDF */}
         <Button variant="outline" asChild>
-          <a href={pdfUrl} target="_blank" rel="noreferrer">
+          <a href={pdfUrl}>
             <FileDown className="size-4" />
             Ver PDF
           </a>

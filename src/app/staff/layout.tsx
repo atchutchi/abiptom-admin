@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { db } from "@/lib/db";
+import { withAuthenticatedDb } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -18,9 +18,11 @@ export default async function StaffLayout({
 
   if (!user) redirect("/login");
 
-  const dbUser = await db.query.users.findFirst({
-    where: eq(users.authUserId, user.id),
-  });
+  const dbUser = await withAuthenticatedDb(user, async (db) =>
+    db.query.users.findFirst({
+      where: eq(users.authUserId, user.id),
+    })
+  );
 
   if (!dbUser) redirect("/login");
 

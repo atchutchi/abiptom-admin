@@ -1,4 +1,4 @@
-import { db } from "./index";
+import { dbAdmin } from "./index";
 import { servicesCatalog, clients } from "./schema";
 
 // ─── Catálogo de serviços (preçário completo ABIPTOM) ─────────────────────────
@@ -108,18 +108,18 @@ export async function seed() {
   console.log("A correr seed…");
 
   // Serviços
-  const existing = await db.select().from(servicesCatalog);
+  const existing = await dbAdmin.select().from(servicesCatalog);
   if (existing.length === 0) {
-    await db.insert(servicesCatalog).values(SERVICES);
+    await dbAdmin.insert(servicesCatalog).values(SERVICES);
     console.log(`  ✓ ${SERVICES.length} serviços inseridos`);
   } else {
     console.log(`  → Serviços já existem (${existing.length}), a ignorar`);
   }
 
   // Clientes
-  const existingClients = await db.select().from(clients);
+  const existingClients = await dbAdmin.select().from(clients);
   if (existingClients.length === 0) {
-    await db.insert(clients).values(CLIENTS);
+    await dbAdmin.insert(clients).values(CLIENTS);
     console.log(`  ✓ ${CLIENTS.length} clientes inseridos`);
   } else {
     console.log(`  → Clientes já existem (${existingClients.length}), a ignorar`);

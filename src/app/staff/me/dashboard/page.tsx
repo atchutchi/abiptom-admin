@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { db } from "@/lib/db";
+import { withAuthenticatedDb } from "@/lib/db";
 import {
   users,
   salaryLines,
@@ -67,20 +67,45 @@ export default async function StaffDashboardPage() {
 
   if (!user) redirect("/login");
 
-  const dbUser = await db.query.users.findFirst({
-    where: eq(users.authUserId, user.id),
+  const {
+    dbUser,
+    myLines,
+    myDividends,
+  } = await withAuthenticatedDb(user, async (db) => {
+    const currentUser = await db.query.users.findFirst({
+      where: eq(users.authUserId, user.id),
+    });
+
+    if (!currentUser) {
+      return { dbUser: null, myLines: [], myDividends: [] };
+    }
+
+    const salaryHistory = await db.query.salaryLines.findMany({
+      where: eq(salaryLines.userId, currentUser.id),
+      with: {
+        period: {
+          columns: { ano: true, mes: true, estado: true },
+        },
+      },
+    });
+
+    const dividends = await db.query.dividendLines.findMany({
+      where: eq(dividendLines.userId, currentUser.id),
+      with: {
+        period: {
+          columns: { ano: true, trimestre: true, estado: true },
+        },
+      },
+    });
+
+    return {
+      dbUser: currentUser,
+      myLines: salaryHistory,
+      myDividends: dividends,
+    };
   });
 
   if (!dbUser) redirect("/login");
-
-  const myLines = await db.query.salaryLines.findMany({
-    where: eq(salaryLines.userId, dbUser.id),
-    with: {
-      period: {
-        columns: { ano: true, mes: true, estado: true },
-      },
-    },
-  });
 
   const visibleLines = myLines
     .filter((l) => l.period.estado !== "aberto")
@@ -122,12 +147,14 @@ export default async function StaffDashboardPage() {
   }> = [];
 
   if (latestLine) {
-    const pp = await db.query.projectPayments.findMany({
-      where: eq(projectPayments.periodId, latestLine.periodId),
-      with: {
-        project: { columns: { titulo: true } },
-      },
-    });
+    const pp = await withAuthenticatedDb(user, async (db) =>
+      db.query.projectPayments.findMany({
+        where: eq(projectPayments.periodId, latestLine.periodId),
+        with: {
+          project: { columns: { titulo: true } },
+        },
+      })
+    );
     latestProjectPayments = pp
       .filter((p) => p.userId === dbUser.id)
       .map((p) => ({
@@ -138,15 +165,6 @@ export default async function StaffDashboardPage() {
         valorRecebido: Number(p.valorRecebido),
       }));
   }
-
-  const myDividends = await db.query.dividendLines.findMany({
-    where: eq(dividendLines.userId, dbUser.id),
-    with: {
-      period: {
-        columns: { ano: true, trimestre: true, estado: true },
-      },
-    },
-  });
 
   const visibleDividends = myDividends
     .filter((d) => d.period.estado === "aprovado" || d.period.estado === "pago")

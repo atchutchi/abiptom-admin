@@ -4,7 +4,7 @@ import type { UserRole } from "@/lib/db/schema";
 export const ROLE_ROUTES: Record<UserRole, string[]> = {
   ca: ["/admin", "/staff"],
   dg: ["/admin", "/staff"],
-  coord: ["/admin/projects", "/admin/clients", "/staff"],
+  coord: ["/admin/projects", "/admin/clients", "/admin/stock", "/admin/tasks", "/staff"],
   staff: ["/staff"],
 };
 
@@ -31,6 +31,8 @@ export function canAccessRoute(role: UserRole, pathname: string): boolean {
     return (
       pathname.startsWith("/admin/projects") ||
       pathname.startsWith("/admin/clients") ||
+      pathname.startsWith("/admin/stock") ||
+      pathname.startsWith("/admin/tasks") ||
       pathname.startsWith("/admin/invoices") ||
       pathname.startsWith("/staff")
     );

@@ -2,12 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
-import { db } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { insertAuditLog } from "@/lib/db/audit";
 import { getCurrentUser } from "@/lib/auth/actions";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const UserSchema = z.object({
   nomeCompleto: z.string().min(2, "Nome completo obrigatório"),
@@ -34,14 +34,18 @@ export async function createUser(formData: UserFormData) {
     return { error: "Sem permissão." };
   }
 
-  const supabase = await createClient();
+  const supabaseAdmin = createAdminClient();
 
   // Criar utilizador no Supabase Auth
   const { data: authData, error: authError } =
-    await supabase.auth.admin.createUser({
+    await supabaseAdmin.auth.admin.createUser({
       email: parsed.data.email,
       password: crypto.randomUUID(), // password temporária — deve ser redefinida
-      user_metadata: { role: parsed.data.role },
+      user_metadata: {
+        role: parsed.data.role,
+        mfa_enabled: false,
+        active: true,
+      },
       email_confirm: true,
     });
 
@@ -50,7 +54,7 @@ export async function createUser(formData: UserFormData) {
   }
 
   // Inserir na tabela users
-  const [newUser] = await db
+  const [newUser] = await dbAdmin
     .insert(users)
     .values({
       authUserId: authData.user.id,
@@ -83,13 +87,32 @@ export async function updateUser(id: string, formData: Partial<UserFormData>) {
     return { error: "Sem permissão." };
   }
 
-  const existing = await db.query.users.findFirst({
+  const existing = await dbAdmin.query.users.findFirst({
     where: eq(users.id, id),
   });
 
   if (!existing) return { error: "Utilizador não encontrado." };
 
-  const [updated] = await db
+  const supabaseAdmin = createAdminClient();
+  const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+    existing.authUserId,
+    {
+      ...(formData.email ? { email: formData.email } : {}),
+      user_metadata: {
+        role: formData.role ?? existing.role,
+        mfa_enabled: existing.mfaEnabled,
+        active: existing.activo,
+      },
+    }
+  );
+
+  if (authError) {
+    return {
+      error: authError.message ?? "Erro ao sincronizar utilizador no Supabase.",
+    };
+  }
+
+  const [updated] = await dbAdmin
     .update(users)
     .set({
       ...formData,
@@ -119,13 +142,31 @@ export async function deactivateUser(id: string) {
 
   if (actor.id === id) return { error: "Não podes desactivar a tua própria conta." };
 
-  const existing = await db.query.users.findFirst({
+  const existing = await dbAdmin.query.users.findFirst({
     where: eq(users.id, id),
   });
 
   if (!existing) return { error: "Utilizador não encontrado." };
 
-  const [updated] = await db
+  const supabaseAdmin = createAdminClient();
+  const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+    existing.authUserId,
+    {
+      user_metadata: {
+        role: existing.role,
+        mfa_enabled: existing.mfaEnabled,
+        active: false,
+      },
+    }
+  );
+
+  if (authError) {
+    return {
+      error: authError.message ?? "Erro ao desactivar utilizador no Supabase.",
+    };
+  }
+
+  const [updated] = await dbAdmin
     .update(users)
     .set({ activo: false, updatedAt: new Date() })
     .where(eq(users.id, id))
@@ -145,7 +186,7 @@ export async function deactivateUser(id: string) {
 }
 
 export async function listUsers() {
-  return db.query.users.findMany({
+  return dbAdmin.query.users.findMany({
     orderBy: (u, { asc }) => [asc(u.nomeCompleto)],
   });
 }

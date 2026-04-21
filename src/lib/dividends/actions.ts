@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { db } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import {
   dividendPeriods,
   dividendLines,
@@ -44,7 +44,7 @@ export async function listDividendPeriods() {
   if (!user || !dbUser) throw new Error("Não autenticado");
   assertAdmin(dbUser.role);
 
-  return db.query.dividendPeriods.findMany({
+  return dbAdmin.query.dividendPeriods.findMany({
     orderBy: [desc(dividendPeriods.ano), desc(dividendPeriods.createdAt)],
   });
 }
@@ -54,7 +54,7 @@ export async function getDividendPeriod(id: string) {
   if (!user || !dbUser) throw new Error("Não autenticado");
   assertAdmin(dbUser.role);
 
-  return db.query.dividendPeriods.findFirst({
+  return dbAdmin.query.dividendPeriods.findFirst({
     where: eq(dividendPeriods.id, id),
     with: {
       criadoPor: { columns: { nomeCurto: true } },
@@ -83,7 +83,7 @@ export async function createDividendPeriod(_: unknown, formData: FormData) {
   const { ano, trimestre, baseCalculada, notas } = parsed.data;
 
   const today = new Date().toISOString().split("T")[0];
-  const activeShares = await db
+  const activeShares = await dbAdmin
     .select()
     .from(partnerShares)
     .where(
@@ -109,7 +109,7 @@ export async function createDividendPeriod(_: unknown, formData: FormData) {
 
   const base = Number(baseCalculada);
 
-  const [period] = await db
+  const [period] = await dbAdmin
     .insert(dividendPeriods)
     .values({
       ano,
@@ -134,9 +134,9 @@ export async function createDividendPeriod(_: unknown, formData: FormData) {
     };
   });
 
-  await db.insert(dividendLines).values(linesToInsert);
+  await dbAdmin.insert(dividendLines).values(linesToInsert);
 
-  await db
+  await dbAdmin
     .update(dividendPeriods)
     .set({ totalDistribuido: totalDistribuido.toFixed(2) })
     .where(eq(dividendPeriods.id, period.id));
@@ -161,7 +161,7 @@ export async function approveDividendPeriod(id: string) {
   if (!user || !dbUser) throw new Error("Não autenticado");
   assertAdmin(dbUser.role);
 
-  const before = await db.query.dividendPeriods.findFirst({
+  const before = await dbAdmin.query.dividendPeriods.findFirst({
     where: eq(dividendPeriods.id, id),
   });
   if (!before) throw new Error("Período não encontrado");
@@ -169,7 +169,7 @@ export async function approveDividendPeriod(id: string) {
     throw new Error("Apenas propostos podem ser aprovados");
   }
 
-  await db
+  await dbAdmin
     .update(dividendPeriods)
     .set({
       estado: "aprovado",
@@ -198,7 +198,7 @@ export async function markDividendLinePaid(
   if (!user || !dbUser) throw new Error("Não autenticado");
   assertAdmin(dbUser.role);
 
-  const line = await db.query.dividendLines.findFirst({
+  const line = await dbAdmin.query.dividendLines.findFirst({
     where: eq(dividendLines.id, lineId),
     with: { period: true },
   });
@@ -207,7 +207,7 @@ export async function markDividendLinePaid(
     throw new Error("Período tem de estar aprovado");
   }
 
-  await db
+  await dbAdmin
     .update(dividendLines)
     .set({
       pago: true,
@@ -216,14 +216,14 @@ export async function markDividendLinePaid(
     })
     .where(eq(dividendLines.id, lineId));
 
-  const remainingUnpaid = await db.query.dividendLines.findMany({
+  const remainingUnpaid = await dbAdmin.query.dividendLines.findMany({
     where: and(
       eq(dividendLines.periodId, line.periodId),
       eq(dividendLines.pago, false)
     ),
   });
   if (remainingUnpaid.length === 0) {
-    await db
+    await dbAdmin
       .update(dividendPeriods)
       .set({ estado: "pago" })
       .where(eq(dividendPeriods.id, line.periodId));
@@ -246,7 +246,7 @@ export async function cancelDividendPeriod(id: string, motivo: string) {
   if (!user || !dbUser) throw new Error("Não autenticado");
   assertAdmin(dbUser.role);
 
-  const before = await db.query.dividendPeriods.findFirst({
+  const before = await dbAdmin.query.dividendPeriods.findFirst({
     where: eq(dividendPeriods.id, id),
   });
   if (!before) throw new Error("Período não encontrado");
@@ -254,7 +254,7 @@ export async function cancelDividendPeriod(id: string, motivo: string) {
     throw new Error("Não é possível anular um período já pago");
   }
 
-  await db
+  await dbAdmin
     .update(dividendPeriods)
     .set({ estado: "anulado", notas: motivo })
     .where(eq(dividendPeriods.id, id));

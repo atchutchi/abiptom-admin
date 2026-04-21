@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { LoginForm } from "@/components/forms/LoginForm";
 
 export const metadata = { title: "Iniciar sessão — ABIPTOM Admin" };
@@ -7,6 +8,14 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="w-full max-w-md space-y-8 p-8 bg-white rounded-xl shadow-sm border">
         <div className="text-center">
+          <Image
+            src="/brand/abiptom-logo.png"
+            alt="ABIPTOM"
+            width={180}
+            height={48}
+            className="mx-auto mb-3 h-11 w-auto"
+            priority
+          />
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">
             ABIPTOM Admin
           </h1>

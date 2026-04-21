@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
-import { db } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import { invoicePayments } from "@/lib/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth/actions";
@@ -23,7 +23,7 @@ export async function GET(
 
   const { paymentId } = await params;
 
-  const payment = await db.query.invoicePayments.findFirst({
+  const payment = await dbAdmin.query.invoicePayments.findFirst({
     where: eq(invoicePayments.id, paymentId),
     with: {
       invoice: {

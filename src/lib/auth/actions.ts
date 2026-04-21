@@ -3,12 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { db } from "@/lib/db";
+import { withAuthenticatedDb } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getDefaultRoute } from "./rbac";
 import type { UserRole } from "@/lib/db/schema";
-import { insertAuditLog } from "@/lib/db/audit";
 
 export async function login(formData: FormData) {
   const supabase = await createClient();
@@ -62,9 +61,11 @@ export async function getCurrentUser() {
 
   if (error || !user) return { user: null, dbUser: null };
 
-  const dbUser = await db.query.users.findFirst({
-    where: eq(users.authUserId, user.id),
-  });
+  const dbUser = await withAuthenticatedDb(user, async (db) =>
+    db.query.users.findFirst({
+      where: eq(users.authUserId, user.id),
+    })
+  );
 
   return { user, dbUser: dbUser ?? null };
 }

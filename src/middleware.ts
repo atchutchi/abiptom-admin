@@ -30,9 +30,10 @@ export async function middleware(request: NextRequest) {
   }
 
   const role = (user.user_metadata?.role ?? "staff") as UserRole;
+  const isActive = user.user_metadata?.active !== false;
 
   // Sem papel → login
-  if (!role) {
+  if (!role || !isActive) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 

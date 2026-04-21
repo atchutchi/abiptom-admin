@@ -1,7 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -13,6 +15,11 @@ import {
   BarChart3,
   Settings,
   User,
+  IdCard,
+  Package,
+  CheckSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/lib/db/schema";
@@ -62,10 +69,28 @@ const NAV_ITEMS: NavItem[] = [
     roles: ["ca", "dg"],
   },
   {
+    label: "RH / Contratos",
+    href: "/admin/hr/contracts",
+    icon: IdCard,
+    roles: ["ca", "dg"],
+  },
+  {
     label: "Despesas",
     href: "/admin/expenses",
     icon: Receipt,
     roles: ["ca", "dg"],
+  },
+  {
+    label: "Stock",
+    href: "/admin/stock",
+    icon: Package,
+    roles: ["ca", "dg", "coord"],
+  },
+  {
+    label: "Tarefas",
+    href: "/admin/tasks",
+    icon: CheckSquare,
+    roles: ["ca", "dg", "coord"],
   },
   {
     label: "Dividendos",
@@ -94,6 +119,12 @@ const STAFF_NAV_ITEMS: NavItem[] = [
     icon: LayoutDashboard,
     roles: ["staff", "coord"],
   },
+  {
+    label: "Minhas tarefas",
+    href: "/staff/me/tasks",
+    icon: CheckSquare,
+    roles: ["staff", "coord"],
+  },
 ];
 
 interface SidebarProps {
@@ -101,25 +132,84 @@ interface SidebarProps {
   userName: string;
 }
 
+const SIDEBAR_COLLAPSED_KEY = "abiptom_sidebar_collapsed";
+
 export function Sidebar({ role, userName }: SidebarProps) {
   const pathname = usePathname();
   const isStaff = role === "staff";
+  const [collapsed, setCollapsed] = useState(false);
 
   const items = isStaff ? STAFF_NAV_ITEMS : NAV_ITEMS.filter((item) =>
     item.roles.includes(role)
   );
 
+  useEffect(() => {
+    const stored = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+    if (stored === "1") setCollapsed(true);
+  }, []);
+
+  function toggleSidebar() {
+    setCollapsed((prev) => {
+      const next = !prev;
+      window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0");
+      return next;
+    });
+  }
+
   return (
-    <aside className="flex flex-col w-64 min-h-screen bg-gray-900 text-gray-100">
+    <aside
+      className={cn(
+        "flex min-h-screen flex-col bg-gray-900 text-gray-100 transition-[width] duration-200",
+        collapsed ? "w-20" : "w-64"
+      )}
+    >
       {/* Logo */}
-      <div className="h-16 flex items-center px-6 border-b border-gray-700">
-        <span className="text-lg font-bold tracking-tight">ABIPTOM</span>
-        <span className="ml-2 text-xs text-gray-400 font-normal">Admin</span>
+      <div
+        className={cn(
+          "flex h-16 items-center border-b border-gray-700",
+          collapsed ? "px-2" : "px-4"
+        )}
+      >
+        <Link
+          href={isStaff ? "/staff/me/dashboard" : "/admin/dashboard"}
+          className={cn(
+            "min-w-0 text-gray-100",
+            collapsed ? "inline-flex items-center px-1" : "inline-flex items-center px-2"
+          )}
+          title="ABIPTOM Admin"
+        >
+          {!collapsed && (
+            <Image
+              src="/brand/abiptom-logo.png"
+              alt="ABIPTOM"
+              width={112}
+              height={28}
+              className="h-7 w-auto"
+              priority
+            />
+          )}
+          {collapsed && <span className="text-lg font-bold tracking-tight">AB</span>}
+          {!collapsed && (
+            <span className="ml-2 text-xs font-normal text-gray-400">Admin</span>
+          )}
+        </Link>
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          className="ml-auto rounded-md p-2 text-gray-300 transition-colors hover:bg-gray-800 hover:text-white"
+          aria-label={collapsed ? "Expandir sidebar" : "Minimizar sidebar"}
+        >
+          {collapsed ? (
+            <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
+          )}
+        </button>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 py-4 overflow-y-auto">
-        <ul className="space-y-0.5 px-3">
+        <ul className={cn("space-y-0.5", collapsed ? "px-2" : "px-3")}>
           {items.map((item) => {
             const Icon = item.icon;
             const active =
@@ -132,15 +222,17 @@ export function Sidebar({ role, userName }: SidebarProps) {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  title={collapsed ? item.label : undefined}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+                    "flex items-center rounded-lg py-2 text-sm transition-colors",
+                    collapsed ? "justify-center px-2" : "gap-3 px-3",
                     active
                       ? "bg-gray-700 text-white"
                       : "text-gray-300 hover:bg-gray-800 hover:text-white"
                   )}
                 >
                   <Icon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-                  {item.label}
+                  {collapsed ? <span className="sr-only">{item.label}</span> : item.label}
                 </Link>
               </li>
             );
@@ -149,16 +241,29 @@ export function Sidebar({ role, userName }: SidebarProps) {
       </nav>
 
       {/* User footer */}
-      <div className="px-3 pb-4 border-t border-gray-700 pt-3">
+      <div
+        className={cn(
+          "border-t border-gray-700 pb-4 pt-3",
+          collapsed ? "px-2" : "px-3"
+        )}
+      >
         <Link
           href={isStaff ? "/staff/me/dashboard" : "/admin/profile"}
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+          title={collapsed ? `${userName} (${role.toUpperCase()})` : undefined}
+          className={cn(
+            "flex items-center rounded-lg py-2 text-sm text-gray-300 transition-colors hover:bg-gray-800 hover:text-white",
+            collapsed ? "justify-center px-2" : "gap-3 px-3"
+          )}
         >
           <User className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-          <div className="min-w-0">
-            <p className="truncate font-medium text-white">{userName}</p>
-            <p className="text-xs text-gray-400 uppercase">{role}</p>
-          </div>
+          {collapsed ? (
+            <span className="sr-only">{userName}</span>
+          ) : (
+            <div className="min-w-0">
+              <p className="truncate font-medium text-white">{userName}</p>
+              <p className="text-xs text-gray-400 uppercase">{role}</p>
+            </div>
+          )}
         </Link>
       </div>
     </aside>

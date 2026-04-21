@@ -1,7 +1,7 @@
 "use server";
 
 import { resend, FROM_EMAIL } from "./resend";
-import { db } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import { invoices } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { renderToBuffer } from "@react-pdf/renderer";
@@ -16,7 +16,7 @@ export async function sendInvoiceEmail(invoiceId: string) {
   if (!user || !dbUser) return { error: "Não autenticado" };
   if (!["ca", "dg"].includes(dbUser.role)) return { error: "Sem permissão" };
 
-  const invoice = await db.query.invoices.findFirst({
+  const invoice = await dbAdmin.query.invoices.findFirst({
     where: eq(invoices.id, invoiceId),
     with: {
       client: true,
@@ -110,7 +110,7 @@ export async function sendInvoiceEmail(invoiceId: string) {
 
   if (error) return { error: `Erro ao enviar email: ${error.message}` };
 
-  await db
+  await dbAdmin
     .update(invoices)
     .set({ enviadaEm: new Date() })
     .where(eq(invoices.id, invoiceId));

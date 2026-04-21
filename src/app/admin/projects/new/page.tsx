@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { db } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import { users, clients, servicesCatalog } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { Header } from "@/components/layout/Header";
@@ -13,7 +13,7 @@ export default async function NewProjectPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const dbUser = await db.query.users.findFirst({
+  const dbUser = await dbAdmin.query.users.findFirst({
     where: eq(users.authUserId, user.id),
   });
   if (!dbUser || !["ca", "dg", "coord"].includes(dbUser.role)) {
@@ -21,9 +21,9 @@ export default async function NewProjectPage() {
   }
 
   const [allClients, allUsers, allServices] = await Promise.all([
-    db.query.clients.findMany({ where: eq(clients.activo, true), orderBy: (c, { asc }) => [asc(c.nome)] }),
-    db.query.users.findMany({ where: eq(users.activo, true), orderBy: (u, { asc }) => [asc(u.nomeCurto)] }),
-    db.query.servicesCatalog.findMany({ where: eq(servicesCatalog.activo, true), orderBy: (s, { asc }) => [asc(s.nome)] }),
+    dbAdmin.query.clients.findMany({ where: eq(clients.activo, true), orderBy: (c, { asc }) => [asc(c.nome)] }),
+    dbAdmin.query.users.findMany({ where: eq(users.activo, true), orderBy: (u, { asc }) => [asc(u.nomeCurto)] }),
+    dbAdmin.query.servicesCatalog.findMany({ where: eq(servicesCatalog.activo, true), orderBy: (s, { asc }) => [asc(s.nome)] }),
   ]);
 
   return (

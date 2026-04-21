@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
-import { db } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import { salaryLines } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth/actions";
@@ -38,7 +38,7 @@ export async function GET(
 
   const { lineId } = await params;
 
-  const line = await db.query.salaryLines.findFirst({
+  const line = await dbAdmin.query.salaryLines.findFirst({
     where: eq(salaryLines.id, lineId),
     with: {
       user: {

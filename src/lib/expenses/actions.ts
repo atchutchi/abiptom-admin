@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { db } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import { expenses } from "@/lib/db/schema";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -95,7 +95,7 @@ export async function listExpenses(filters: ExpenseFilters = {}) {
     );
   }
 
-  return db.query.expenses.findMany({
+  return dbAdmin.query.expenses.findMany({
     where: conditions.length ? and(...conditions) : undefined,
     orderBy: [desc(expenses.data), desc(expenses.createdAt)],
   });
@@ -106,7 +106,7 @@ export async function getExpense(id: string) {
   if (!user || !dbUser) throw new Error("Não autenticado");
   if (!["ca", "dg"].includes(dbUser.role)) throw new Error("Sem permissão");
 
-  return db.query.expenses.findFirst({ where: eq(expenses.id, id) });
+  return dbAdmin.query.expenses.findFirst({ where: eq(expenses.id, id) });
 }
 
 export async function sumExpensesByMonth(mes: string) {
@@ -132,7 +132,7 @@ export async function createExpense(_: unknown, formData: FormData) {
   const taxaCambio = Number(parsed.data.taxaCambio);
   const valorXof = (valor * taxaCambio).toFixed(2);
 
-  const [created] = await db
+  const [created] = await dbAdmin
     .insert(expenses)
     .values({
       ...parsed.data,
@@ -166,7 +166,7 @@ export async function updateExpense(id: string, _: unknown, formData: FormData) 
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
   }
 
-  const before = await db.query.expenses.findFirst({ where: eq(expenses.id, id) });
+  const before = await dbAdmin.query.expenses.findFirst({ where: eq(expenses.id, id) });
   if (!before) return { error: "Despesa não encontrada" };
   if (before.estado === "paga" || before.estado === "anulada") {
     return { error: "Não é possível editar despesas pagas ou anuladas" };
@@ -176,7 +176,7 @@ export async function updateExpense(id: string, _: unknown, formData: FormData) 
   const taxaCambio = Number(parsed.data.taxaCambio);
   const valorXof = (valor * taxaCambio).toFixed(2);
 
-  const [updated] = await db
+  const [updated] = await dbAdmin
     .update(expenses)
     .set({ ...parsed.data, valorXof })
     .where(eq(expenses.id, id))
@@ -204,11 +204,11 @@ export async function approveExpense(id: string) {
   if (!user || !dbUser) throw new Error("Não autenticado");
   if (!["ca", "dg"].includes(dbUser.role)) throw new Error("Sem permissão");
 
-  const before = await db.query.expenses.findFirst({ where: eq(expenses.id, id) });
+  const before = await dbAdmin.query.expenses.findFirst({ where: eq(expenses.id, id) });
   if (!before) throw new Error("Despesa não encontrada");
   if (before.estado !== "rascunho") throw new Error("Apenas rascunhos podem ser aprovados");
 
-  await db
+  await dbAdmin
     .update(expenses)
     .set({ estado: "aprovada", aprovadoPor: dbUser.id })
     .where(eq(expenses.id, id));
@@ -229,11 +229,11 @@ export async function markExpensePaid(id: string, dataPagamento: string) {
   if (!user || !dbUser) throw new Error("Não autenticado");
   if (!["ca", "dg"].includes(dbUser.role)) throw new Error("Sem permissão");
 
-  const before = await db.query.expenses.findFirst({ where: eq(expenses.id, id) });
+  const before = await dbAdmin.query.expenses.findFirst({ where: eq(expenses.id, id) });
   if (!before) throw new Error("Despesa não encontrada");
   if (before.estado === "anulada") throw new Error("Despesa anulada");
 
-  await db
+  await dbAdmin
     .update(expenses)
     .set({ estado: "paga", dataPagamento })
     .where(eq(expenses.id, id));
@@ -255,7 +255,7 @@ export async function cancelExpense(id: string, motivo: string) {
   if (!user || !dbUser) throw new Error("Não autenticado");
   if (!["ca", "dg"].includes(dbUser.role)) throw new Error("Sem permissão");
 
-  await db
+  await dbAdmin
     .update(expenses)
     .set({ estado: "anulada", notas: motivo })
     .where(eq(expenses.id, id));

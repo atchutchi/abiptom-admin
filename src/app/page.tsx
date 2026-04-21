@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { db } from "@/lib/db";
+import { withAuthenticatedDb } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getDefaultRoute } from "@/lib/auth/rbac";
@@ -14,9 +14,11 @@ export default async function RootPage() {
 
   if (!user) redirect("/login");
 
-  const dbUser = await db.query.users.findFirst({
-    where: eq(users.authUserId, user.id),
-  });
+  const dbUser = await withAuthenticatedDb(user, async (db) =>
+    db.query.users.findFirst({
+      where: eq(users.authUserId, user.id),
+    })
+  );
 
   const role = (dbUser?.role ?? "staff") as UserRole;
   redirect(getDefaultRoute(role));

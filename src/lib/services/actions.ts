@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { db } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import { servicesCatalog } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -18,7 +18,7 @@ const serviceSchema = z.object({
 });
 
 export async function listServices(includeInactive = false) {
-  return db.query.servicesCatalog.findMany({
+  return dbAdmin.query.servicesCatalog.findMany({
     where: includeInactive ? undefined : eq(servicesCatalog.activo, true),
     orderBy: (s, { asc }) => [asc(s.categoria), asc(s.nome)],
   });
@@ -43,7 +43,7 @@ export async function createService(_: unknown, formData: FormData) {
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
 
-  await db.insert(servicesCatalog).values(parsed.data);
+  await dbAdmin.insert(servicesCatalog).values(parsed.data);
   revalidatePath("/admin/settings/services");
   return { success: true };
 }
@@ -67,7 +67,7 @@ export async function updateService(id: string, _: unknown, formData: FormData) 
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
 
-  await db
+  await dbAdmin
     .update(servicesCatalog)
     .set(parsed.data)
     .where(eq(servicesCatalog.id, id));
@@ -81,7 +81,7 @@ export async function toggleServiceActive(id: string, activo: boolean) {
   if (!user || !dbUser) throw new Error("Não autenticado");
   if (dbUser.role !== "ca") throw new Error("Sem permissão");
 
-  await db
+  await dbAdmin
     .update(servicesCatalog)
     .set({ activo })
     .where(eq(servicesCatalog.id, id));

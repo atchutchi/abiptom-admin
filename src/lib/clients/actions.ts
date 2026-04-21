@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { db } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import { clients, contacts } from "@/lib/db/schema";
 import { eq, and, ilike, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -39,7 +39,7 @@ export async function listClients(search?: string) {
       )
     : undefined;
 
-  return db.query.clients.findMany({
+  return dbAdmin.query.clients.findMany({
     where,
     with: { contacts: { limit: 1, where: eq(contacts.principal, true) } },
     orderBy: (c, { asc }) => [asc(c.nome)],
@@ -50,7 +50,7 @@ export async function getClient(id: string) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
 
-  return db.query.clients.findFirst({
+  return dbAdmin.query.clients.findFirst({
     where: eq(clients.id, id),
     with: { contacts: true, invoices: { limit: 10, orderBy: (i, { desc }) => [desc(i.createdAt)] } },
   });
@@ -75,7 +75,7 @@ export async function createClient(_: unknown, formData: FormData) {
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
 
-  const [created] = await db
+  const [created] = await dbAdmin
     .insert(clients)
     .values(parsed.data)
     .returning();
@@ -114,11 +114,11 @@ export async function updateClient(id: string, _: unknown, formData: FormData) {
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
 
-  const before = await db.query.clients.findFirst({
+  const before = await dbAdmin.query.clients.findFirst({
     where: eq(clients.id, id),
   });
 
-  const [updated] = await db
+  const [updated] = await dbAdmin
     .update(clients)
     .set(parsed.data)
     .where(eq(clients.id, id))
@@ -147,7 +147,7 @@ export async function toggleClientActive(id: string, activo: boolean) {
   if (!["ca", "dg"].includes(dbUser.role))
     throw new Error("Sem permissão");
 
-  await db.update(clients).set({ activo }).where(eq(clients.id, id));
+  await dbAdmin.update(clients).set({ activo }).where(eq(clients.id, id));
 
   revalidatePath("/admin/clients");
   revalidatePath(`/admin/clients/${id}`);
@@ -167,19 +167,19 @@ export async function upsertContact(
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message);
 
   if (parsed.data.principal) {
-    await db
+    await dbAdmin
       .update(contacts)
       .set({ principal: false })
       .where(eq(contacts.clientId, clientId));
   }
 
   if (contactId) {
-    await db
+    await dbAdmin
       .update(contacts)
       .set({ ...parsed.data, clientId })
       .where(and(eq(contacts.id, contactId), eq(contacts.clientId, clientId)));
   } else {
-    await db.insert(contacts).values({ ...parsed.data, clientId });
+    await dbAdmin.insert(contacts).values({ ...parsed.data, clientId });
   }
 
   revalidatePath(`/admin/clients/${clientId}`);
@@ -191,7 +191,7 @@ export async function deleteContact(clientId: string, contactId: string) {
   if (!["ca", "dg"].includes(dbUser.role))
     throw new Error("Sem permissão");
 
-  await db
+  await dbAdmin
     .delete(contacts)
     .where(and(eq(contacts.id, contactId), eq(contacts.clientId, clientId)));
 

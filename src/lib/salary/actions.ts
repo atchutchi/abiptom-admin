@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { db } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import {
   salaryPolicies,
   salaryPeriods,
@@ -22,7 +22,7 @@ export async function listSalaryPolicies() {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
 
-  return db.query.salaryPolicies.findMany({
+  return dbAdmin.query.salaryPolicies.findMany({
     where: eq(salaryPolicies.activo, true),
     orderBy: (p, { desc }) => [desc(p.dataInicio)],
   });
@@ -34,7 +34,7 @@ export async function listSalaryPeriods() {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
 
-  return db.query.salaryPeriods.findMany({
+  return dbAdmin.query.salaryPeriods.findMany({
     with: { policy: { columns: { nome: true, versao: true } } },
     orderBy: (p, { desc }) => [desc(p.ano), desc(p.mes)],
   });
@@ -46,7 +46,7 @@ export async function getSalaryPeriod(id: string) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
 
-  return db.query.salaryPeriods.findFirst({
+  return dbAdmin.query.salaryPeriods.findFirst({
     where: eq(salaryPeriods.id, id),
     with: {
       policy: true,
@@ -117,7 +117,7 @@ export async function calculateAndSavePeriod(input: CalculatePeriodInput) {
   } = parsed.data;
 
   // Duplicate check
-  const existing = await db.query.salaryPeriods.findFirst({
+  const existing = await dbAdmin.query.salaryPeriods.findFirst({
     where: and(
       eq(salaryPeriods.ano, ano),
       eq(salaryPeriods.mes, mes),
@@ -130,14 +130,14 @@ export async function calculateAndSavePeriod(input: CalculatePeriodInput) {
     };
 
   // Load policy config
-  const policy = await db.query.salaryPolicies.findFirst({
+  const policy = await dbAdmin.query.salaryPolicies.findFirst({
     where: eq(salaryPolicies.id, policyId),
   });
   if (!policy) return { error: "Política salarial não encontrada" };
   const policyConfig = policy.configuracaoJson as PolicyConfig;
 
   // Load active staff
-  const staffRows = await db.query.users.findMany({
+  const staffRows = await dbAdmin.query.users.findMany({
     where: eq(users.activo, true),
     columns: {
       id: true,
@@ -155,7 +155,7 @@ export async function calculateAndSavePeriod(input: CalculatePeriodInput) {
 
   // Load projects with assistants
   const projectIds = projectEntries.map((e) => e.projectId);
-  const projectRows = await db.query.projects.findMany({
+  const projectRows = await dbAdmin.query.projects.findMany({
     where: (p, { inArray }) => inArray(p.id, projectIds),
     with: {
       assistants: { columns: { userId: true, percentagemOverride: true } },
@@ -212,7 +212,7 @@ export async function calculateAndSavePeriod(input: CalculatePeriodInput) {
 
   // Save to DB
   try {
-    const [period] = await db
+    const [period] = await dbAdmin
       .insert(salaryPeriods)
       .values({
         ano,
@@ -228,7 +228,7 @@ export async function calculateAndSavePeriod(input: CalculatePeriodInput) {
 
     const nonZeroLines = lines.filter((l) => l.totalLiquido > 0);
     if (nonZeroLines.length > 0) {
-      await db.insert(salaryLines).values(
+      await dbAdmin.insert(salaryLines).values(
         nonZeroLines.map((l) => ({
           periodId: period.id,
           userId: l.userId,
@@ -247,7 +247,7 @@ export async function calculateAndSavePeriod(input: CalculatePeriodInput) {
     }
 
     if (payments.length > 0) {
-      await db.insert(projectPaymentsTable).values(
+      await dbAdmin.insert(projectPaymentsTable).values(
         payments.map((p) => ({
           periodId: period.id,
           projectId: p.projectId,
@@ -287,7 +287,7 @@ export async function confirmPeriod(periodId: string) {
   if (!user || !dbUser) throw new Error("Não autenticado");
   if (!["ca", "dg"].includes(dbUser.role)) return { error: "Sem permissão" };
 
-  const period = await db.query.salaryPeriods.findFirst({
+  const period = await dbAdmin.query.salaryPeriods.findFirst({
     where: eq(salaryPeriods.id, periodId),
   });
   if (!period) return { error: "Período não encontrado" };
@@ -296,7 +296,7 @@ export async function confirmPeriod(periodId: string) {
       error: "Apenas períodos em estado 'calculado' podem ser confirmados",
     };
 
-  await db
+  await dbAdmin
     .update(salaryPeriods)
     .set({
       estado: "confirmado",
@@ -327,7 +327,7 @@ export async function markLinePaid(
   if (!user || !dbUser) throw new Error("Não autenticado");
   if (!["ca", "dg"].includes(dbUser.role)) return { error: "Sem permissão" };
 
-  await db
+  await dbAdmin
     .update(salaryLines)
     .set({
       pago: true,
@@ -337,13 +337,13 @@ export async function markLinePaid(
     .where(eq(salaryLines.id, lineId));
 
   // Fetch the period id to check if all lines are now paid
-  const line = await db.query.salaryLines.findFirst({
+  const line = await dbAdmin.query.salaryLines.findFirst({
     where: eq(salaryLines.id, lineId),
     columns: { periodId: true },
   });
 
   if (line) {
-    const unpaid = await db.query.salaryLines.findMany({
+    const unpaid = await dbAdmin.query.salaryLines.findMany({
       where: and(
         eq(salaryLines.periodId, line.periodId),
         eq(salaryLines.pago, false)
@@ -352,7 +352,7 @@ export async function markLinePaid(
     });
 
     if (unpaid.length === 0) {
-      await db
+      await dbAdmin
         .update(salaryPeriods)
         .set({ estado: "pago" })
         .where(eq(salaryPeriods.id, line.periodId));

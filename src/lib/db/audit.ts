@@ -1,4 +1,4 @@
-import { db } from "./index";
+import { dbAdmin } from "./index";
 import { auditLog } from "./schema";
 
 interface AuditParams {
@@ -13,7 +13,7 @@ interface AuditParams {
 }
 
 export async function insertAuditLog(params: AuditParams) {
-  await db.insert(auditLog).values({
+  await dbAdmin.insert(auditLog).values({
     userId: params.userId,
     acao: params.acao,
     entidade: params.entidade,

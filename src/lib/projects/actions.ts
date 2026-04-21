@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { db } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import {
   projects,
   projectAssistants,
@@ -39,7 +39,7 @@ export async function listProjects(search?: string) {
     ? or(ilike(projects.titulo, `%${search}%`))
     : undefined;
 
-  return db.query.projects.findMany({
+  return dbAdmin.query.projects.findMany({
     where,
     with: {
       client: true,
@@ -54,7 +54,7 @@ export async function getProject(id: string) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
 
-  return db.query.projects.findFirst({
+  return dbAdmin.query.projects.findFirst({
     where: eq(projects.id, id),
     with: {
       client: true,
@@ -94,13 +94,13 @@ export async function createProject(_: unknown, formData: FormData) {
 
   const { assistants, ...projectData } = parsed.data;
 
-  const [created] = await db
+  const [created] = await dbAdmin
     .insert(projects)
     .values({ ...projectData, createdBy: dbUser.id })
     .returning();
 
   if (assistants.length > 0) {
-    await db.insert(projectAssistants).values(
+    await dbAdmin.insert(projectAssistants).values(
       assistants.map((userId) => ({ projectId: created.id, userId }))
     );
   }
@@ -143,23 +143,23 @@ export async function updateProject(id: string, _: unknown, formData: FormData) 
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
 
-  const existing = await db.query.projects.findFirst({
+  const existing = await dbAdmin.query.projects.findFirst({
     where: eq(projects.id, id),
   });
   if (!existing) return { error: "Projecto não encontrado" };
 
   const { assistants, ...projectData } = parsed.data;
 
-  const [updated] = await db
+  const [updated] = await dbAdmin
     .update(projects)
     .set({ ...projectData, updatedAt: new Date() })
     .where(eq(projects.id, id))
     .returning();
 
   // Replace assistants
-  await db.delete(projectAssistants).where(eq(projectAssistants.projectId, id));
+  await dbAdmin.delete(projectAssistants).where(eq(projectAssistants.projectId, id));
   if (assistants.length > 0) {
-    await db.insert(projectAssistants).values(
+    await dbAdmin.insert(projectAssistants).values(
       assistants.map((userId) => ({ projectId: id, userId }))
     );
   }
@@ -187,7 +187,7 @@ export async function updateProjectEstado(id: string, estado: string) {
   const valid = ["proposta", "activo", "pausado", "concluido", "cancelado"];
   if (!valid.includes(estado)) return { error: "Estado inválido" };
 
-  await db
+  await dbAdmin
     .update(projects)
     .set({ estado: estado as never, updatedAt: new Date() })
     .where(eq(projects.id, id));

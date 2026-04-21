@@ -1,14 +1,14 @@
 "use server";
 
 import { z } from "zod";
-import { db } from "@/lib/db";
+import { dbAdmin, withAuthenticatedDb } from "@/lib/db";
 import {
   invoices,
   invoiceItems,
   invoicePayments,
   type InvoiceState,
 } from "@/lib/db/schema";
-import { eq, and, desc, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, desc, gte, lte, inArray, type SQL } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/actions";
 import { insertAuditLog } from "@/lib/db/audit";
@@ -76,7 +76,7 @@ export async function listInvoices(filters?: {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
 
-  const conditions = [];
+  const conditions: SQL[] = [];
   if (filters?.estado?.length)
     conditions.push(inArray(invoices.estado, filters.estado));
   if (filters?.clientId)
@@ -93,13 +93,15 @@ export async function listInvoices(filters?: {
     );
   }
 
-  return db.query.invoices.findMany({
-    where: conditions.length ? and(...conditions) : undefined,
-    with: {
-      client: true,
-      createdBy: { columns: { nomeCurto: true } },
-    },
-    orderBy: [desc(invoices.createdAt)],
+  return withAuthenticatedDb(user, async (db) => {
+    return db.query.invoices.findMany({
+      where: conditions.length ? and(...conditions) : undefined,
+      with: {
+        client: true,
+        createdBy: { columns: { nomeCurto: true } },
+      },
+      orderBy: [desc(invoices.createdAt)],
+    });
   });
 }
 
@@ -107,14 +109,16 @@ export async function getInvoice(id: string) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
 
-  return db.query.invoices.findFirst({
-    where: eq(invoices.id, id),
-    with: {
-      client: { with: { contacts: { where: eq(invoiceItems.invoiceId, id) } } },
-      items: { orderBy: (i, { asc }) => [asc(i.ordem)] },
-      payments: { orderBy: (p, { desc }) => [desc(p.data)] },
-      createdBy: { columns: { nomeCurto: true, nomeCompleto: true } },
-    },
+  return withAuthenticatedDb(user, async (db) => {
+    return db.query.invoices.findFirst({
+      where: eq(invoices.id, id),
+      with: {
+        client: { with: { contacts: true } },
+        items: { orderBy: (i, { asc }) => [asc(i.ordem)] },
+        payments: { orderBy: (p, { desc }) => [desc(p.data)] },
+        createdBy: { columns: { nomeCurto: true, nomeCompleto: true } },
+      },
+    });
   });
 }
 
@@ -133,7 +137,7 @@ export async function createInvoice(data: z.infer<typeof invoiceSchema>) {
   const { items, igvPercentagem, ...invoiceData } = parsed.data;
   const { subtotal, igvValor, total } = calcTotals(items, igvPercentagem);
 
-  const [created] = await db
+  const [created] = await dbAdmin
     .insert(invoices)
     .values({
       ...invoiceData,
@@ -146,7 +150,7 @@ export async function createInvoice(data: z.infer<typeof invoiceSchema>) {
     })
     .returning();
 
-  await db.insert(invoiceItems).values(
+  await dbAdmin.insert(invoiceItems).values(
     items.map((item, i) => ({
       invoiceId: created.id,
       ordem: i + 1,
@@ -183,7 +187,7 @@ export async function updateInvoiceItems(
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
 
-  const invoice = await db.query.invoices.findFirst({
+  const invoice = await dbAdmin.query.invoices.findFirst({
     where: eq(invoices.id, invoiceId),
   });
   if (!invoice) return { error: "Factura não encontrada" };
@@ -192,8 +196,8 @@ export async function updateInvoiceItems(
 
   const { subtotal, igvValor, total } = calcTotals(items, igvPercentagem);
 
-  await db.delete(invoiceItems).where(eq(invoiceItems.invoiceId, invoiceId));
-  await db.insert(invoiceItems).values(
+  await dbAdmin.delete(invoiceItems).where(eq(invoiceItems.invoiceId, invoiceId));
+  await dbAdmin.insert(invoiceItems).values(
     items.map((item, i) => ({
       invoiceId,
       ordem: i + 1,
@@ -205,7 +209,7 @@ export async function updateInvoiceItems(
     }))
   );
 
-  await db
+  await dbAdmin
     .update(invoices)
     .set({
       igvPercentagem: String(igvPercentagem),
@@ -231,7 +235,7 @@ export async function transitionInvoice(
   if (!["ca", "dg"].includes(dbUser.role))
     return { error: "Sem permissão" };
 
-  const invoice = await db.query.invoices.findFirst({
+  const invoice = await dbAdmin.query.invoices.findFirst({
     where: eq(invoices.id, invoiceId),
   });
   if (!invoice) return { error: "Factura não encontrada" };
@@ -245,7 +249,7 @@ export async function transitionInvoice(
     invoice.estado === "rascunho" &&
     (to === "proforma" || to === "definitiva")
   ) {
-    const [{ nextval }] = await db.execute<{ nextval: string }>(
+    const [{ nextval }] = await dbAdmin.execute<{ nextval: string }>(
       sql`SELECT nextval('invoice_number_seq')`
     );
     updates.numero = Number(nextval);
@@ -256,7 +260,7 @@ export async function transitionInvoice(
     updates.tipo = "definitiva";
   }
 
-  const [updated] = await db
+  const [updated] = await dbAdmin
     .update(invoices)
     .set(updates)
     .where(eq(invoices.id, invoiceId))
@@ -294,7 +298,7 @@ export async function registerPayment(
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
 
-  const invoice = await db.query.invoices.findFirst({
+  const invoice = await dbAdmin.query.invoices.findFirst({
     where: eq(invoices.id, invoiceId),
     with: { payments: true },
   });
@@ -302,7 +306,7 @@ export async function registerPayment(
   if (!["definitiva", "paga_parcial"].includes(invoice.estado))
     return { error: "Factura não está em estado pagável" };
 
-  await db.insert(invoicePayments).values({
+  await dbAdmin.insert(invoicePayments).values({
     invoiceId,
     data: parsed.data.data,
     valor: String(parsed.data.valor),
@@ -323,7 +327,7 @@ export async function registerPayment(
   const newState: InvoiceState =
     totalPago >= Number(invoice.total) ? "paga" : "paga_parcial";
 
-  await db
+  await dbAdmin
     .update(invoices)
     .set({ estado: newState })
     .where(eq(invoices.id, invoiceId));
@@ -341,14 +345,14 @@ export async function deleteInvoiceDraft(invoiceId: string) {
   if (!["ca", "dg"].includes(dbUser.role))
     return { error: "Sem permissão" };
 
-  const invoice = await db.query.invoices.findFirst({
+  const invoice = await dbAdmin.query.invoices.findFirst({
     where: eq(invoices.id, invoiceId),
   });
   if (!invoice) return { error: "Factura não encontrada" };
   if (invoice.estado !== "rascunho")
     return { error: "Só rascunhos podem ser eliminados" };
 
-  await db.delete(invoices).where(eq(invoices.id, invoiceId));
+  await dbAdmin.delete(invoices).where(eq(invoices.id, invoiceId));
   revalidatePath("/admin/invoices");
   return { success: true };
 }

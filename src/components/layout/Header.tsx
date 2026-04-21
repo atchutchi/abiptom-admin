@@ -1,6 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,7 +13,11 @@ interface HeaderProps {
 
 export function Header({ title }: HeaderProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const supabase = createClient();
+  const homeHref = pathname?.startsWith("/staff")
+    ? "/staff/me/dashboard"
+    : "/admin/dashboard";
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -21,9 +27,21 @@ export function Header({ title }: HeaderProps) {
 
   return (
     <header className="h-16 border-b bg-white flex items-center justify-between px-6">
-      {title && (
-        <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
-      )}
+      <div className="flex min-w-0 items-center gap-4">
+        <Link href={homeHref} aria-label="ABIPTOM">
+          <Image
+            src="/brand/abiptom-logo.png"
+            alt="ABIPTOM"
+            width={126}
+            height={32}
+            className="h-8 w-auto"
+            priority
+          />
+        </Link>
+        {title && (
+          <h1 className="truncate text-lg font-semibold text-gray-900">{title}</h1>
+        )}
+      </div>
       <div className="ml-auto">
         <Button
           variant="ghost"

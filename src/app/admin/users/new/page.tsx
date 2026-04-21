@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { db } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { Header } from "@/components/layout/Header";
@@ -16,7 +16,7 @@ export default async function NewUserPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const dbUser = await db.query.users.findFirst({
+  const dbUser = await dbAdmin.query.users.findFirst({
     where: eq(users.authUserId, user.id),
   });
 

@@ -242,13 +242,17 @@ function formatDate(d: string): string {
 export function ProfitLossPDF({
   report,
   generatedAt,
+  title = "Relatório Mensal (P&L)",
+  periodLabelOverride,
 }: {
   report: ProfitLossReport;
   generatedAt: string;
+  title?: string;
+  periodLabelOverride?: string;
 }) {
   const { ano, mes, receitas, despesas, salarios, dividendos, resultado } =
     report;
-  const periodLabel = `${MES_LABELS[mes]} ${ano}`;
+  const periodLabel = periodLabelOverride ?? `${MES_LABELS[mes]} ${ano}`;
 
   const categoriasOrdenadas = Object.entries(despesas.porCategoria).sort(
     (a, b) => b[1] - a[1]
@@ -260,9 +264,10 @@ export function ProfitLossPDF({
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
+          {/* eslint-disable-next-line jsx-a11y/alt-text */}
           <Image src="/brand/abiptom-logo.png" style={styles.logo} />
           <View style={styles.titleBox}>
-            <Text style={styles.titleLabel}>Relatório Mensal (P&L)</Text>
+            <Text style={styles.titleLabel}>{title}</Text>
             <Text style={styles.periodLabel}>{periodLabel}</Text>
             <Text style={styles.policyLabel}>
               Emitido em {formatDate(generatedAt)}

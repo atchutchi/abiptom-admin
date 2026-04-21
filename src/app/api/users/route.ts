@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { db } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -14,7 +14,7 @@ export async function GET() {
     return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   }
 
-  const dbUser = await db.query.users.findFirst({
+  const dbUser = await dbAdmin.query.users.findFirst({
     where: eq(users.authUserId, user.id),
   });
 
@@ -22,7 +22,7 @@ export async function GET() {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 
-  const allUsers = await db.query.users.findMany({
+  const allUsers = await dbAdmin.query.users.findMany({
     orderBy: (u, { asc }) => [asc(u.nomeCompleto)],
     columns: {
       id: true,

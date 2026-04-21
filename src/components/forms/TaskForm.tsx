@@ -1,0 +1,181 @@
+"use client";
+
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+
+interface TaskFormProps {
+  action: (prev: unknown, formData: FormData) => Promise<{ error?: string; success?: boolean; id?: string }>;
+  submitLabel?: string;
+  task?: {
+    id: string;
+    titulo: string;
+    descricao: string | null;
+    atribuidaA: string;
+    projectoId: string | null;
+    clienteId: string | null;
+    prazo: string | null;
+    prioridade: "baixa" | "media" | "alta";
+    estado: "pendente" | "em_curso" | "concluida" | "cancelada";
+  };
+  users: Array<{ id: string; nomeCurto: string; role: string }>;
+  projects: Array<{ id: string; titulo: string }>;
+  clients: Array<{ id: string; nome: string }>;
+}
+
+export default function TaskForm({
+  action,
+  submitLabel = "Guardar",
+  task,
+  users,
+  projects,
+  clients,
+}: TaskFormProps) {
+  const [state, formAction, pending] = useActionState(action, null);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!state?.success) return;
+
+    if (state.id) {
+      router.push(`/admin/tasks/${state.id}`);
+      return;
+    }
+
+    if (task?.id) {
+      router.push(`/admin/tasks/${task.id}`);
+      router.refresh();
+      return;
+    }
+
+    router.push("/admin/tasks");
+  }, [state, router, task?.id]);
+
+  return (
+    <form action={formAction} className="max-w-3xl space-y-5">
+      {state?.error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {state.error}
+        </div>
+      )}
+
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Título *</label>
+        <input
+          name="titulo"
+          required
+          defaultValue={task?.titulo ?? ""}
+          placeholder="Ex.: Preparar proposta para cliente X"
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Descrição</label>
+        <textarea
+          name="descricao"
+          defaultValue={task?.descricao ?? ""}
+          rows={4}
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Atribuída a *</label>
+          <select
+            name="atribuidaA"
+            required
+            defaultValue={task?.atribuidaA ?? ""}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
+          >
+            <option value="">Selecionar colaborador</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.nomeCurto} ({u.role.toUpperCase()})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Prazo</label>
+          <input
+            name="prazo"
+            type="date"
+            defaultValue={task?.prazo ?? ""}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Projecto</label>
+          <select
+            name="projectoId"
+            defaultValue={task?.projectoId ?? ""}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
+          >
+            <option value="">Sem projecto</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.titulo}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Cliente</label>
+          <select
+            name="clienteId"
+            defaultValue={task?.clienteId ?? ""}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
+          >
+            <option value="">Sem cliente</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Prioridade</label>
+          <select
+            name="prioridade"
+            defaultValue={task?.prioridade ?? "media"}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
+          >
+            <option value="baixa">Baixa</option>
+            <option value="media">Média</option>
+            <option value="alta">Alta</option>
+          </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Estado</label>
+          <select
+            name="estado"
+            defaultValue={task?.estado ?? "pendente"}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
+          >
+            <option value="pendente">Pendente</option>
+            <option value="em_curso">Em curso</option>
+            <option value="concluida">Concluída</option>
+            <option value="cancelada">Cancelada</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="flex gap-3 pt-2">
+        <Button type="submit" disabled={pending}>
+          {pending ? "A guardar..." : submitLabel}
+        </Button>
+        <Button type="button" variant="outline" onClick={() => router.back()}>
+          Cancelar
+        </Button>
+      </div>
+    </form>
+  );
+}

@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { salaryPolicies, users } from "@/lib/db/schema";
 import { getCurrentUser } from "@/lib/auth/actions";
@@ -11,13 +11,13 @@ export default async function NewSalaryPeriodPage() {
   if (!["ca", "dg"].includes(dbUser.role)) redirect("/admin/dashboard");
 
   // Load active policies
-  const policies = await db.query.salaryPolicies.findMany({
+  const policies = await dbAdmin.query.salaryPolicies.findMany({
     where: eq(salaryPolicies.activo, true),
     orderBy: (p, { desc }) => [desc(p.dataInicio)],
   });
 
   // Load active projects with PF + assistants
-  const projectRows = await db.query.projects.findMany({
+  const projectRows = await dbAdmin.query.projects.findMany({
     where: (p, { eq, inArray }) =>
       inArray(p.estado, ["activo", "proposta"]),
     with: {
@@ -31,7 +31,7 @@ export default async function NewSalaryPeriodPage() {
   });
 
   // Load active staff users for override section
-  const staffRows = await db.query.users.findMany({
+  const staffRows = await dbAdmin.query.users.findMany({
     where: eq(users.activo, true),
     columns: {
       id: true,

@@ -1,6 +1,6 @@
 "use server";
 
-import { db } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import {
   invoices,
   invoicePayments,
@@ -25,9 +25,16 @@ function monthRange(ano: number, mes: number): MonthRange {
   return { start, end };
 }
 
+function getMonthBounds(ano: number, mes: number): MonthRange {
+  return monthRange(ano, mes);
+}
+
 export interface ProfitLossReport {
   ano: number;
   mes: number;
+  periodoTipo?: "mensal" | "trimestral";
+  trimestre?: number;
+  periodoLabel?: string;
   receitas: {
     facturado: number;
     recebido: number;
@@ -56,18 +63,20 @@ export interface ProfitLossReport {
   };
 }
 
-export async function getMonthlyProfitLoss(
-  ano: number,
-  mes: number
-): Promise<ProfitLossReport> {
+async function assertReportsAccess() {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
   if (!["ca", "dg"].includes(dbUser.role)) throw new Error("Sem permissão");
+}
 
+async function computeMonthlyProfitLoss(
+  ano: number,
+  mes: number
+): Promise<ProfitLossReport> {
   const { start, end } = monthRange(ano, mes);
 
   // receitas: facturas emitidas no mês (definitivas/pagas) e pagamentos recebidos
-  const facturasDoMes = await db
+  const facturasDoMes = await dbAdmin
     .select({
       id: invoices.id,
       total: invoices.total,
@@ -84,15 +93,13 @@ export async function getMonthlyProfitLoss(
 
   const facturado = facturasDoMes.reduce((s, f) => s + Number(f.total), 0);
 
-  const pagamentosDoMes = await db
+  const pagamentosDoMes = await dbAdmin
     .select({
       valor: invoicePayments.valor,
       taxaCambio: invoicePayments.taxaCambio,
     })
     .from(invoicePayments)
-    .where(
-      and(gte(invoicePayments.data, start), lte(invoicePayments.data, end))
-    );
+    .where(and(gte(invoicePayments.data, start), lte(invoicePayments.data, end)));
 
   const recebido = pagamentosDoMes.reduce(
     (s, p) => s + Number(p.valor) * Number(p.taxaCambio ?? "1"),
@@ -100,33 +107,24 @@ export async function getMonthlyProfitLoss(
   );
 
   // despesas: todas as despesas com data no mês (excepto anuladas)
-  const despesasDoMes = await db
+  const despesasDoMes = await dbAdmin
     .select({
       categoria: expenses.categoria,
       valorXof: expenses.valorXof,
       estado: expenses.estado,
     })
     .from(expenses)
-    .where(
-      and(
-        gte(expenses.data, start),
-        lte(expenses.data, end)
-      )
-    );
+    .where(and(gte(expenses.data, start), lte(expenses.data, end)));
 
   const despesasValidas = despesasDoMes.filter((d) => d.estado !== "anulada");
-  const totalDespesas = despesasValidas.reduce(
-    (s, d) => s + Number(d.valorXof),
-    0
-  );
+  const totalDespesas = despesasValidas.reduce((s, d) => s + Number(d.valorXof), 0);
   const porCategoria: Record<string, number> = {};
   for (const d of despesasValidas) {
-    porCategoria[d.categoria] =
-      (porCategoria[d.categoria] ?? 0) + Number(d.valorXof);
+    porCategoria[d.categoria] = (porCategoria[d.categoria] ?? 0) + Number(d.valorXof);
   }
 
   // salários: período ano/mes
-  const periodo = await db.query.salaryPeriods.findFirst({
+  const periodo = await dbAdmin.query.salaryPeriods.findFirst({
     where: and(eq(salaryPeriods.ano, ano), eq(salaryPeriods.mes, mes)),
   });
 
@@ -142,7 +140,7 @@ export async function getMonthlyProfitLoss(
     estadoSalario = periodo.estado;
 
     if (totalFolha === 0) {
-      const linhas = await db
+      const linhas = await dbAdmin
         .select({
           totalBruto: salaryLines.totalBruto,
           totalLiquido: salaryLines.totalLiquido,
@@ -156,16 +154,13 @@ export async function getMonthlyProfitLoss(
   }
 
   // dividendos pagos no mês
-  const linhasDivPagas = await db
+  const linhasDivPagas = await dbAdmin
     .select({
       valorBruto: dividendLines.valorBruto,
       estado: dividendPeriods.estado,
     })
     .from(dividendLines)
-    .innerJoin(
-      dividendPeriods,
-      eq(dividendLines.periodId, dividendPeriods.id)
-    )
+    .innerJoin(dividendPeriods, eq(dividendLines.periodId, dividendPeriods.id))
     .where(
       and(
         eq(dividendLines.pago, true),
@@ -174,13 +169,10 @@ export async function getMonthlyProfitLoss(
       )
     );
 
-  const pagoNoMes = linhasDivPagas.reduce(
-    (s, l) => s + Number(l.valorBruto),
-    0
-  );
+  const pagoNoMes = linhasDivPagas.reduce((s, l) => s + Number(l.valorBruto), 0);
 
   // totalDistribuido de periodos com ano/mes correspondente (se aplicável ao trimestre)
-  const periodosAno = await db
+  const periodosAno = await dbAdmin
     .select({
       totalDistribuido: dividendPeriods.totalDistribuido,
       trimestre: dividendPeriods.trimestre,
@@ -203,6 +195,8 @@ export async function getMonthlyProfitLoss(
   return {
     ano,
     mes,
+    periodoTipo: "mensal",
+    periodoLabel: `${String(mes).padStart(2, "0")}/${ano}`,
     receitas: {
       facturado,
       recebido,
@@ -219,6 +213,105 @@ export async function getMonthlyProfitLoss(
       totalLiquido,
       totalBruto,
       estado: estadoSalario,
+    },
+    dividendos: {
+      totalDistribuido,
+      pagoNoMes,
+    },
+    resultado: {
+      margemBruta,
+      margemLiquida,
+      cashflow,
+    },
+  };
+}
+
+export async function getMonthlyProfitLoss(
+  ano: number,
+  mes: number
+): Promise<ProfitLossReport> {
+  await assertReportsAccess();
+  return computeMonthlyProfitLoss(ano, mes);
+}
+
+export async function getQuarterlyProfitLoss(
+  ano: number,
+  trimestre: number
+): Promise<ProfitLossReport> {
+  await assertReportsAccess();
+  return getQuarterlyProfitLossSystem(ano, trimestre);
+}
+
+export async function getMonthlyProfitLossSystem(
+  ano: number,
+  mes: number
+): Promise<ProfitLossReport> {
+  return computeMonthlyProfitLoss(ano, mes);
+}
+
+export async function getQuarterlyProfitLossSystem(
+  ano: number,
+  trimestre: number
+): Promise<ProfitLossReport> {
+
+  if (trimestre < 1 || trimestre > 4) {
+    throw new Error("Trimestre inválido");
+  }
+
+  const mesInicial = (trimestre - 1) * 3 + 1;
+  const meses = [mesInicial, mesInicial + 1, mesInicial + 2];
+  const monthlyReports = await Promise.all(
+    meses.map((mes) => computeMonthlyProfitLoss(ano, mes))
+  );
+
+  const porCategoria: Record<string, number> = {};
+  for (const report of monthlyReports) {
+    for (const [cat, value] of Object.entries(report.despesas.porCategoria)) {
+      porCategoria[cat] = (porCategoria[cat] ?? 0) + value;
+    }
+  }
+
+  const facturado = monthlyReports.reduce((s, r) => s + r.receitas.facturado, 0);
+  const recebido = monthlyReports.reduce((s, r) => s + r.receitas.recebido, 0);
+  const totalDespesas = monthlyReports.reduce((s, r) => s + r.despesas.total, 0);
+  const totalFolha = monthlyReports.reduce((s, r) => s + r.salarios.totalFolha, 0);
+  const totalLiquido = monthlyReports.reduce((s, r) => s + r.salarios.totalLiquido, 0);
+  const totalBruto = monthlyReports.reduce((s, r) => s + r.salarios.totalBruto, 0);
+  const totalDistribuido = monthlyReports.reduce(
+    (s, r) => s + r.dividendos.totalDistribuido,
+    0
+  );
+  const pagoNoMes = monthlyReports.reduce((s, r) => s + r.dividendos.pagoNoMes, 0);
+
+  const margemBruta = facturado - totalDespesas;
+  const margemLiquida = margemBruta - totalFolha;
+  const cashflow = recebido - totalDespesas - totalLiquido - pagoNoMes;
+
+  return {
+    ano,
+    mes: meses[2],
+    trimestre,
+    periodoTipo: "trimestral",
+    periodoLabel: `T${trimestre} ${ano}`,
+    receitas: {
+      facturado,
+      recebido,
+      facturasCount: monthlyReports.reduce((s, r) => s + r.receitas.facturasCount, 0),
+      pagamentosCount: monthlyReports.reduce(
+        (s, r) => s + r.receitas.pagamentosCount,
+        0
+      ),
+    },
+    despesas: {
+      total: totalDespesas,
+      porCategoria,
+      count: monthlyReports.reduce((s, r) => s + r.despesas.count, 0),
+    },
+    salarios: {
+      totalFolha,
+      totalLiquido,
+      totalBruto,
+      estado: "Consolidado trimestral",
     },
     dividendos: {
       totalDistribuido,
