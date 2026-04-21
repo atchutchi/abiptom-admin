@@ -83,6 +83,13 @@ export const expenseStateEnum = pgEnum("expense_state", [
   "anulada",
 ]);
 
+export const dividendStateEnum = pgEnum("dividend_state", [
+  "proposto",
+  "aprovado",
+  "pago",
+  "anulado",
+]);
+
 // ─── Sequences ───────────────────────────────────────────────────────────────
 
 export const invoiceNumberSeq = pgSequence("invoice_number_seq", {
@@ -422,6 +429,58 @@ export const expenses = pgTable("expenses", {
     .defaultNow(),
 });
 
+// ─── dividend_periods ─────────────────────────────────────────────────────────
+
+export const dividendPeriods = pgTable("dividend_periods", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ano: integer("ano").notNull(),
+  trimestre: integer("trimestre"),
+  baseCalculada: numeric("base_calculada", { precision: 14, scale: 2 })
+    .notNull()
+    .default("0"),
+  totalDistribuido: numeric("total_distribuido", { precision: 14, scale: 2 })
+    .notNull()
+    .default("0"),
+  estado: dividendStateEnum("estado").notNull().default("proposto"),
+  notas: text("notas"),
+  criadoPor: uuid("criado_por").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  aprovadoPor: uuid("aprovado_por").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  aprovadoEm: timestamp("aprovado_em", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ─── dividend_lines ───────────────────────────────────────────────────────────
+
+export const dividendLines = pgTable("dividend_lines", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  periodId: uuid("period_id")
+    .notNull()
+    .references(() => dividendPeriods.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "restrict" }),
+  percentagemQuota: numeric("percentagem_quota", {
+    precision: 5,
+    scale: 2,
+  }).notNull(),
+  valorBruto: numeric("valor_bruto", { precision: 14, scale: 2 })
+    .notNull()
+    .default("0"),
+  pago: boolean("pago").notNull().default(false),
+  dataPagamento: date("data_pagamento"),
+  referenciaPagamento: varchar("referencia_pagamento", { length: 200 }),
+  notas: text("notas"),
+});
+
 // ─── audit_log ────────────────────────────────────────────────────────────────
 
 export const auditLog = pgTable("audit_log", {
@@ -593,6 +652,34 @@ export const expensesRelations = relations(expenses, ({ one }) => ({
   }),
 }));
 
+export const dividendPeriodsRelations = relations(
+  dividendPeriods,
+  ({ one, many }) => ({
+    criadoPor: one(users, {
+      fields: [dividendPeriods.criadoPor],
+      references: [users.id],
+      relationName: "dividend_criado_por",
+    }),
+    aprovadoPor: one(users, {
+      fields: [dividendPeriods.aprovadoPor],
+      references: [users.id],
+      relationName: "dividend_aprovado_por",
+    }),
+    lines: many(dividendLines),
+  })
+);
+
+export const dividendLinesRelations = relations(dividendLines, ({ one }) => ({
+  period: one(dividendPeriods, {
+    fields: [dividendLines.periodId],
+    references: [dividendPeriods.id],
+  }),
+  user: one(users, {
+    fields: [dividendLines.userId],
+    references: [users.id],
+  }),
+}));
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type User = typeof users.$inferSelect;
@@ -634,3 +721,8 @@ export type NewSalaryLine = typeof salaryLines.$inferInsert;
 export type ProjectPayment = typeof projectPayments.$inferSelect;
 export type ExpenseCategory = (typeof expenseCategoryEnum.enumValues)[number];
 export type ExpenseState = (typeof expenseStateEnum.enumValues)[number];
+export type DividendState = (typeof dividendStateEnum.enumValues)[number];
+export type DividendPeriod = typeof dividendPeriods.$inferSelect;
+export type NewDividendPeriod = typeof dividendPeriods.$inferInsert;
+export type DividendLine = typeof dividendLines.$inferSelect;
+export type NewDividendLine = typeof dividendLines.$inferInsert;
