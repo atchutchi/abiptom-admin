@@ -171,6 +171,7 @@ export default async function InvoicePage({
                   <th className="px-4 py-2 text-left font-medium">Método</th>
                   <th className="px-4 py-2 text-left font-medium">Referência</th>
                   <th className="px-4 py-2 text-right font-medium">Valor</th>
+                  <th className="px-4 py-2 text-right font-medium w-24">Recibo</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -181,6 +182,16 @@ export default async function InvoicePage({
                     <td className="px-4 py-2 text-muted-foreground">{p.referencia ?? "—"}</td>
                     <td className="px-4 py-2 text-right font-mono font-medium">
                       {formatCurrency(p.valor, p.moeda)}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <a
+                        href={`/api/invoices/payments/${p.id}/receipt`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline text-xs"
+                      >
+                        PDF
+                      </a>
                     </td>
                   </tr>
                 ))}
