@@ -68,6 +68,31 @@ export default async function DashboardPage() {
             </p>
           </div>
 
+          {stats.facturasVencidas.count > 0 && (
+            <Link
+              href="/admin/invoices?vencidas=1"
+              className="block rounded-lg border border-red-200 bg-red-50 px-5 py-4 hover:bg-red-100 transition-colors"
+            >
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 rounded-md bg-red-100 p-1.5">
+                  <AlertTriangle className="h-4 w-4 text-red-700" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-red-900">
+                    {stats.facturasVencidas.count} factura(s) vencida(s)
+                  </p>
+                  <p className="text-sm text-red-700 mt-0.5">
+                    Total em atraso:{" "}
+                    <span className="font-medium">
+                      {formatCurrency(stats.facturasVencidas.totalXof)}
+                    </span>{" "}
+                    · Clique para ver a lista e cobrar
+                  </p>
+                </div>
+              </div>
+            </Link>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
               href="/admin/invoices"
@@ -78,7 +103,7 @@ export default async function DashboardPage() {
               tone="blue"
             />
             <KpiCard
-              href="/admin/invoices"
+              href="/admin/invoices?vencidas=1"
               icon={AlertTriangle}
               label="Facturas vencidas"
               value={String(stats.facturasVencidas.count)}
