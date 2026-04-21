@@ -1,5 +1,6 @@
 import { defineConfig } from "drizzle-kit";
 import { config } from "dotenv";
+import { getMigrationDatabaseUrl } from "./src/lib/db/config";
 
 config({ path: ".env.local" });
 
@@ -8,7 +9,7 @@ export default defineConfig({
   out: "./src/lib/db/migrations",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL!,
+    url: getMigrationDatabaseUrl(),
     ssl: true,
   },
   verbose: true,

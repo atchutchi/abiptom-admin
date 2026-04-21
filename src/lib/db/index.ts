@@ -3,8 +3,9 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import type { User } from "@supabase/supabase-js";
 import postgres from "postgres";
 import * as schema from "./schema";
+import { getRuntimeDatabaseUrl } from "./config";
 
-const connectionString = process.env.DATABASE_URL!;
+const connectionString = getRuntimeDatabaseUrl();
 
 // HMR em dev cria novos clientes a cada recompilação e esgota connection slots
 // do Supabase. Cachear o cliente no globalThis evita fuga de ligações.

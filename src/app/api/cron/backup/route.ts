@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthorizedCronRequest } from "@/lib/cron/auth";
 import { createSqlFallbackDump } from "@/lib/backup/sql-dump";
+import { getBackupDatabaseUrl } from "@/lib/db/config";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -16,10 +17,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    return NextResponse.json({ error: "DATABASE_URL não configurado." }, { status: 500 });
-  }
+  const databaseUrl = getBackupDatabaseUrl();
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const filename = `abiptom-backup-${timestamp}.sql`;
