@@ -4,6 +4,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Banknote,
+  Download,
   Receipt,
   TrendingUp,
   Wallet,
@@ -77,46 +78,57 @@ export default async function ReportsPage({ searchParams }: PageProps) {
           </p>
         </div>
 
-        <form method="get" className="flex items-end gap-2">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Mês
-            </label>
-            <select
-              name="mes"
-              defaultValue={mes}
-              className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
+        <div className="flex items-end gap-2 flex-wrap">
+          <form method="get" className="flex items-end gap-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Mês
+              </label>
+              <select
+                name="mes"
+                defaultValue={mes}
+                className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
+              >
+                {meses.map((m) => (
+                  <option key={m} value={m}>
+                    {MES_LABELS[m]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Ano
+              </label>
+              <select
+                name="ano"
+                defaultValue={ano}
+                className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
+              >
+                {anos.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="submit"
+              className="h-9 rounded-md bg-gray-900 text-white px-4 text-sm font-medium hover:bg-gray-800"
             >
-              {meses.map((m) => (
-                <option key={m} value={m}>
-                  {MES_LABELS[m]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Ano
-            </label>
-            <select
-              name="ano"
-              defaultValue={ano}
-              className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
-            >
-              {anos.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button
-            type="submit"
-            className="h-9 rounded-md bg-gray-900 text-white px-4 text-sm font-medium hover:bg-gray-800"
+              Filtrar
+            </button>
+          </form>
+          <a
+            href={`/api/reports/pl?ano=${ano}&mes=${mes}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="h-9 inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
-            Filtrar
-          </button>
-        </form>
+            <Download className="h-4 w-4" />
+            Exportar PDF
+          </a>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
