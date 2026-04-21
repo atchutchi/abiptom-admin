@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { ConfirmPeriodButton } from "@/components/forms/ConfirmPeriodButton";
 import { MarkLinePaidButton } from "@/components/forms/MarkLinePaidButton";
-import { ArrowLeft, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, FileDown } from "lucide-react";
 import type { ProjectPaymentRecord } from "@/lib/salary/types";
 
 const PERIOD_STATE_LABELS: Record<string, string> = {
@@ -205,12 +205,26 @@ export default async function SalaryPeriodPage({ params }: PageProps) {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {canMarkPaid && !line.pago && (
-                      <MarkLinePaidButton
-                        lineId={line.id}
-                        nomeCurto={line.user.nomeCurto}
-                      />
-                    )}
+                    <div className="flex items-center gap-2 justify-end">
+                      {canMarkPaid && !line.pago && (
+                        <MarkLinePaidButton
+                          lineId={line.id}
+                          nomeCurto={line.user.nomeCurto}
+                        />
+                      )}
+                      {period.estado !== "aberto" && (
+                        <a
+                          href={`/api/salary/receipt/${line.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900"
+                          title="Ver recibo PDF"
+                        >
+                          <FileDown className="h-3.5 w-3.5" />
+                          Recibo
+                        </a>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
