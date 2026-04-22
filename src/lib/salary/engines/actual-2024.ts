@@ -1,99 +1,523 @@
 import type {
+  Actual2024Aggregates,
   Actual2024PolicyConfig,
+  AssistantInput,
+  CalculateActual2024Input,
+  CalculateActual2024Output,
   ProjectInput,
-  StaffInput,
-  SalaryOverride,
   ProjectPaymentRecord,
-  SalaryLineResult,
   SalaryCalculationResult,
+  SalaryLineCalculated,
+  SalaryLineResult,
+  SalaryOverride,
+  SalaryPeriodParticipantInput,
+  StaffInput,
+  UserForSalary,
+} from "../types";
+import {
+  AssistantSplitError,
+  CalculationIntegrityError,
+  MultipleRubricaGestaoBeneficiariosError,
 } from "../types";
 
+const INTEGRITY_TOLERANCE_XOF = 1;
+
+type LegacyActual2024Arguments = [
+  policy: Actual2024PolicyConfig,
+  projects: ProjectInput[],
+  staff: StaffInput[],
+  operationalExpenses: number,
+  overrides?: SalaryOverride[],
+];
+
+export function calculateActual2024(
+  input: CalculateActual2024Input,
+): CalculateActual2024Output;
 export function calculateActual2024(
   policy: Actual2024PolicyConfig,
   projects: ProjectInput[],
   staff: StaffInput[],
   operationalExpenses: number,
-  overrides: SalaryOverride[] = []
+  overrides?: SalaryOverride[],
+): SalaryCalculationResult;
+export function calculateActual2024(
+  first: CalculateActual2024Input | Actual2024PolicyConfig,
+  ...rest: unknown[]
+): CalculateActual2024Output | SalaryCalculationResult {
+  if (isCalculateActual2024Input(first)) {
+    return calculateActual2024V2(first);
+  }
+
+  return calculateActual2024Legacy(
+    first,
+    ...(rest as LegacyActual2024Arguments extends [unknown, ...infer T]
+      ? T
+      : never),
+  );
+}
+
+function isCalculateActual2024Input(
+  value: CalculateActual2024Input | Actual2024PolicyConfig,
+): value is CalculateActual2024Input {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "policyDefaults" in value &&
+    "participants" in value &&
+    Array.isArray(value.projects)
+  );
+}
+
+function calculateActual2024V2(
+  input: CalculateActual2024Input,
+): CalculateActual2024Output {
+  const { projects, participants, expenses, users, policyDefaults } = input;
+  const warnings: string[] = [];
+
+  const beneficiariosGestao = participants.filter(
+    (participant) => participant.recebeRubricaGestao,
+  );
+  if (beneficiariosGestao.length > 1) {
+    throw new MultipleRubricaGestaoBeneficiariosError(
+      beneficiariosGestao.length,
+    );
+  }
+
+  const beneficiarioGestaoUserId = beneficiariosGestao[0]?.userId ?? null;
+  const usersById = new Map(users.map((user) => [user.id, user]));
+
+  const projectBreakdowns = [];
+  const projectPayments: ProjectPaymentRecord[] = [];
+  const pagamentosProjectosPorUser = new Map<string, number>();
+
+  for (const project of projects) {
+    const percentagemPf =
+      project.percentagemPf ?? policyDefaults.percentagem_pf;
+    const percentagemAuxTotal =
+      project.percentagemAuxTotal ?? policyDefaults.percentagem_aux_total;
+    const percentagemRubricaGestao =
+      project.percentagemRubricaGestao ??
+      policyDefaults.percentagem_rubrica_gestao;
+
+    const pagamentoPf = project.pontoFocalId
+      ? Math.round(project.valorLiquido * percentagemPf)
+      : 0;
+    const pagamentoAuxTotal = project.assistants.length > 0
+      ? Math.round(project.valorLiquido * percentagemAuxTotal)
+      : 0;
+    const pagamentoGestao = Math.round(
+      project.valorLiquido * percentagemRubricaGestao,
+    );
+    const restoAbiptom =
+      project.valorLiquido - pagamentoPf - pagamentoAuxTotal - pagamentoGestao;
+
+    if (project.pontoFocalId && pagamentoPf > 0) {
+      const pfRecord: ProjectPaymentRecord = {
+        projectId: project.id,
+        userId: project.pontoFocalId,
+        papel: "pf",
+        percentagemAplicada: percentagemPf,
+        valorLiquidoProjecto: project.valorLiquido,
+        valorRecebido: pagamentoPf,
+      };
+      projectPayments.push(pfRecord);
+      pagamentosProjectosPorUser.set(
+        project.pontoFocalId,
+        (pagamentosProjectosPorUser.get(project.pontoFocalId) ?? 0) +
+          pagamentoPf,
+      );
+    }
+
+    if (project.assistants.length > 0 && pagamentoAuxTotal > 0) {
+      const auxShares = resolveAssistantShares(project.id, project.assistants);
+      let distribuido = 0;
+
+      project.assistants.forEach((assistant, index) => {
+        const isLast = index === project.assistants.length - 1;
+        const valorRecebido = isLast
+          ? pagamentoAuxTotal - distribuido
+          : Math.round(pagamentoAuxTotal * auxShares[index]);
+
+        distribuido += valorRecebido;
+
+        const auxRecord: ProjectPaymentRecord = {
+          projectId: project.id,
+          userId: assistant.userId,
+          papel: "aux",
+          percentagemAplicada: percentagemAuxTotal * auxShares[index],
+          valorLiquidoProjecto: project.valorLiquido,
+          valorRecebido,
+        };
+        projectPayments.push(auxRecord);
+        pagamentosProjectosPorUser.set(
+          assistant.userId,
+          (pagamentosProjectosPorUser.get(assistant.userId) ?? 0) +
+            valorRecebido,
+        );
+      });
+    }
+
+    if (beneficiarioGestaoUserId && pagamentoGestao > 0) {
+      projectPayments.push({
+        projectId: project.id,
+        userId: beneficiarioGestaoUserId,
+        papel: "dg",
+        percentagemAplicada: percentagemRubricaGestao,
+        valorLiquidoProjecto: project.valorLiquido,
+        valorRecebido: pagamentoGestao,
+      });
+    }
+
+    projectBreakdowns.push({
+      projectId: project.id,
+      titulo: project.titulo,
+      valorLiquido: project.valorLiquido,
+      pagamentoPf,
+      pagamentoAuxTotal,
+      pagamentoGestao,
+      restoAbiptom,
+      percentagemPfAplicada: percentagemPf,
+      percentagemAuxTotalAplicada: percentagemAuxTotal,
+      percentagemRubricaGestaoAplicada: percentagemRubricaGestao,
+    });
+  }
+
+  let totalDespesasOperacionais = 0;
+  const expensesXof = [];
+
+  for (const expense of expenses) {
+    if (expense.moeda !== "XOF") {
+      warnings.push(
+        `Despesa ${expense.id} em moeda ${expense.moeda} foi ignorada no calculo do saldo.`,
+      );
+      continue;
+    }
+
+    totalDespesasOperacionais += expense.valorXof;
+    expensesXof.push(expense);
+  }
+
+  const totalRestoAbiptom = projectBreakdowns.reduce(
+    (sum, breakdown) => sum + breakdown.restoAbiptom,
+    0,
+  );
+  const totalPagamentoGestao = projectBreakdowns.reduce(
+    (sum, breakdown) => sum + breakdown.pagamentoGestao,
+    0,
+  );
+  const saldoBaseSubsidios =
+    totalRestoAbiptom - totalDespesasOperacionais;
+  const boloSubsidios = Math.round(
+    saldoBaseSubsidios * policyDefaults.percentagem_subsidio,
+  );
+
+  const elegiveis = participants.filter(
+    (participant) => participant.isElegivelSubsidio,
+  );
+  const numeroElegiveis = elegiveis.length;
+  const subsidioPorPessoa = numeroElegiveis > 0
+    ? Math.round(boloSubsidios / numeroElegiveis)
+    : 0;
+
+  const outrosBeneficiosPorUser = new Map<string, number>();
+  for (const expense of expensesXof) {
+    if (!expense.beneficiarioUserId) {
+      continue;
+    }
+
+    outrosBeneficiosPorUser.set(
+      expense.beneficiarioUserId,
+      (outrosBeneficiosPorUser.get(expense.beneficiarioUserId) ?? 0) +
+        expense.valorXof,
+    );
+  }
+
+  const salaryLines: SalaryLineCalculated[] = participants.map((participant) => {
+    const user = usersById.get(participant.userId);
+    if (!user) {
+      throw new Error(
+        `Utilizador ${participant.userId} em participants nao foi encontrado em users`,
+      );
+    }
+
+    return buildSalaryLine({
+      participant,
+      user,
+      projectPayments,
+      pagamentosProjectosPorUser,
+      totalPagamentoGestao,
+      subsidioPorPessoa,
+      outrosBeneficios: outrosBeneficiosPorUser.get(participant.userId) ?? 0,
+    });
+  });
+
+  const totalFolhaBruto = salaryLines.reduce(
+    (sum, line) => sum + line.totalBrutoCalculado,
+    0,
+  );
+  const totalFolhaLiquido = salaryLines.reduce(
+    (sum, line) => sum + line.totalLiquidoCalculado,
+    0,
+  );
+
+  const aggregates: Actual2024Aggregates = {
+    totalRestoAbiptom,
+    totalPagamentoGestao,
+    totalDespesasOperacionais,
+    saldoBaseSubsidios,
+    boloSubsidios,
+    subsidioPorPessoa,
+    numeroElegiveis,
+    totalFolhaBruto,
+    totalFolhaLiquido,
+  };
+
+  validateActual2024Integrity({
+    salaryLines,
+    totalFolhaBruto,
+    totalPagamentoGestao,
+    subsidioPorPessoa,
+    numeroElegiveis,
+    pagamentosProjectosPorUser,
+    beneficiarioGestaoUserId,
+  });
+
+  return {
+    projectBreakdowns,
+    projectPayments,
+    salaryLines,
+    aggregates,
+    warnings,
+  };
+}
+
+function resolveAssistantShares(
+  projectId: string,
+  assistants: AssistantInput[],
+): number[] {
+  const hasAnyOverride = assistants.some(
+    (assistant) =>
+      assistant.percentagemOverride !== null &&
+      assistant.percentagemOverride !== undefined,
+  );
+
+  if (!hasAnyOverride) {
+    return assistants.map(() => 1 / assistants.length);
+  }
+
+  const shares = assistants.map(
+    (assistant) => assistant.percentagemOverride ?? 0,
+  );
+  const sum = shares.reduce((total, share) => total + share, 0);
+
+  if (Math.abs(sum - 1) > 0.0001) {
+    throw new AssistantSplitError(projectId, sum);
+  }
+
+  return shares;
+}
+
+type BuildSalaryLineArgs = {
+  participant: SalaryPeriodParticipantInput;
+  user: UserForSalary;
+  projectPayments: ProjectPaymentRecord[];
+  pagamentosProjectosPorUser: Map<string, number>;
+  totalPagamentoGestao: number;
+  subsidioPorPessoa: number;
+  outrosBeneficios: number;
+};
+
+function buildSalaryLine({
+  participant,
+  user,
+  projectPayments,
+  pagamentosProjectosPorUser,
+  totalPagamentoGestao,
+  subsidioPorPessoa,
+  outrosBeneficios,
+}: BuildSalaryLineArgs): SalaryLineCalculated {
+  const pagamentosProjectos =
+    pagamentosProjectosPorUser.get(participant.userId) ?? 0;
+  const pagamentoGestaoPessoa = participant.recebeRubricaGestao
+    ? totalPagamentoGestao
+    : 0;
+  const subsidioDinamico = participant.isElegivelSubsidio
+    ? subsidioPorPessoa
+    : 0;
+  const salarioBase =
+    participant.salarioBaseOverride !== null &&
+    participant.salarioBaseOverride !== undefined
+      ? participant.salarioBaseOverride
+      : user.salarioBaseMensal;
+  const descontoPercentagem = user.percentagemDescontoFolha;
+  const descontoValor = Math.round(
+    (pagamentosProjectos +
+      pagamentoGestaoPessoa +
+      subsidioDinamico +
+      salarioBase +
+      outrosBeneficios) * descontoPercentagem,
+  );
+  const totalBrutoCalculado =
+    pagamentosProjectos +
+    pagamentoGestaoPessoa +
+    subsidioDinamico +
+    salarioBase +
+    outrosBeneficios;
+  const totalLiquidoCalculado = totalBrutoCalculado - descontoValor;
+
+  return {
+    userId: participant.userId,
+    salarioBase,
+    componenteDinamica: projectPayments.filter(
+      (record) => record.userId === participant.userId,
+    ),
+    subsidios: {
+      dinamico: subsidioDinamico,
+      rubrica_gestao: pagamentoGestaoPessoa,
+    },
+    outrosBeneficios,
+    pagamentosProjectos,
+    pagamentoGestaoPessoa,
+    subsidioDinamico,
+    descontoPercentagem,
+    descontoValor,
+    totalBrutoCalculado,
+    totalLiquidoCalculado,
+  };
+}
+
+type IntegrityArgs = {
+  salaryLines: SalaryLineCalculated[];
+  totalFolhaBruto: number;
+  totalPagamentoGestao: number;
+  subsidioPorPessoa: number;
+  numeroElegiveis: number;
+  pagamentosProjectosPorUser: Map<string, number>;
+  beneficiarioGestaoUserId: string | null;
+};
+
+function validateActual2024Integrity({
+  salaryLines,
+  totalFolhaBruto,
+  totalPagamentoGestao,
+  subsidioPorPessoa,
+  numeroElegiveis,
+  pagamentosProjectosPorUser,
+  beneficiarioGestaoUserId,
+}: IntegrityArgs) {
+  const somaPagamentosProjectos = Array.from(
+    pagamentosProjectosPorUser.values(),
+  ).reduce((sum, value) => sum + value, 0);
+  const somaSalariosBase = salaryLines.reduce(
+    (sum, line) => sum + line.salarioBase,
+    0,
+  );
+  const somaOutrosBeneficios = salaryLines.reduce(
+    (sum, line) => sum + line.outrosBeneficios,
+    0,
+  );
+  const gestaoAtribuida = beneficiarioGestaoUserId ? totalPagamentoGestao : 0;
+  const subsidiosAtribuidos = subsidioPorPessoa * numeroElegiveis;
+  const somaBrutaEsperada =
+    somaPagamentosProjectos +
+    gestaoAtribuida +
+    subsidiosAtribuidos +
+    somaSalariosBase +
+    somaOutrosBeneficios;
+  const diff = Math.abs(somaBrutaEsperada - totalFolhaBruto);
+
+  if (diff > INTEGRITY_TOLERANCE_XOF) {
+    throw new CalculationIntegrityError({
+      expected: somaBrutaEsperada,
+      actual: totalFolhaBruto,
+      diff,
+      tolerance: INTEGRITY_TOLERANCE_XOF,
+    });
+  }
+}
+
+function calculateActual2024Legacy(
+  policy: Actual2024PolicyConfig,
+  projects: ProjectInput[],
+  staff: StaffInput[],
+  operationalExpenses: number,
+  overrides: SalaryOverride[] = [],
 ): SalaryCalculationResult {
   const cfg = policy.percentagens;
 
   const projectPayments: ProjectPaymentRecord[] = [];
   const userComponents = new Map<string, ProjectPaymentRecord[]>(
-    staff.map((s) => [s.id, []])
+    staff.map((member) => [member.id, []]),
   );
 
-  let entradas_brutas = 0;
-  const dgUser = staff.find((s) => s.role === "dg");
+  let entradasBrutas = 0;
+  const dgUser = staff.find((member) => member.role === "dg");
 
   for (const project of projects) {
-    const net = project.valorLiquido;
     const numAux = project.assistants.length;
-
-    const pfPct =
+    const percentagemPf =
       project.pfPercentagemOverride ??
       (numAux >= 2 ? cfg.pf_2aux : numAux === 1 ? cfg.pf_1aux : cfg.pf_0aux);
-    const auxPctEach = numAux >= 2 ? cfg.aux_2aux : cfg.aux_1aux;
+    const percentagemAuxEach = numAux >= 2 ? cfg.aux_2aux : cfg.aux_1aux;
 
     if (project.pontoFocalId) {
-      const record: ProjectPaymentRecord = {
+      const pfRecord: ProjectPaymentRecord = {
         projectId: project.id,
         userId: project.pontoFocalId,
         papel: "pf",
-        percentagemAplicada: pfPct,
-        valorLiquidoProjecto: net,
-        valorRecebido: Math.round(net * pfPct),
+        percentagemAplicada: percentagemPf,
+        valorLiquidoProjecto: project.valorLiquido,
+        valorRecebido: Math.round(project.valorLiquido * percentagemPf),
       };
-      projectPayments.push(record);
-      userComponents.get(project.pontoFocalId)?.push(record);
+      projectPayments.push(pfRecord);
+      userComponents.get(project.pontoFocalId)?.push(pfRecord);
     }
 
-    for (const aux of project.assistants) {
-      const pct = aux.percentagemOverride ?? auxPctEach;
-      const record: ProjectPaymentRecord = {
+    for (const assistant of project.assistants) {
+      const percentagem = assistant.percentagemOverride ?? percentagemAuxEach;
+      const auxRecord: ProjectPaymentRecord = {
         projectId: project.id,
-        userId: aux.userId,
+        userId: assistant.userId,
         papel: "aux",
-        percentagemAplicada: pct,
-        valorLiquidoProjecto: net,
-        valorRecebido: Math.round(net * pct),
+        percentagemAplicada: percentagem,
+        valorLiquidoProjecto: project.valorLiquido,
+        valorRecebido: Math.round(project.valorLiquido * percentagem),
       };
-      projectPayments.push(record);
-      userComponents.get(aux.userId)?.push(record);
+      projectPayments.push(auxRecord);
+      userComponents.get(assistant.userId)?.push(auxRecord);
     }
 
     if (dgUser) {
-      const record: ProjectPaymentRecord = {
+      const dgRecord: ProjectPaymentRecord = {
         projectId: project.id,
         userId: dgUser.id,
         papel: "dg",
         percentagemAplicada: cfg.dg,
-        valorLiquidoProjecto: net,
-        valorRecebido: Math.round(net * cfg.dg),
+        valorLiquidoProjecto: project.valorLiquido,
+        valorRecebido: Math.round(project.valorLiquido * cfg.dg),
       };
-      projectPayments.push(record);
-      userComponents.get(dgUser.id)?.push(record);
+      projectPayments.push(dgRecord);
+      userComponents.get(dgUser.id)?.push(dgRecord);
     }
 
-    entradas_brutas += Math.round(net * cfg.resto);
+    entradasBrutas += Math.round(project.valorLiquido * cfg.resto);
   }
 
-  const saldo = entradas_brutas - operationalExpenses;
+  const saldo = entradasBrutas - operationalExpenses;
   const subsidioTotal = Math.round(saldo * policy.subsidio.percentagem);
   const subsidioPerPerson = Math.round(
-    subsidioTotal / policy.subsidio.numPessoas
+    subsidioTotal / policy.subsidio.numPessoas,
   );
 
   const lines: SalaryLineResult[] = staff.map((member) => {
     const components = userComponents.get(member.id) ?? [];
-    const override = overrides.find((o) => o.userId === member.id);
-
+    const override = overrides.find((entry) => entry.userId === member.id);
     const componentSum = components.reduce(
-      (sum, c) => sum + c.valorRecebido,
-      0
+      (sum, component) => sum + component.valorRecebido,
+      0,
     );
     const outrosBeneficios = override?.outrosBeneficios ?? 0;
     const descontos = override?.descontos ?? 0;
-
     const totalBruto =
       member.salarioBase +
       componentSum +
@@ -113,7 +537,7 @@ export function calculateActual2024(
     };
   });
 
-  const totalBruto = lines.reduce((sum, l) => sum + l.totalBruto, 0);
+  const totalBruto = lines.reduce((sum, line) => sum + line.totalBruto, 0);
 
   return {
     lines,
@@ -122,7 +546,7 @@ export function calculateActual2024(
       totalBruto,
       totalLiquido: totalBruto,
       totalFolha: totalBruto,
-      entradas_brutas_abiptom: entradas_brutas,
+      entradas_brutas_abiptom: entradasBrutas,
       saldo,
       subsidioTotal,
       subsidioPerPerson,
