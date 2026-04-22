@@ -197,9 +197,9 @@ export function SalaryNewPeriodForm({
 
     startTransition(async () => {
       const result = await calculateAndSavePeriod(input);
-      if (result?.error) {
+      if ("error" in result) {
         setError(result.error);
-      } else if (result?.periodId) {
+      } else {
         router.push(`/admin/salary/${result.periodId}`);
         router.refresh();
       }

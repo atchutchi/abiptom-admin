@@ -1,28 +1,22 @@
 import type {
-  PolicyConfig,
+  Guia2026PolicyConfig,
   ProjectInput,
-  StaffInput,
-  SalaryOverride,
   SalaryCalculationResult,
+  SalaryOverride,
+  StaffInput,
 } from "./types";
-import { calculateActual2024 } from "./engines/actual-2024";
 import { calculateGuia2026 } from "./engines/guia-2026";
 
-export function calculateSalary(
-  policy: PolicyConfig,
+/**
+ * Dispatcher legacy, ainda usado para a política `guia_2026`. A política
+ * `actual_2024` tem um motor com assinatura nova (input por objecto) e deve
+ * ser chamada directamente via `calculateActual2024` em `engines/actual-2024`.
+ */
+export function calculateGuia2026Salary(
+  policy: Guia2026PolicyConfig,
   projects: ProjectInput[],
   staff: StaffInput[],
-  operationalExpenses: number,
   overrides: SalaryOverride[] = []
 ): SalaryCalculationResult {
-  if (policy.tipo === "actual_2024") {
-    return calculateActual2024(
-      policy,
-      projects,
-      staff,
-      operationalExpenses,
-      overrides
-    );
-  }
   return calculateGuia2026(policy, projects, staff, overrides);
 }
