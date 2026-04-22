@@ -140,8 +140,8 @@ async function computeMonthlyProfitLoss(
     if (totalFolha === 0) {
       const linhas = await db
         .select({
-          totalBruto: salaryLines.totalBruto,
-          totalLiquido: salaryLines.totalLiquido,
+          totalBruto: salaryLines.totalBrutoFinal,
+          totalLiquido: salaryLines.totalLiquidoFinal,
         })
         .from(salaryLines)
         .where(eq(salaryLines.periodId, periodo.id));

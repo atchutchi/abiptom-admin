@@ -12,11 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { calculateAndSavePeriod } from "@/lib/salary/actions";
-import type { CalculatePeriodInput } from "@/lib/salary/actions";
-import { ChevronDown, ChevronUp } from "lucide-react";
-
-// ─── Prop Types ───────────────────────────────────────────────────────────────
+import { createPeriod } from "@/lib/salary/actions";
+import type { CreatePeriodInput } from "@/lib/salary/actions";
 
 interface PolicyOption {
   id: string;
@@ -34,38 +31,21 @@ interface ProjectOption {
   assistants: Array<{ userId: string; nomeCurto: string }>;
 }
 
-interface StaffOption {
-  id: string;
-  nomeCurto: string;
-  nomeCompleto: string;
-  salarioBase: number;
-}
-
 interface SalaryNewPeriodFormProps {
   policies: PolicyOption[];
   projects: ProjectOption[];
-  staffUsers: StaffOption[];
 }
-
-// ─── Internal State ───────────────────────────────────────────────────────────
 
 interface ProjectEntry {
   projectId: string;
   included: boolean;
-  valorLiquido: string; // string for controlled input
-}
-
-interface StaffOverride {
-  userId: string;
-  outrosBeneficios: string;
-  descontos: string;
-  motivo: string;
+  valorLiquido: string;
 }
 
 const MES_OPTIONS = [
   { value: "1", label: "Janeiro" },
   { value: "2", label: "Fevereiro" },
-  { value: "3", label: "Março" },
+  { value: "3", label: "Marco" },
   { value: "4", label: "Abril" },
   { value: "5", label: "Maio" },
   { value: "6", label: "Junho" },
@@ -78,80 +58,54 @@ const MES_OPTIONS = [
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
-const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - 1 + i);
+const YEAR_OPTIONS = Array.from({ length: 5 }, (_, index) => CURRENT_YEAR - 1 + index);
 
 export function SalaryNewPeriodForm({
   policies,
   projects,
-  staffUsers,
 }: SalaryNewPeriodFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
-  const [showOverrides, setShowOverrides] = useState(false);
-
-  // Period metadata
   const [ano, setAno] = useState(String(CURRENT_YEAR));
   const [mes, setMes] = useState(String(new Date().getMonth() + 1));
   const [policyId, setPolicyId] = useState(policies[0]?.id ?? "");
-  const [operationalExpenses, setOperationalExpenses] = useState("0");
-
-  // Project entries
   const [entries, setEntries] = useState<ProjectEntry[]>(
-    projects.map((p) => ({
-      projectId: p.id,
+    projects.map((project) => ({
+      projectId: project.id,
       included: false,
       valorLiquido: "",
-    }))
+    })),
   );
 
-  // Staff overrides
-  const [overrides, setOverrides] = useState<StaffOverride[]>(
-    staffUsers.map((u) => ({
-      userId: u.id,
-      outrosBeneficios: "0",
-      descontos: "0",
-      motivo: "",
-    }))
-  );
-
-  const selectedPolicy = policies.find((p) => p.id === policyId);
+  const selectedPolicy = policies.find((policy) => policy.id === policyId);
   const selectedMonth = MES_OPTIONS.find((option) => option.value === mes);
-  const isActual2024 = selectedPolicy?.tipo === "actual_2024";
-  const includedEntries = entries.filter((e) => e.included);
+  const includedEntries = entries.filter((entry) => entry.included);
 
   function toggleProject(projectId: string) {
-    setEntries((prev) =>
-      prev.map((e) =>
-        e.projectId === projectId ? { ...e, included: !e.included } : e
-      )
+    setEntries((previous) =>
+      previous.map((entry) =>
+        entry.projectId === projectId
+          ? { ...entry, included: !entry.included }
+          : entry,
+      ),
     );
   }
 
   function setValorLiquido(projectId: string, value: string) {
-    setEntries((prev) =>
-      prev.map((e) =>
-        e.projectId === projectId ? { ...e, valorLiquido: value } : e
-      )
+    setEntries((previous) =>
+      previous.map((entry) =>
+        entry.projectId === projectId ? { ...entry, valorLiquido: value } : entry,
+      ),
     );
   }
 
-  function setOverrideField(
-    userId: string,
-    field: keyof Omit<StaffOverride, "userId">,
-    value: string
-  ) {
-    setOverrides((prev) =>
-      prev.map((o) => (o.userId === userId ? { ...o, [field]: value } : o))
-    );
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
     setError("");
 
     if (!policyId) {
-      setError("Selecciona uma política salarial.");
+      setError("Selecciona uma politica salarial.");
       return;
     }
 
@@ -161,73 +115,59 @@ export function SalaryNewPeriodForm({
     }
 
     for (const entry of includedEntries) {
-      const v = Number(entry.valorLiquido);
-      if (!entry.valorLiquido || isNaN(v) || v <= 0) {
-        const proj = projects.find((p) => p.id === entry.projectId);
+      const valor = Number(entry.valorLiquido);
+      if (!entry.valorLiquido || Number.isNaN(valor) || valor <= 0) {
+        const project = projects.find((item) => item.id === entry.projectId);
         setError(
-          `Introduz o valor líquido para o projecto "${proj?.titulo ?? entry.projectId}".`
+          `Introduz o valor liquido para o projecto "${project?.titulo ?? entry.projectId}".`,
         );
         return;
       }
     }
 
-    const input: CalculatePeriodInput = {
+    const input: CreatePeriodInput = {
       ano: Number(ano),
       mes: Number(mes),
       policyId,
-      projectEntries: includedEntries.map((e) => ({
-        projectId: e.projectId,
-        valorLiquido: Number(e.valorLiquido),
+      projectEntries: includedEntries.map((entry) => ({
+        projectId: entry.projectId,
+        valorLiquido: Number(entry.valorLiquido),
       })),
-      operationalExpenses: Number(operationalExpenses) || 0,
-      overrides: overrides
-        .filter(
-          (o) =>
-            Number(o.outrosBeneficios) > 0 ||
-            Number(o.descontos) > 0 ||
-            o.motivo.trim() !== ""
-        )
-        .map((o) => ({
-          userId: o.userId,
-          outrosBeneficios: Number(o.outrosBeneficios) || undefined,
-          descontos: Number(o.descontos) || undefined,
-          overrideMotivo: o.motivo || undefined,
-        })),
     };
 
     startTransition(async () => {
-      const result = await calculateAndSavePeriod(input);
-      if (result?.error) {
+      const result = await createPeriod(input);
+      if ("error" in result) {
         setError(result.error);
-      } else if (result?.periodId) {
-        router.push(`/admin/salary/${result.periodId}`);
-        router.refresh();
+        return;
       }
+
+      router.push(`/admin/salary/${result.periodId}`);
+      router.refresh();
     });
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       {error && (
-        <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      {/* ── Section 1: Period metadata ── */}
       <section className="space-y-4 rounded-lg border bg-white p-5 shadow-sm">
-        <h2 className="font-semibold text-gray-800">1. Período e Política</h2>
+        <h2 className="font-semibold text-gray-800">1. Periodo e Politica</h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="space-y-1">
-            <Label>Mês *</Label>
-            <Select value={mes} onValueChange={(v) => v && setMes(v)}>
+            <Label>Mes *</Label>
+            <Select value={mes} onValueChange={(value) => value && setMes(value)}>
               <SelectTrigger>
-                <SelectValue>{selectedMonth?.label ?? "Seleccionar mês"}</SelectValue>
+                <SelectValue>{selectedMonth?.label ?? "Seleccionar mes"}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {MES_OPTIONS.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>
-                    {m.label}
+                {MES_OPTIONS.map((month) => (
+                  <SelectItem key={month.value} value={month.value}>
+                    {month.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -236,14 +176,14 @@ export function SalaryNewPeriodForm({
 
           <div className="space-y-1">
             <Label>Ano *</Label>
-            <Select value={ano} onValueChange={(v) => v && setAno(v)}>
+            <Select value={ano} onValueChange={(value) => value && setAno(value)}>
               <SelectTrigger>
                 <SelectValue>{ano}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {YEAR_OPTIONS.map((y) => (
-                  <SelectItem key={y} value={String(y)}>
-                    {y}
+                {YEAR_OPTIONS.map((year) => (
+                  <SelectItem key={year} value={String(year)}>
+                    {year}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -251,48 +191,33 @@ export function SalaryNewPeriodForm({
           </div>
 
           <div className="space-y-1">
-            <Label>Política *</Label>
-            <Select value={policyId} onValueChange={(v) => v && setPolicyId(v)}>
+            <Label>Politica *</Label>
+            <Select value={policyId} onValueChange={(value) => value && setPolicyId(value)}>
               <SelectTrigger>
-                <SelectValue placeholder="Seleccionar política">
-                  {selectedPolicy ? `${selectedPolicy.nome} v${selectedPolicy.versao}` : "Seleccionar política"}
+                <SelectValue placeholder="Seleccionar politica">
+                  {selectedPolicy
+                    ? `${selectedPolicy.nome} v${selectedPolicy.versao}`
+                    : "Seleccionar politica"}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {policies.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.nome} v{p.versao}
+                {policies.map((policy) => (
+                  <SelectItem key={policy.id} value={policy.id}>
+                    {policy.nome} v{policy.versao}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
         </div>
-
-        {/* Operational expenses — actual_2024 only */}
-        {isActual2024 && (
-          <div className="space-y-1 max-w-xs">
-            <Label htmlFor="opex">Despesas operacionais (XOF)</Label>
-            <Input
-              id="opex"
-              type="number"
-              min="0"
-              step="1"
-              value={operationalExpenses}
-              onChange={(e) => setOperationalExpenses(e.target.value)}
-              placeholder="0"
-            />
-            <p className="text-xs text-gray-500">
-              Subtrai ao saldo antes de calcular o subsídio.
-            </p>
-          </div>
-        )}
+        <p className="text-xs text-gray-500">
+          O periodo e criado em estado aberto. Depois ajustas participantes e so entao corres o calculo.
+        </p>
       </section>
 
-      {/* ── Section 2: Projects ── */}
       <section className="space-y-4 rounded-lg border bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="font-semibold text-gray-800">2. Projectos do período</h2>
+          <h2 className="font-semibold text-gray-800">2. Projectos do periodo</h2>
           <span className="text-sm text-gray-500">
             {includedEntries.length} seleccionado(s)
           </span>
@@ -302,35 +227,30 @@ export function SalaryNewPeriodForm({
           <p className="text-sm text-gray-400">Nenhum projecto activo encontrado.</p>
         ) : (
           <div className="divide-y divide-gray-100">
-            {projects.map((proj) => {
-              const entry = entries.find((e) => e.projectId === proj.id)!;
+            {projects.map((project) => {
+              const entry = entries.find((item) => item.projectId === project.id)!;
               return (
                 <div
-                  key={proj.id}
+                  key={project.id}
                   className="flex flex-col gap-3 py-3 md:flex-row md:items-center"
                 >
                   <div className="flex flex-1 items-start gap-3">
                     <input
                       type="checkbox"
-                      id={`proj-${proj.id}`}
+                      id={`proj-${project.id}`}
                       checked={entry.included}
-                      onChange={() => toggleProject(proj.id)}
+                      onChange={() => toggleProject(project.id)}
                       className="mt-1 h-4 w-4 flex-shrink-0 rounded border-gray-300 text-blue-600"
                     />
-                    <label
-                      htmlFor={`proj-${proj.id}`}
-                      className="flex-1 cursor-pointer"
-                    >
-                      <p className="text-sm font-medium text-gray-800">
-                        {proj.titulo}
-                      </p>
+                    <label htmlFor={`proj-${project.id}`} className="flex-1 cursor-pointer">
+                      <p className="text-sm font-medium text-gray-800">{project.titulo}</p>
                       <p className="text-xs text-gray-400">
-                        {proj.clienteNome}
-                        {proj.pontoFocalNome
-                          ? ` · PF: ${proj.pontoFocalNome}`
-                          : ""}
-                        {proj.assistants.length > 0
-                          ? ` · Aux: ${proj.assistants.map((a) => a.nomeCurto).join(", ")}`
+                        {project.clienteNome}
+                        {project.pontoFocalNome ? ` · PF: ${project.pontoFocalNome}` : ""}
+                        {project.assistants.length > 0
+                          ? ` · Aux: ${project.assistants
+                              .map((assistant) => assistant.nomeCurto)
+                              .join(", ")}`
                           : ""}
                       </p>
                     </label>
@@ -342,11 +262,9 @@ export function SalaryNewPeriodForm({
                         type="number"
                         min="0"
                         step="1"
-                        placeholder="Valor líquido XOF"
+                        placeholder="Valor liquido XOF"
                         value={entry.valorLiquido}
-                        onChange={(e) =>
-                          setValorLiquido(proj.id, e.target.value)
-                        }
+                        onChange={(event) => setValorLiquido(project.id, event.target.value)}
                         className="text-right"
                       />
                     </div>
@@ -358,103 +276,11 @@ export function SalaryNewPeriodForm({
         )}
       </section>
 
-      {/* ── Section 3: Staff overrides (collapsible) ── */}
-      <section className="overflow-hidden rounded-lg border bg-white shadow-sm">
-        <button
-          type="button"
-          onClick={() => setShowOverrides((v) => !v)}
-          className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-gray-50"
-        >
-          <h2 className="font-semibold text-gray-800">
-            3. Outros benefícios e descontos{" "}
-            <span className="text-gray-400 font-normal text-sm">(opcional)</span>
-          </h2>
-          {showOverrides ? (
-            <ChevronUp className="h-4 w-4 text-gray-400" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-gray-400" />
-          )}
-        </button>
-
-        {showOverrides && (
-          <div className="px-5 pb-5 space-y-3 border-t">
-            <div className="hidden gap-3 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 md:grid md:grid-cols-4">
-              <span>Colaborador</span>
-              <span>Outros benefícios (XOF)</span>
-              <span>Descontos (XOF)</span>
-              <span>Motivo</span>
-            </div>
-            {staffUsers.map((u) => {
-              const ov = overrides.find((o) => o.userId === u.id)!;
-              return (
-                <div
-                  key={u.id}
-                  className="grid grid-cols-1 gap-3 rounded-md border border-gray-100 p-3 md:grid-cols-4 md:items-center md:border-0 md:p-0"
-                >
-                  <div>
-                    <p className="text-sm text-gray-700">{u.nomeCurto}</p>
-                    <p className="text-xs text-gray-400 md:hidden">{u.nomeCompleto}</p>
-                  </div>
-                  <div className="space-y-1 md:space-y-0">
-                    <span className="text-xs font-medium uppercase tracking-wide text-gray-500 md:hidden">
-                      Outros benefícios (XOF)
-                    </span>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={ov.outrosBeneficios}
-                      onChange={(e) =>
-                        setOverrideField(u.id, "outrosBeneficios", e.target.value)
-                      }
-                      className="text-right"
-                    />
-                  </div>
-                  <div className="space-y-1 md:space-y-0">
-                    <span className="text-xs font-medium uppercase tracking-wide text-gray-500 md:hidden">
-                      Descontos (XOF)
-                    </span>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={ov.descontos}
-                      onChange={(e) =>
-                        setOverrideField(u.id, "descontos", e.target.value)
-                      }
-                      className="text-right"
-                    />
-                  </div>
-                  <div className="space-y-1 md:space-y-0">
-                    <span className="text-xs font-medium uppercase tracking-wide text-gray-500 md:hidden">
-                      Motivo
-                    </span>
-                    <Input
-                      type="text"
-                      placeholder="opcional"
-                      value={ov.motivo}
-                      onChange={(e) =>
-                        setOverrideField(u.id, "motivo", e.target.value)
-                      }
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* ── Actions ── */}
       <div className="flex flex-col gap-3 pt-2 sm:flex-row">
         <Button type="submit" disabled={isPending}>
-          {isPending ? "A calcular..." : "Calcular e guardar"}
+          {isPending ? "A criar..." : "Criar periodo"}
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.push("/admin/salary")}
-        >
+        <Button type="button" variant="outline" onClick={() => router.push("/admin/salary")}>
           Cancelar
         </Button>
       </div>

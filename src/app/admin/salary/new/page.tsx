@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { dbAdmin } from "@/lib/db";
 import { eq } from "drizzle-orm";
-import { salaryPolicies, users } from "@/lib/db/schema";
+import { salaryPolicies } from "@/lib/db/schema";
 import { getCurrentUser } from "@/lib/auth/actions";
 import { redirect } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
@@ -32,19 +32,6 @@ export default async function NewSalaryPeriodPage() {
       },
     },
     orderBy: (p, { desc }) => [desc(p.createdAt)],
-  });
-
-  // Load active staff users for override section
-  const staffRows = await dbAdmin.query.users.findMany({
-    where: eq(users.activo, true),
-    columns: {
-      id: true,
-      nomeCurto: true,
-      nomeCompleto: true,
-      role: true,
-      salarioBaseMensal: true,
-    },
-    orderBy: (u, { asc }) => [asc(u.nomeCurto)],
   });
 
   return (
@@ -87,12 +74,6 @@ export default async function NewSalaryPeriodPage() {
                 userId: a.userId,
                 nomeCurto: a.user.nomeCurto,
               })),
-            }))}
-            staffUsers={staffRows.map((u) => ({
-              id: u.id,
-              nomeCurto: u.nomeCurto,
-              nomeCompleto: u.nomeCompleto,
-              salarioBase: Number(u.salarioBaseMensal ?? 0),
             }))}
           />
         </div>
