@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth/actions";
 import { getMonthlyProfitLoss, getQuarterlyProfitLoss } from "@/lib/reports/actions";
+import { Header } from "@/components/layout/Header";
 import { formatCurrency } from "@/lib/utils/format";
 import { EXPENSE_CATEGORY_LABEL } from "@/lib/expenses/labels";
 
@@ -78,160 +79,164 @@ export default async function ReportsPage({ searchParams }: PageProps) {
   );
 
   return (
-    <div className="max-w-6xl space-y-6 p-6">
-      <div className="flex items-end justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {periodo === "trimestral"
-              ? "Relatório trimestral (P&L)"
-              : "Relatório mensal (P&L)"}
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Receitas, despesas, salários e dividendos do{" "}
-            {periodo === "trimestral" ? "trimestre" : "mês"} seleccionado
-          </p>
-        </div>
+    <>
+      <Header title="Relatórios" />
 
-        <div className="flex items-end gap-2 flex-wrap">
-          <form method="get" className="flex items-end gap-2">
+      <main className="flex-1 p-4 md:p-6">
+        <div className="mx-auto max-w-6xl space-y-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Período
-              </label>
-              <select
-                name="periodo"
-                defaultValue={periodo}
-                className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
-              >
-                <option value="mensal">Mensal</option>
-                <option value="trimestral">Trimestral</option>
-              </select>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {periodo === "trimestral"
+                  ? "Relatório trimestral (P&L)"
+                  : "Relatório mensal (P&L)"}
+              </h1>
+              <p className="mt-1 text-sm text-gray-500">
+                Receitas, despesas, salários e dividendos do{" "}
+                {periodo === "trimestral" ? "trimestre" : "mês"} seleccionado
+              </p>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Mês
-              </label>
-              <select
-                name="mes"
-                defaultValue={mes}
-                disabled={periodo === "trimestral"}
-                className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
-              >
-                {meses.map((m) => (
-                  <option key={m} value={m}>
-                    {MES_LABELS[m]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Trimestre
-              </label>
-              <select
-                name="trimestre"
-                defaultValue={trimestre}
-                disabled={periodo === "mensal"}
-                className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
-              >
-                {trimestres.map((t) => (
-                  <option key={t} value={t}>
-                    T{t}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Ano
-              </label>
-              <select
-                name="ano"
-                defaultValue={ano}
-                className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
-              >
-                {anos.map((a) => (
-                  <option key={a} value={a}>
-                    {a}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button
-              type="submit"
-              className="h-9 rounded-md bg-gray-900 text-white px-4 text-sm font-medium hover:bg-gray-800"
-            >
-              Filtrar
-            </button>
-          </form>
-          <a
-            href={`/api/reports/pl?periodo=${periodo}&ano=${ano}&mes=${mes}&trimestre=${trimestre}`}
-            className="h-9 inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            <Download className="h-4 w-4" />
-            Exportar PDF
-          </a>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          icon={ArrowUpRight}
-          label="Facturado"
-          value={report.receitas.facturado}
-          sub={`${report.receitas.facturasCount} factura(s)`}
-          tone="green"
-        />
-        <KpiCard
-          icon={Wallet}
-          label="Recebido"
-          value={report.receitas.recebido}
-          sub={`${report.receitas.pagamentosCount} pagamento(s)`}
-          tone="emerald"
-        />
-        <KpiCard
-          icon={ArrowDownRight}
-          label="Despesas"
-          value={report.despesas.total}
-          sub={`${report.despesas.count} movimento(s)`}
-          tone="red"
-        />
-        <KpiCard
-          icon={Receipt}
-          label="Folha salarial"
-          value={report.salarios.totalFolha}
-          sub={
-            report.salarios.estado
-              ? SALARY_STATE_LABELS[report.salarios.estado] ??
+            <div className="flex flex-wrap items-end gap-2">
+              <form method="get" className="flex flex-wrap items-end gap-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">
+                    Período
+                  </label>
+                  <select
+                    name="periodo"
+                    defaultValue={periodo}
+                    className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
+                  >
+                    <option value="mensal">Mensal</option>
+                    <option value="trimestral">Trimestral</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">
+                    Mês
+                  </label>
+                  <select
+                    name="mes"
+                    defaultValue={mes}
+                    disabled={periodo === "trimestral"}
+                    className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
+                  >
+                    {meses.map((m) => (
+                      <option key={m} value={m}>
+                        {MES_LABELS[m]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">
+                    Trimestre
+                  </label>
+                  <select
+                    name="trimestre"
+                    defaultValue={trimestre}
+                    disabled={periodo === "mensal"}
+                    className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
+                  >
+                    {trimestres.map((t) => (
+                      <option key={t} value={t}>
+                        T{t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">
+                    Ano
+                  </label>
+                  <select
+                    name="ano"
+                    defaultValue={ano}
+                    className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
+                  >
+                    {anos.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="submit"
+                  className="h-9 rounded-md bg-gray-900 px-4 text-sm font-medium text-white hover:bg-gray-800"
+                >
+                  Filtrar
+                </button>
+              </form>
+              <a
+                href={`/api/reports/pl?periodo=${periodo}&ano=${ano}&mes=${mes}&trimestre=${trimestre}`}
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                <Download className="h-4 w-4" />
+                Exportar PDF
+              </a>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard
+              icon={ArrowUpRight}
+              label="Facturado"
+              value={report.receitas.facturado}
+              sub={`${report.receitas.facturasCount} factura(s)`}
+              tone="green"
+            />
+            <KpiCard
+              icon={Wallet}
+              label="Recebido"
+              value={report.receitas.recebido}
+              sub={`${report.receitas.pagamentosCount} pagamento(s)`}
+              tone="emerald"
+            />
+            <KpiCard
+              icon={ArrowDownRight}
+              label="Despesas"
+              value={report.despesas.total}
+              sub={`${report.despesas.count} movimento(s)`}
+              tone="red"
+            />
+            <KpiCard
+              icon={Receipt}
+              label="Folha salarial"
+              value={report.salarios.totalFolha}
+              sub={
                 report.salarios.estado
-              : "Sem período"
-          }
-          tone="orange"
-        />
-      </div>
+                  ? SALARY_STATE_LABELS[report.salarios.estado] ??
+                    report.salarios.estado
+                  : "Sem período"
+              }
+              tone="orange"
+            />
+          </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <ResultCard
-          icon={TrendingUp}
-          label="Margem bruta"
-          value={report.resultado.margemBruta}
-          hint="Facturado - Despesas"
-        />
-        <ResultCard
-          icon={TrendingUp}
-          label="Margem líquida"
-          value={report.resultado.margemLiquida}
-          hint="Margem bruta - Folha bruta"
-        />
-        <ResultCard
-          icon={Banknote}
-          label="Cash-flow"
-          value={report.resultado.cashflow}
-          hint="Recebido - Despesas - Líquido - Divid. pagos"
-        />
-      </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <ResultCard
+              icon={TrendingUp}
+              label="Margem bruta"
+              value={report.resultado.margemBruta}
+              hint="Facturado - Despesas"
+            />
+            <ResultCard
+              icon={TrendingUp}
+              label="Margem líquida"
+              value={report.resultado.margemLiquida}
+              hint="Margem bruta - Folha bruta"
+            />
+            <ResultCard
+              icon={Banknote}
+              label="Cash-flow"
+              value={report.resultado.cashflow}
+              hint="Recebido - Despesas - Líquido - Divid. pagos"
+            />
+          </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section className="rounded-lg border bg-white overflow-hidden">
           <div className="px-5 py-3 border-b bg-gray-50 flex items-center justify-between">
             <h2 className="font-semibold text-gray-800">Despesas por categoria</h2>
@@ -294,24 +299,26 @@ export default async function ReportsPage({ searchParams }: PageProps) {
               : "Dividendos distribuídos correspondem ao trimestre do mês seleccionado (T1=Mar, T2=Jun, T3=Set, T4=Dez)."}
           </div>
         </section>
-      </div>
+          </div>
 
-      <div className="rounded-lg border bg-gray-50 px-4 py-3 text-xs text-gray-600 flex items-center gap-4 flex-wrap">
-        <span>Ver também:</span>
-        <Link href="/admin/invoices" className="text-blue-600 hover:underline">
-          Facturas
-        </Link>
-        <Link href="/admin/expenses" className="text-blue-600 hover:underline">
-          Despesas
-        </Link>
-        <Link href="/admin/salary" className="text-blue-600 hover:underline">
-          Folha salarial
-        </Link>
-        <Link href="/admin/dividends" className="text-blue-600 hover:underline">
-          Dividendos
-        </Link>
-      </div>
-    </div>
+          <div className="flex flex-wrap items-center gap-4 rounded-lg border bg-gray-50 px-4 py-3 text-xs text-gray-600">
+            <span>Ver também:</span>
+            <Link href="/admin/invoices" className="text-blue-600 hover:underline">
+              Facturas
+            </Link>
+            <Link href="/admin/expenses" className="text-blue-600 hover:underline">
+              Despesas
+            </Link>
+            <Link href="/admin/salary" className="text-blue-600 hover:underline">
+              Folha salarial
+            </Link>
+            <Link href="/admin/dividends" className="text-blue-600 hover:underline">
+              Dividendos
+            </Link>
+          </div>
+        </div>
+      </main>
+    </>
   );
 }
 

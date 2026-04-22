@@ -7,8 +7,11 @@ import {
 } from "@/lib/expenses/labels";
 import ExpenseForm from "@/components/forms/ExpenseForm";
 import ExpenseActions from "@/components/forms/ExpenseActions";
+import { Header } from "@/components/layout/Header";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
 
 export const metadata = { title: "Despesa — ABIPTOM Admin" };
 
@@ -25,86 +28,101 @@ export default async function ExpensePage({
   const readOnly = expense.estado === "paga" || expense.estado === "anulada";
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">{expense.descricao}</h1>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-sm text-muted-foreground">
-              {EXPENSE_CATEGORY_LABEL[expense.categoria]} · {formatDate(expense.data)}
-            </span>
-            <span
-              className={cn(
-                "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                EXPENSE_STATE_COLOR[expense.estado]
-              )}
+    <>
+      <Header title="Despesa" />
+
+      <main className="flex-1 p-4 md:p-6">
+        <div className="mx-auto max-w-4xl space-y-6">
+          <div>
+            <Link
+              href="/admin/expenses"
+              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
             >
-              {EXPENSE_STATE_LABEL[expense.estado]}
-            </span>
+              <ChevronLeft className="size-4" /> Despesas
+            </Link>
           </div>
-        </div>
-        <div className="text-right">
-          <p className="text-xs uppercase text-muted-foreground">Valor</p>
-          <p className="text-2xl font-semibold font-mono">
-            {formatCurrency(expense.valorXof)}
-          </p>
-          {expense.moeda !== "XOF" && (
-            <p className="text-xs text-muted-foreground">
-              {formatCurrency(expense.valor, expense.moeda)} @ {expense.taxaCambio}
-            </p>
+
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold">{expense.descricao}</h1>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  {EXPENSE_CATEGORY_LABEL[expense.categoria]} · {formatDate(expense.data)}
+                </span>
+                <span
+                  className={cn(
+                    "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                    EXPENSE_STATE_COLOR[expense.estado]
+                  )}
+                >
+                  {EXPENSE_STATE_LABEL[expense.estado]}
+                </span>
+              </div>
+            </div>
+            <div className="text-left sm:text-right">
+              <p className="text-xs uppercase text-muted-foreground">Valor</p>
+              <p className="font-mono text-2xl font-semibold">
+                {formatCurrency(expense.valorXof)}
+              </p>
+              {expense.moeda !== "XOF" && (
+                <p className="text-xs text-muted-foreground">
+                  {formatCurrency(expense.valor, expense.moeda)} @ {expense.taxaCambio}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-4 rounded-lg border border-border p-5">
+            <h2 className="font-medium">Acções</h2>
+            <ExpenseActions expense={expense} />
+          </div>
+
+          {!readOnly && (
+            <div className="space-y-4 rounded-lg border border-border p-5">
+              <h2 className="font-medium">Editar detalhes</h2>
+              <ExpenseForm expense={expense} action={action} submitLabel="Actualizar" />
+            </div>
+          )}
+
+          {readOnly && (
+            <div className="space-y-3 rounded-lg border border-border p-5">
+              <h2 className="font-medium">Detalhes</h2>
+              <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+                {expense.fornecedor && (
+                  <>
+                    <dt className="text-muted-foreground">Fornecedor</dt>
+                    <dd>{expense.fornecedor}</dd>
+                  </>
+                )}
+                {expense.referencia && (
+                  <>
+                    <dt className="text-muted-foreground">Referência</dt>
+                    <dd className="font-mono">{expense.referencia}</dd>
+                  </>
+                )}
+                {expense.metodoPagamento && (
+                  <>
+                    <dt className="text-muted-foreground">Método</dt>
+                    <dd>{expense.metodoPagamento}</dd>
+                  </>
+                )}
+                {expense.dataPagamento && (
+                  <>
+                    <dt className="text-muted-foreground">Data de pagamento</dt>
+                    <dd>{formatDate(expense.dataPagamento)}</dd>
+                  </>
+                )}
+                {expense.notas && (
+                  <>
+                    <dt className="text-muted-foreground sm:col-span-2">Notas</dt>
+                    <dd className="whitespace-pre-wrap sm:col-span-2">{expense.notas}</dd>
+                  </>
+                )}
+              </dl>
+            </div>
           )}
         </div>
-      </div>
-
-      <div className="rounded-lg border border-border p-5 space-y-4">
-        <h2 className="font-medium">Acções</h2>
-        <ExpenseActions expense={expense} />
-      </div>
-
-      {!readOnly && (
-        <div className="rounded-lg border border-border p-5 space-y-4">
-          <h2 className="font-medium">Editar detalhes</h2>
-          <ExpenseForm expense={expense} action={action} submitLabel="Actualizar" />
-        </div>
-      )}
-
-      {readOnly && (
-        <div className="rounded-lg border border-border p-5 space-y-3">
-          <h2 className="font-medium">Detalhes</h2>
-          <dl className="grid grid-cols-2 gap-4 text-sm">
-            {expense.fornecedor && (
-              <>
-                <dt className="text-muted-foreground">Fornecedor</dt>
-                <dd>{expense.fornecedor}</dd>
-              </>
-            )}
-            {expense.referencia && (
-              <>
-                <dt className="text-muted-foreground">Referência</dt>
-                <dd className="font-mono">{expense.referencia}</dd>
-              </>
-            )}
-            {expense.metodoPagamento && (
-              <>
-                <dt className="text-muted-foreground">Método</dt>
-                <dd>{expense.metodoPagamento}</dd>
-              </>
-            )}
-            {expense.dataPagamento && (
-              <>
-                <dt className="text-muted-foreground">Data de pagamento</dt>
-                <dd>{formatDate(expense.dataPagamento)}</dd>
-              </>
-            )}
-            {expense.notas && (
-              <>
-                <dt className="text-muted-foreground col-span-2">Notas</dt>
-                <dd className="col-span-2 whitespace-pre-wrap">{expense.notas}</dd>
-              </>
-            )}
-          </dl>
-        </div>
-      )}
-    </div>
+      </main>
+    </>
   );
 }

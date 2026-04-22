@@ -158,7 +158,14 @@ export function Sidebar({ role, userName }: SidebarProps) {
 
   useEffect(() => {
     const stored = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
-    if (stored === "1") setCollapsed(true);
+    if (stored === "1") {
+      setCollapsed(true);
+      return;
+    }
+
+    if (stored === null && window.innerWidth < 1024) {
+      setCollapsed(true);
+    }
   }, []);
 
   function toggleSidebar() {
@@ -180,14 +187,14 @@ export function Sidebar({ role, userName }: SidebarProps) {
       <div
         className={cn(
           "flex h-16 items-center border-b border-gray-700",
-          collapsed ? "px-2" : "px-4"
+          collapsed ? "px-3" : "px-4"
         )}
       >
         <Link
           href={isStaff ? "/staff/me/dashboard" : "/admin/dashboard"}
           className={cn(
             "min-w-0 text-gray-100",
-            collapsed ? "inline-flex items-center px-1" : "inline-flex items-center px-2"
+            collapsed ? "inline-flex items-center" : "inline-flex items-center px-2"
           )}
           title="ABIPTOM Admin"
         >
@@ -201,7 +208,16 @@ export function Sidebar({ role, userName }: SidebarProps) {
               priority
             />
           )}
-          {collapsed && <span className="text-lg font-bold tracking-tight">AB</span>}
+          {collapsed && (
+            <Image
+              src="/brand/abiptom-logo.png"
+              alt="ABIPTOM"
+              width={32}
+              height={32}
+              className="h-8 w-8 rounded-full bg-white object-contain p-0.5"
+              priority
+            />
+          )}
           {!collapsed && (
             <span className="ml-2 text-xs font-normal text-gray-400">Admin</span>
           )}

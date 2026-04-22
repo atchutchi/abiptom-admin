@@ -116,6 +116,7 @@ export function SalaryNewPeriodForm({
   );
 
   const selectedPolicy = policies.find((p) => p.id === policyId);
+  const selectedMonth = MES_OPTIONS.find((option) => option.value === mes);
   const isActual2024 = selectedPolicy?.tipo === "actual_2024";
   const includedEntries = entries.filter((e) => e.included);
 
@@ -214,14 +215,14 @@ export function SalaryNewPeriodForm({
       )}
 
       {/* ── Section 1: Period metadata ── */}
-      <section className="rounded-lg border bg-white p-5 space-y-4">
+      <section className="space-y-4 rounded-lg border bg-white p-5 shadow-sm">
         <h2 className="font-semibold text-gray-800">1. Período e Política</h2>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="space-y-1">
             <Label>Mês *</Label>
             <Select value={mes} onValueChange={(v) => v && setMes(v)}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue>{selectedMonth?.label ?? "Seleccionar mês"}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {MES_OPTIONS.map((m) => (
@@ -237,7 +238,7 @@ export function SalaryNewPeriodForm({
             <Label>Ano *</Label>
             <Select value={ano} onValueChange={(v) => v && setAno(v)}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue>{ano}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {YEAR_OPTIONS.map((y) => (
@@ -253,7 +254,9 @@ export function SalaryNewPeriodForm({
             <Label>Política *</Label>
             <Select value={policyId} onValueChange={(v) => v && setPolicyId(v)}>
               <SelectTrigger>
-                <SelectValue placeholder="Seleccionar política" />
+                <SelectValue placeholder="Seleccionar política">
+                  {selectedPolicy ? `${selectedPolicy.nome} v${selectedPolicy.versao}` : "Seleccionar política"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {policies.map((p) => (
@@ -287,8 +290,8 @@ export function SalaryNewPeriodForm({
       </section>
 
       {/* ── Section 2: Projects ── */}
-      <section className="rounded-lg border bg-white p-5 space-y-4">
-        <div className="flex items-center justify-between">
+      <section className="space-y-4 rounded-lg border bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="font-semibold text-gray-800">2. Projectos do período</h2>
           <span className="text-sm text-gray-500">
             {includedEntries.length} seleccionado(s)
@@ -304,35 +307,37 @@ export function SalaryNewPeriodForm({
               return (
                 <div
                   key={proj.id}
-                  className="flex items-center gap-4 py-3"
+                  className="flex flex-col gap-3 py-3 md:flex-row md:items-center"
                 >
-                  <input
-                    type="checkbox"
-                    id={`proj-${proj.id}`}
-                    checked={entry.included}
-                    onChange={() => toggleProject(proj.id)}
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 flex-shrink-0"
-                  />
-                  <label
-                    htmlFor={`proj-${proj.id}`}
-                    className="flex-1 cursor-pointer"
-                  >
-                    <p className="text-sm font-medium text-gray-800">
-                      {proj.titulo}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {proj.clienteNome}
-                      {proj.pontoFocalNome
-                        ? ` · PF: ${proj.pontoFocalNome}`
-                        : ""}
-                      {proj.assistants.length > 0
-                        ? ` · Aux: ${proj.assistants.map((a) => a.nomeCurto).join(", ")}`
-                        : ""}
-                    </p>
-                  </label>
+                  <div className="flex flex-1 items-start gap-3">
+                    <input
+                      type="checkbox"
+                      id={`proj-${proj.id}`}
+                      checked={entry.included}
+                      onChange={() => toggleProject(proj.id)}
+                      className="mt-1 h-4 w-4 flex-shrink-0 rounded border-gray-300 text-blue-600"
+                    />
+                    <label
+                      htmlFor={`proj-${proj.id}`}
+                      className="flex-1 cursor-pointer"
+                    >
+                      <p className="text-sm font-medium text-gray-800">
+                        {proj.titulo}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {proj.clienteNome}
+                        {proj.pontoFocalNome
+                          ? ` · PF: ${proj.pontoFocalNome}`
+                          : ""}
+                        {proj.assistants.length > 0
+                          ? ` · Aux: ${proj.assistants.map((a) => a.nomeCurto).join(", ")}`
+                          : ""}
+                      </p>
+                    </label>
+                  </div>
 
                   {entry.included && (
-                    <div className="w-44 flex-shrink-0">
+                    <div className="w-full md:w-44 md:flex-shrink-0">
                       <Input
                         type="number"
                         min="0"
@@ -354,11 +359,11 @@ export function SalaryNewPeriodForm({
       </section>
 
       {/* ── Section 3: Staff overrides (collapsible) ── */}
-      <section className="rounded-lg border bg-white overflow-hidden">
+      <section className="overflow-hidden rounded-lg border bg-white shadow-sm">
         <button
           type="button"
           onClick={() => setShowOverrides((v) => !v)}
-          className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
+          className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-gray-50"
         >
           <h2 className="font-semibold text-gray-800">
             3. Outros benefícios e descontos{" "}
@@ -373,7 +378,7 @@ export function SalaryNewPeriodForm({
 
         {showOverrides && (
           <div className="px-5 pb-5 space-y-3 border-t">
-            <div className="grid grid-cols-4 gap-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide">
+            <div className="hidden gap-3 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 md:grid md:grid-cols-4">
               <span>Colaborador</span>
               <span>Outros benefícios (XOF)</span>
               <span>Descontos (XOF)</span>
@@ -382,36 +387,57 @@ export function SalaryNewPeriodForm({
             {staffUsers.map((u) => {
               const ov = overrides.find((o) => o.userId === u.id)!;
               return (
-                <div key={u.id} className="grid grid-cols-4 gap-3 items-center">
-                  <span className="text-sm text-gray-700">{u.nomeCurto}</span>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={ov.outrosBeneficios}
-                    onChange={(e) =>
-                      setOverrideField(u.id, "outrosBeneficios", e.target.value)
-                    }
-                    className="text-right"
-                  />
-                  <Input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={ov.descontos}
-                    onChange={(e) =>
-                      setOverrideField(u.id, "descontos", e.target.value)
-                    }
-                    className="text-right"
-                  />
-                  <Input
-                    type="text"
-                    placeholder="opcional"
-                    value={ov.motivo}
-                    onChange={(e) =>
-                      setOverrideField(u.id, "motivo", e.target.value)
-                    }
-                  />
+                <div
+                  key={u.id}
+                  className="grid grid-cols-1 gap-3 rounded-md border border-gray-100 p-3 md:grid-cols-4 md:items-center md:border-0 md:p-0"
+                >
+                  <div>
+                    <p className="text-sm text-gray-700">{u.nomeCurto}</p>
+                    <p className="text-xs text-gray-400 md:hidden">{u.nomeCompleto}</p>
+                  </div>
+                  <div className="space-y-1 md:space-y-0">
+                    <span className="text-xs font-medium uppercase tracking-wide text-gray-500 md:hidden">
+                      Outros benefícios (XOF)
+                    </span>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={ov.outrosBeneficios}
+                      onChange={(e) =>
+                        setOverrideField(u.id, "outrosBeneficios", e.target.value)
+                      }
+                      className="text-right"
+                    />
+                  </div>
+                  <div className="space-y-1 md:space-y-0">
+                    <span className="text-xs font-medium uppercase tracking-wide text-gray-500 md:hidden">
+                      Descontos (XOF)
+                    </span>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={ov.descontos}
+                      onChange={(e) =>
+                        setOverrideField(u.id, "descontos", e.target.value)
+                      }
+                      className="text-right"
+                    />
+                  </div>
+                  <div className="space-y-1 md:space-y-0">
+                    <span className="text-xs font-medium uppercase tracking-wide text-gray-500 md:hidden">
+                      Motivo
+                    </span>
+                    <Input
+                      type="text"
+                      placeholder="opcional"
+                      value={ov.motivo}
+                      onChange={(e) =>
+                        setOverrideField(u.id, "motivo", e.target.value)
+                      }
+                    />
+                  </div>
                 </div>
               );
             })}
@@ -420,7 +446,7 @@ export function SalaryNewPeriodForm({
       </section>
 
       {/* ── Actions ── */}
-      <div className="flex gap-3 pt-2">
+      <div className="flex flex-col gap-3 pt-2 sm:flex-row">
         <Button type="submit" disabled={isPending}>
           {isPending ? "A calcular..." : "Calcular e guardar"}
         </Button>

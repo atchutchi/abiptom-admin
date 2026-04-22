@@ -5,6 +5,9 @@ import { notFound } from "next/navigation";
 import ServiceForm from "@/components/forms/ServiceForm";
 import { updateService, toggleServiceActive } from "@/lib/services/actions";
 import { Button } from "@/components/ui/button";
+import { Header } from "@/components/layout/Header";
+import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
 
 export const metadata = { title: "Editar Serviço — ABIPTOM Admin" };
 
@@ -27,19 +30,34 @@ export default async function EditServicePage({
   };
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Editar Serviço</h1>
-          <p className="text-sm text-muted-foreground">{service.categoria} · {service.nome}</p>
+    <>
+      <Header title="Editar Serviço" />
+
+      <main className="flex-1 p-4 md:p-6">
+        <div className="mx-auto max-w-4xl space-y-6">
+          <div>
+            <Link
+              href="/admin/settings/services"
+              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+            >
+              <ChevronLeft className="size-4" /> Catálogo de Serviços
+            </Link>
+          </div>
+
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold">Editar Serviço</h1>
+              <p className="text-sm text-muted-foreground">{service.categoria} · {service.nome}</p>
+            </div>
+            <form action={toggle}>
+              <Button type="submit" variant={service.activo ? "outline" : "default"}>
+                {service.activo ? "Desactivar" : "Reactivar"}
+              </Button>
+            </form>
+          </div>
+          <ServiceForm service={service} action={action} submitLabel="Actualizar" />
         </div>
-        <form action={toggle}>
-          <Button type="submit" variant={service.activo ? "outline" : "default"}>
-            {service.activo ? "Desactivar" : "Reactivar"}
-          </Button>
-        </form>
-      </div>
-      <ServiceForm service={service} action={action} submitLabel="Actualizar" />
-    </div>
+      </main>
+    </>
   );
 }

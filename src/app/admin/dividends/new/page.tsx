@@ -7,6 +7,7 @@ import { eq, and, or, isNull, gte } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth/actions";
 import { createDividendPeriod } from "@/lib/dividends/actions";
 import DividendPeriodForm from "@/components/forms/DividendPeriodForm";
+import { Header } from "@/components/layout/Header";
 
 export const metadata = { title: "Novo período de dividendos" };
 
@@ -35,28 +36,34 @@ export default async function NewDividendPeriodPage() {
     );
 
   return (
-    <div className="max-w-3xl space-y-6">
-      <div>
-        <Link
-          href="/admin/dividends"
-          className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-3"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Dividendos
-        </Link>
-        <h1 className="text-2xl font-bold text-gray-900">
-          Novo período de dividendos
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          As linhas serão calculadas automaticamente a partir das quotas
-          activas.
-        </p>
-      </div>
+    <>
+      <Header title="Novo período de dividendos" />
 
-      <DividendPeriodForm
-        action={createDividendPeriod}
-        activeShares={rows}
-      />
-    </div>
+      <main className="flex-1 p-4 md:p-6">
+        <div className="mx-auto max-w-4xl space-y-6">
+          <div>
+            <Link
+              href="/admin/dividends"
+              className="mb-3 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Dividendos
+            </Link>
+            <h1 className="text-2xl font-bold text-gray-900">
+              Novo período de dividendos
+            </h1>
+            <p className="mt-1 text-sm text-gray-500">
+              As linhas serão calculadas automaticamente a partir das quotas
+              activas.
+            </p>
+          </div>
+
+          <DividendPeriodForm
+            action={createDividendPeriod}
+            activeShares={rows}
+          />
+        </div>
+      </main>
+    </>
   );
 }
