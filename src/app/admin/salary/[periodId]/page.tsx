@@ -188,7 +188,7 @@ export default async function SalaryPeriodPage({ params }: PageProps) {
                           : "—"}
                       </td>
                       <td className="px-4 py-3 text-right font-bold tabular-nums">
-                        {formatCurrency(line.totalLiquido)}
+                        {formatCurrency(line.totalLiquidoFinal)}
                       </td>
                       <td className="px-4 py-3 text-center">
                         {line.pago ? (

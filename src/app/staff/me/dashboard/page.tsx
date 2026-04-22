@@ -121,20 +121,20 @@ export default async function StaffDashboardPage() {
     (l) => l.period.ano === anoActual
   );
   const totalBrutoAno = linhasAnoActual.reduce(
-    (s, l) => s + Number(l.totalBruto),
+    (s, l) => s + Number(l.totalBrutoFinal),
     0
   );
   const totalLiquidoAno = linhasAnoActual.reduce(
-    (s, l) => s + Number(l.totalLiquido),
+    (s, l) => s + Number(l.totalLiquidoFinal),
     0
   );
   const totalPagoAno = linhasAnoActual
     .filter((l) => l.pago)
-    .reduce((s, l) => s + Number(l.totalLiquido), 0);
+    .reduce((s, l) => s + Number(l.totalLiquidoFinal), 0);
 
   const pendentePagar = linhasAnoActual
     .filter((l) => !l.pago)
-    .reduce((s, l) => s + Number(l.totalLiquido), 0);
+    .reduce((s, l) => s + Number(l.totalLiquidoFinal), 0);
 
   const latestLine = visibleLines[0];
 
@@ -253,7 +253,7 @@ export default async function StaffDashboardPage() {
                     Total líquido
                   </p>
                   <p className="text-2xl font-bold tabular-nums mt-1 text-emerald-700">
-                    {formatCurrency(Number(latestLine.totalLiquido))}
+                    {formatCurrency(Number(latestLine.totalLiquidoFinal))}
                   </p>
                 </div>
                 <div className="p-5">
@@ -378,10 +378,10 @@ export default async function StaffDashboardPage() {
                         {MES_LABELS[line.period.mes]} {line.period.ano}
                       </td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">
-                        {formatCurrency(Number(line.totalBruto))}
+                        {formatCurrency(Number(line.totalBrutoFinal))}
                       </td>
                       <td className="px-4 py-2.5 text-right tabular-nums font-medium">
-                        {formatCurrency(Number(line.totalLiquido))}
+                        {formatCurrency(Number(line.totalLiquidoFinal))}
                       </td>
                       <td className="px-4 py-2.5 text-center">
                         {line.pago ? (

@@ -104,10 +104,10 @@ export default async function SalaryHistoryPage() {
     redirect("/staff/me/dashboard");
   }
 
-  const totalLiquido = visibleLines.reduce((sum, line) => sum + Number(line.totalLiquido), 0);
+  const totalLiquido = visibleLines.reduce((sum, line) => sum + Number(line.totalLiquidoFinal), 0);
   const totalPago = visibleLines
     .filter((line) => line.pago)
-    .reduce((sum, line) => sum + Number(line.totalLiquido), 0);
+    .reduce((sum, line) => sum + Number(line.totalLiquidoFinal), 0);
   const totalBonus = projectBonuses.reduce(
     (sum, payment) => sum + Number(payment.valorRecebido),
     0
@@ -121,8 +121,8 @@ export default async function SalaryHistoryPage() {
     .map((line) => ({
       id: `${line.period.ano}-${line.period.mes}`,
       label: `${MONTH_LABELS[line.period.mes].slice(0, 3)} ${String(line.period.ano).slice(-2)}`,
-      totalLiquido: Number(line.totalLiquido),
-      totalBruto: Number(line.totalBruto),
+      totalLiquido: Number(line.totalLiquidoFinal),
+      totalBruto: Number(line.totalBrutoFinal),
     }));
   const maxChartValue = Math.max(
     ...chartData.map((item) => item.totalLiquido),
@@ -218,10 +218,10 @@ export default async function SalaryHistoryPage() {
                       {formatCurrency(line.salarioBase)}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-700">
-                      {formatCurrency(line.totalBruto)}
+                      {formatCurrency(line.totalBrutoFinal)}
                     </td>
                     <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
-                      {formatCurrency(line.totalLiquido)}
+                      {formatCurrency(line.totalLiquidoFinal)}
                     </td>
                     <td className="px-4 py-3 text-gray-700">
                       {line.pago ? "Pago" : PERIOD_STATE_LABELS[line.period.estado] ?? line.period.estado}

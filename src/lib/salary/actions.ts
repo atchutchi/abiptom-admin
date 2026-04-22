@@ -56,7 +56,7 @@ export async function getSalaryPeriod(id: string) {
             columns: { id: true, nomeCurto: true, nomeCompleto: true, role: true },
           },
         },
-        orderBy: (l, { desc }) => [desc(l.totalLiquido)],
+        orderBy: (l, { desc }) => [desc(l.totalLiquidoFinal)],
       },
       projectPayments: {
         with: {
@@ -237,8 +237,10 @@ export async function calculateAndSavePeriod(input: CalculatePeriodInput) {
           subsidios: l.subsidios,
           outrosBeneficios: String(l.outrosBeneficios),
           descontos: String(l.descontos),
-          totalBruto: String(l.totalBruto),
-          totalLiquido: String(l.totalLiquido),
+          totalBrutoCalculado: String(l.totalBruto),
+          totalBrutoFinal: String(l.totalBruto),
+          totalLiquidoCalculado: String(l.totalLiquido),
+          totalLiquidoFinal: String(l.totalLiquido),
           overrideMotivo:
             salaryOverrides.find((o) => o.userId === l.userId)
               ?.overrideMotivo ?? null,

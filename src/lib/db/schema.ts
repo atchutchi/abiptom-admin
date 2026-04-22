@@ -1,5 +1,6 @@
 import {
   pgTable,
+  uniqueIndex,
   uuid,
   text,
   varchar,
@@ -12,7 +13,7 @@ import {
   pgEnum,
   pgSequence,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
@@ -138,6 +139,17 @@ export const users = pgTable("users", {
     precision: 12,
     scale: 2,
   }).default("0"),
+  percentagemDescontoFolha: numeric("percentagem_desconto_folha", {
+    precision: 5,
+    scale: 4,
+  })
+    .notNull()
+    .default("0"),
+  elegivelSubsidioDinamicoDefault: boolean(
+    "elegivel_subsidio_dinamico_default"
+  )
+    .notNull()
+    .default(true),
   dataEntrada: date("data_entrada"),
   dataSaida: date("data_saida"),
   fotografiaUrl: text("fotografia_url"),
@@ -233,6 +245,15 @@ export const projects = pgTable("projects", {
   valorPrevisto: numeric("valor_previsto", { precision: 14, scale: 2 }),
   moeda: currencyEnum("moeda").notNull().default("XOF"),
   notas: text("notas"),
+  percentagemPf: numeric("percentagem_pf", { precision: 5, scale: 4 }),
+  percentagemAuxTotal: numeric("percentagem_aux_total", {
+    precision: 5,
+    scale: 4,
+  }),
+  percentagemRubricaGestao: numeric("percentagem_rubrica_gestao", {
+    precision: 5,
+    scale: 4,
+  }),
   createdBy: uuid("created_by").references(() => users.id, {
     onDelete: "set null",
   }),
@@ -393,8 +414,24 @@ export const salaryLines = pgTable("salary_lines", {
   subsidios: jsonb("subsidios").default("{}"),
   outrosBeneficios: numeric("outros_beneficios", { precision: 14, scale: 2 }).default("0"),
   descontos: numeric("descontos", { precision: 14, scale: 2 }).default("0"),
-  totalBruto: numeric("total_bruto", { precision: 14, scale: 2 }).notNull().default("0"),
-  totalLiquido: numeric("total_liquido", { precision: 14, scale: 2 }).notNull().default("0"),
+  totalBrutoCalculado: numeric("total_bruto_calculado", {
+    precision: 14,
+    scale: 2,
+  })
+    .notNull()
+    .default("0"),
+  totalBrutoFinal: numeric("total_bruto_final", { precision: 14, scale: 2 })
+    .notNull()
+    .default("0"),
+  totalLiquidoCalculado: numeric("total_liquido_calculado", {
+    precision: 14,
+    scale: 2,
+  })
+    .notNull()
+    .default("0"),
+  totalLiquidoFinal: numeric("total_liquido_final", { precision: 14, scale: 2 })
+    .notNull()
+    .default("0"),
   pago: boolean("pago").notNull().default(false),
   dataPagamento: date("data_pagamento"),
   referenciaPagamento: varchar("referencia_pagamento", { length: 200 }),
@@ -446,6 +483,9 @@ export const expenses = pgTable("expenses", {
   aprovadoPor: uuid("aprovado_por").references(() => users.id, {
     onDelete: "set null",
   }),
+  beneficiarioUserId: uuid("beneficiario_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -453,6 +493,46 @@ export const expenses = pgTable("expenses", {
     .notNull()
     .defaultNow(),
 });
+
+// ─── salary_period_participants ─────────────────────────────────────────────
+
+export const salaryPeriodParticipants = pgTable(
+  "salary_period_participants",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    periodId: uuid("period_id")
+      .notNull()
+      .references(() => salaryPeriods.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    isElegivelSubsidio: boolean("is_elegivel_subsidio")
+      .notNull()
+      .default(true),
+    recebeRubricaGestao: boolean("recebe_rubrica_gestao")
+      .notNull()
+      .default(false),
+    salarioBaseOverride: numeric("salario_base_override", {
+      precision: 12,
+      scale: 2,
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("salary_period_participants_period_user_uq").on(
+      t.periodId,
+      t.userId
+    ),
+    uniqueIndex("one_rubrica_gestao_per_period")
+      .on(t.periodId)
+      .where(sql`${t.recebeRubricaGestao} = true`),
+  ]
+);
 
 // ─── stock_items ─────────────────────────────────────────────────────────────
 
@@ -722,7 +802,22 @@ export const salaryPeriodsRelations = relations(salaryPeriods, ({ one, many }) =
   }),
   lines: many(salaryLines),
   projectPayments: many(projectPayments),
+  participants: many(salaryPeriodParticipants),
 }));
+
+export const salaryPeriodParticipantsRelations = relations(
+  salaryPeriodParticipants,
+  ({ one }) => ({
+    period: one(salaryPeriods, {
+      fields: [salaryPeriodParticipants.periodId],
+      references: [salaryPeriods.id],
+    }),
+    user: one(users, {
+      fields: [salaryPeriodParticipants.userId],
+      references: [users.id],
+    }),
+  })
+);
 
 export const salaryLinesRelations = relations(salaryLines, ({ one }) => ({
   period: one(salaryPeriods, {
@@ -785,6 +880,11 @@ export const expensesRelations = relations(expenses, ({ one }) => ({
     fields: [expenses.aprovadoPor],
     references: [users.id],
     relationName: "expense_aprovado_por",
+  }),
+  beneficiario: one(users, {
+    fields: [expenses.beneficiarioUserId],
+    references: [users.id],
+    relationName: "expense_beneficiario",
   }),
 }));
 
@@ -911,6 +1011,8 @@ export type SalaryPeriod = typeof salaryPeriods.$inferSelect;
 export type NewSalaryPeriod = typeof salaryPeriods.$inferInsert;
 export type SalaryLine = typeof salaryLines.$inferSelect;
 export type NewSalaryLine = typeof salaryLines.$inferInsert;
+export type SalaryPeriodParticipant = typeof salaryPeriodParticipants.$inferSelect;
+export type NewSalaryPeriodParticipant = typeof salaryPeriodParticipants.$inferInsert;
 export type ProjectPayment = typeof projectPayments.$inferSelect;
 export type ExpenseCategory = (typeof expenseCategoryEnum.enumValues)[number];
 export type ExpenseState = (typeof expenseStateEnum.enumValues)[number];
