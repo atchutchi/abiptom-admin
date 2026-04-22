@@ -4,7 +4,15 @@ import type { UserRole } from "@/lib/db/schema";
 export const ROLE_ROUTES: Record<UserRole, string[]> = {
   ca: ["/admin", "/staff"],
   dg: ["/admin", "/staff"],
-  coord: ["/admin/projects", "/admin/clients", "/admin/stock", "/admin/tasks", "/staff"],
+  coord: [
+    "/admin/projects",
+    "/admin/clients",
+    "/admin/invoices",
+    "/admin/stock",
+    "/admin/tasks",
+    "/admin/profile",
+    "/staff",
+  ],
   staff: ["/staff"],
 };
 
@@ -29,6 +37,7 @@ export function canAccessRoute(role: UserRole, pathname: string): boolean {
 
   if (role === "coord") {
     return (
+      pathname.startsWith("/admin/profile") ||
       pathname.startsWith("/admin/projects") ||
       pathname.startsWith("/admin/clients") ||
       pathname.startsWith("/admin/stock") ||
@@ -44,6 +53,6 @@ export function canAccessRoute(role: UserRole, pathname: string): boolean {
 
 export function getDefaultRoute(role: UserRole): string {
   if (role === "ca" || role === "dg") return "/admin/dashboard";
-  if (role === "coord") return "/admin/projects";
+  if (role === "coord") return "/staff/me/dashboard";
   return "/staff/me/dashboard";
 }

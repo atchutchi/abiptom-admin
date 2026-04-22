@@ -442,6 +442,79 @@ Referência oficial da Supabase:
 - a Vercel é listada como ambiente IPv4-only
 - para estes casos deve usar-se o pooler `*.pooler.supabase.com`
 
+#### Utilizador existe no Supabase Auth mas não aparece em `/admin/users`
+
+Sintoma típico:
+- o email já existe no painel Auth
+- a app mostra `A user with this email address has already been registered`
+- o login aceita a password mas o utilizador não entra correctamente na app
+
+Causa:
+- a aplicação depende de duas camadas sincronizadas:
+  - `auth.users` no Supabase Auth
+  - `public.users` na base de dados da aplicação
+- criar o utilizador manualmente apenas no painel Auth deixa a conta incompleta
+
+Forma correcta de operar:
+- criar utilizadores em `/admin/users/new`
+- deixar a app criar a conta Auth e a linha correspondente em `public.users`
+- no primeiro acesso, o utilizador define a password via `/forgot-password`
+
+Se já foi criado manualmente no Auth:
+- apagar a conta manual em `Authentication > Users`
+- verificar se não ficou linha órfã em `public.users`
+- recriar o utilizador a partir da app
+
+#### `/forgot-password` envia erro ao pedir link de recuperação
+
+Sintoma típico:
+- a conta existe e consegue gerar link de recovery via admin API
+- o ecrã de recuperação mostra erro de envio
+
+Causa mais comum:
+- o SMTP do `Supabase Auth` não está configurado
+- ou o `redirectTo` usado pela app não está incluído nos `Redirect URLs`
+
+Checklist de correcção:
+- em `Authentication > URL Configuration`
+  - `Site URL = https://abiptom-admin.vercel.app`
+  - adicionar:
+    - `https://abiptom-admin.vercel.app/**`
+    - `https://*-abiptom-6351s-projects.vercel.app/**`
+    - `http://localhost:3000/**`
+    - `http://localhost:3001/**`
+- em `Authentication > SMTP Settings`
+  - activar `Custom SMTP`
+  - configurar o servidor real de envio, por exemplo cPanel SMTP ou Resend SMTP
+
+Nota:
+- `RESEND_FROM` na app não resolve este fluxo
+- recuperação de password usa o SMTP configurado dentro do `Supabase Auth`
+
+#### O email chega mas o link acaba em `/login?error=auth-confirm`
+
+Sintoma típico:
+- o email é entregue correctamente
+- ao clicar no botão, a app volta para login com erro `auth-confirm`
+
+Causa:
+- o template `Reset Password` não está a enviar o utilizador para o callback correcto da app
+- a página `/auth/confirm` precisa de receber `token_hash` e `type=recovery`
+
+Template recomendado para o botão de reset:
+
+```html
+<a href="https://abiptom-admin.vercel.app/auth/confirm?next=/update-password&token_hash={{ .TokenHash }}&type=recovery">
+  Definir nova palavra-passe
+</a>
+```
+
+Resultado esperado:
+- o email abre `/auth/confirm`
+- a app valida o token
+- o utilizador é redireccionado para `/update-password`
+- os campos `Nova palavra-passe` e `Confirmar palavra-passe` aparecem na app, não no email
+
 ## Estado do produto
 
 O núcleo administrativo da aplicação já cobre os fluxos principais de operação interna da ABIPTOM:

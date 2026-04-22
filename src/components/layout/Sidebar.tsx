@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/lib/db/schema";
+import { getDefaultRoute } from "@/lib/auth/rbac";
 
 interface NavItem {
   label: string;
@@ -152,9 +153,15 @@ export function Sidebar({ role, userName }: SidebarProps) {
   const isStaff = role === "staff";
   const [collapsed, setCollapsed] = useState(false);
 
-  const items = isStaff ? STAFF_NAV_ITEMS : NAV_ITEMS.filter((item) =>
-    item.roles.includes(role)
-  );
+  const items = isStaff
+    ? STAFF_NAV_ITEMS
+    : NAV_ITEMS.filter((item) => item.roles.includes(role)).map((item) =>
+        role === "coord" && item.href === "/admin/dashboard"
+          ? { ...item, href: "/staff/me/dashboard" }
+          : item
+      );
+  const homeHref = getDefaultRoute(role);
+  const footerHref = isStaff ? "/staff/me/profile" : "/admin/profile";
 
   useEffect(() => {
     const stored = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
@@ -191,7 +198,7 @@ export function Sidebar({ role, userName }: SidebarProps) {
         )}
       >
         <Link
-          href={isStaff ? "/staff/me/dashboard" : "/admin/dashboard"}
+          href={homeHref}
           className={cn(
             "min-w-0 text-gray-100",
             collapsed ? "inline-flex items-center" : "inline-flex items-center px-2"
@@ -277,7 +284,7 @@ export function Sidebar({ role, userName }: SidebarProps) {
         )}
       >
         <Link
-          href={isStaff ? "/staff/me/dashboard" : "/admin/profile"}
+          href={footerHref}
           title={collapsed ? `${userName} (${role.toUpperCase()})` : undefined}
           className={cn(
             "flex items-center rounded-lg py-2 text-sm text-gray-300 transition-colors hover:bg-gray-800 hover:text-white",

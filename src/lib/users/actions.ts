@@ -22,6 +22,14 @@ const UserSchema = z.object({
 
 export type UserFormData = z.infer<typeof UserSchema>;
 
+const ProfileSchema = z.object({
+  nomeCompleto: z.string().min(2, "Nome completo obrigatório"),
+  nomeCurto: z.string().min(1, "Nome curto obrigatório").max(50),
+  telefone: z.string().max(30, "Telefone inválido").optional(),
+});
+
+export type ProfileFormData = z.infer<typeof ProfileSchema>;
+
 export async function createUser(formData: UserFormData) {
   const parsed = UserSchema.safeParse(formData);
   if (!parsed.success) {
@@ -189,4 +197,53 @@ export async function listUsers() {
   return dbAdmin.query.users.findMany({
     orderBy: (u, { asc }) => [asc(u.nomeCompleto)],
   });
+}
+
+export async function updateMyProfile(formData: ProfileFormData) {
+  const parsed = ProfileSchema.safeParse(formData);
+  if (!parsed.success) {
+    const issues = parsed.error.issues ?? [];
+    return { error: issues[0]?.message ?? parsed.error.message };
+  }
+
+  const { dbUser } = await getCurrentUser();
+  if (!dbUser) {
+    return { error: "Sessão inválida. Inicia sessão novamente." };
+  }
+
+  const [updated] = await dbAdmin
+    .update(users)
+    .set({
+      nomeCompleto: parsed.data.nomeCompleto,
+      nomeCurto: parsed.data.nomeCurto,
+      telefone: parsed.data.telefone?.trim() || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, dbUser.id))
+    .returning();
+
+  await insertAuditLog({
+    userId: dbUser.id,
+    acao: "actualizar_perfil",
+    entidade: "users",
+    entidadeId: dbUser.id,
+    dadosAntes: {
+      nomeCompleto: dbUser.nomeCompleto,
+      nomeCurto: dbUser.nomeCurto,
+      telefone: dbUser.telefone,
+    },
+    dadosDepois: {
+      nomeCompleto: updated.nomeCompleto,
+      nomeCurto: updated.nomeCurto,
+      telefone: updated.telefone,
+    },
+  });
+
+  revalidatePath("/admin/profile");
+  revalidatePath("/staff/me/profile");
+  revalidatePath("/staff/me/dashboard");
+  revalidatePath("/admin", "layout");
+  revalidatePath("/staff", "layout");
+
+  return { success: true, user: updated };
 }

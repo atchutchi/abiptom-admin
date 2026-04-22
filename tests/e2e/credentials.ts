@@ -19,6 +19,16 @@ export const E2E_USERS = {
     salarioBaseMensal: "37500",
     mfaEnabled: true,
   },
+  coord: {
+    email: process.env.E2E_COORD_EMAIL ?? "e2e.coord@abiptom.gw",
+    password: process.env.E2E_COORD_PASSWORD ?? "SenhaSegura_COORD_2026!",
+    role: "coord" as const,
+    nomeCompleto: "E2E Coordenação",
+    nomeCurto: "E2E Coord",
+    cargo: "Coordenadora Operacional de Testes",
+    salarioBaseMensal: "32500",
+    mfaEnabled: false,
+  },
   staff: {
     email: process.env.E2E_STAFF_EMAIL ?? "e2e.staff@abiptom.gw",
     password: process.env.E2E_STAFF_PASSWORD ?? "SenhaSegura_STAFF_2026!",
