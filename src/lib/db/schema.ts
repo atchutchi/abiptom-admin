@@ -118,7 +118,7 @@ export const reportTypeEnum = pgEnum("report_type", [
 // ─── Sequences ───────────────────────────────────────────────────────────────
 
 export const invoiceNumberSeq = pgSequence("invoice_number_seq", {
-  startWith: 254,
+  startWith: 1,
   increment: 1,
   minValue: 1,
 });

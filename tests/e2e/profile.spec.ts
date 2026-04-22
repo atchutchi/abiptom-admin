@@ -55,4 +55,31 @@ test.describe("Perfil e landing pages", () => {
     await expect(page.getByText("Perfil actualizado.")).toBeVisible();
     await expect(page.getByLabel("Nome curto")).toHaveValue(E2E_USERS.staff.nomeCurto);
   });
+
+  test("colaborador actualiza e remove o avatar", async ({ page }) => {
+    await login(page, E2E_USERS.staff.email, E2E_USERS.staff.password);
+    await expect(page).toHaveURL(/\/staff\/me\/dashboard/, { timeout: 10_000 });
+
+    await gotoWithRetry(page, "/staff/me/profile");
+    await expect(page).toHaveURL(/\/staff\/me\/profile/, { timeout: 10_000 });
+
+    await page.getByLabel("Nova fotografia").setInputFiles({
+      name: "avatar-test.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9sW7xZ8AAAAASUVORK5CYII=",
+        "base64"
+      ),
+    });
+
+    await page.getByRole("button", { name: "Actualizar avatar" }).click();
+    await expect(page.getByText("Avatar actualizado.")).toBeVisible({
+      timeout: 15_000,
+    });
+
+    await page.getByRole("button", { name: "Remover" }).click();
+    await expect(page.getByText("Avatar removido.")).toBeVisible({
+      timeout: 15_000,
+    });
+  });
 });

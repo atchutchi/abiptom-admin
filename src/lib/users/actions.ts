@@ -8,6 +8,11 @@ import { eq } from "drizzle-orm";
 import { insertAuditLog } from "@/lib/db/audit";
 import { getCurrentUser } from "@/lib/auth/actions";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  AVATAR_BUCKET,
+  ensureAvatarBucket,
+  getAvatarExtension,
+} from "@/lib/users/avatar";
 
 const UserSchema = z.object({
   nomeCompleto: z.string().min(2, "Nome completo obrigatório"),
@@ -242,6 +247,116 @@ export async function updateMyProfile(formData: ProfileFormData) {
   revalidatePath("/admin/profile");
   revalidatePath("/staff/me/profile");
   revalidatePath("/staff/me/dashboard");
+  revalidatePath("/admin", "layout");
+  revalidatePath("/staff", "layout");
+
+  return { success: true, user: updated };
+}
+
+export async function uploadMyAvatar(formData: FormData) {
+  const { dbUser } = await getCurrentUser();
+  if (!dbUser) {
+    return { error: "Sessão inválida. Inicia sessão novamente." };
+  }
+
+  const file = formData.get("avatar");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Selecciona uma imagem para continuar." };
+  }
+
+  if (file.size > 2 * 1024 * 1024) {
+    return { error: "A imagem deve ter no máximo 2 MB." };
+  }
+
+  const extension = getAvatarExtension(file.type);
+  if (!extension) {
+    return { error: "Formato não suportado. Usa JPG, PNG ou WebP." };
+  }
+
+  await ensureAvatarBucket();
+
+  const admin = createAdminClient();
+  const nextPath = `${dbUser.id}/${Date.now()}.${extension}`;
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  const { error: uploadError } = await admin.storage
+    .from(AVATAR_BUCKET)
+    .upload(nextPath, buffer, {
+      contentType: file.type,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    return { error: uploadError.message ?? "Falha ao carregar o avatar." };
+  }
+
+  const oldPath = dbUser.fotografiaUrl;
+
+  const [updated] = await dbAdmin
+    .update(users)
+    .set({
+      fotografiaUrl: nextPath,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, dbUser.id))
+    .returning();
+
+  if (oldPath) {
+    await admin.storage.from(AVATAR_BUCKET).remove([oldPath]);
+  }
+
+  await insertAuditLog({
+    userId: dbUser.id,
+    acao: "actualizar_avatar",
+    entidade: "users",
+    entidadeId: dbUser.id,
+    dadosAntes: { fotografiaUrl: oldPath },
+    dadosDepois: { fotografiaUrl: updated.fotografiaUrl },
+  });
+
+  revalidatePath("/admin/profile");
+  revalidatePath("/staff/me/profile");
+  revalidatePath("/admin", "layout");
+  revalidatePath("/staff", "layout");
+
+  return { success: true, user: updated };
+}
+
+export async function removeMyAvatar() {
+  const { dbUser } = await getCurrentUser();
+  if (!dbUser) {
+    return { error: "Sessão inválida. Inicia sessão novamente." };
+  }
+
+  if (!dbUser.fotografiaUrl) {
+    return { error: "Não existe avatar configurado." };
+  }
+
+  const oldPath = dbUser.fotografiaUrl;
+  const admin = createAdminClient();
+
+  await admin.storage.from(AVATAR_BUCKET).remove([oldPath]);
+
+  const [updated] = await dbAdmin
+    .update(users)
+    .set({
+      fotografiaUrl: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, dbUser.id))
+    .returning();
+
+  await insertAuditLog({
+    userId: dbUser.id,
+    acao: "remover_avatar",
+    entidade: "users",
+    entidadeId: dbUser.id,
+    dadosAntes: { fotografiaUrl: oldPath },
+    dadosDepois: { fotografiaUrl: null },
+  });
+
+  revalidatePath("/admin/profile");
+  revalidatePath("/staff/me/profile");
   revalidatePath("/admin", "layout");
   revalidatePath("/staff", "layout");
 

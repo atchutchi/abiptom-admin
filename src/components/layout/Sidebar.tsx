@@ -14,7 +14,6 @@ import {
   ClipboardList,
   BarChart3,
   Settings,
-  User,
   IdCard,
   Package,
   CheckSquare,
@@ -22,9 +21,15 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/lib/db/schema";
 import { getDefaultRoute } from "@/lib/auth/rbac";
+import { getUserInitials } from "@/lib/users/avatar";
 
 interface NavItem {
   label: string;
@@ -144,11 +149,12 @@ const STAFF_NAV_ITEMS: NavItem[] = [
 interface SidebarProps {
   role: UserRole;
   userName: string;
+  userAvatarUrl?: string | null;
 }
 
 const SIDEBAR_COLLAPSED_KEY = "abiptom_sidebar_collapsed";
 
-export function Sidebar({ role, userName }: SidebarProps) {
+export function Sidebar({ role, userName, userAvatarUrl }: SidebarProps) {
   const pathname = usePathname();
   const isStaff = role === "staff";
   const [collapsed, setCollapsed] = useState(false);
@@ -162,6 +168,7 @@ export function Sidebar({ role, userName }: SidebarProps) {
       );
   const homeHref = getDefaultRoute(role);
   const footerHref = isStaff ? "/staff/me/profile" : "/admin/profile";
+  const initials = getUserInitials(userName);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
@@ -291,7 +298,12 @@ export function Sidebar({ role, userName }: SidebarProps) {
             collapsed ? "justify-center px-2" : "gap-3 px-3"
           )}
         >
-          <User className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          <Avatar size="sm" className="h-8 w-8">
+            {userAvatarUrl ? (
+              <AvatarImage src={userAvatarUrl} alt={userName} />
+            ) : null}
+            <AvatarFallback>{initials}</AvatarFallback>
+          </Avatar>
           {collapsed ? (
             <span className="sr-only">{userName}</span>
           ) : (

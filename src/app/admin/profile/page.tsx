@@ -3,7 +3,12 @@ import { Header } from "@/components/layout/Header";
 import { ProfileForm } from "@/components/forms/ProfileForm";
 import { getCurrentUser } from "@/lib/auth/actions";
 import { getDefaultRoute } from "@/lib/auth/rbac";
-import { updateMyProfile } from "@/lib/users/actions";
+import { getAvatarUrl } from "@/lib/users/avatar";
+import {
+  removeMyAvatar,
+  updateMyProfile,
+  uploadMyAvatar,
+} from "@/lib/users/actions";
 
 export const metadata = { title: "Meu perfil — ABIPTOM Admin" };
 
@@ -18,6 +23,8 @@ export default async function AdminProfilePage() {
     redirect("/staff/me/profile");
   }
 
+  const avatarUrl = await getAvatarUrl(dbUser.fotografiaUrl);
+
   return (
     <>
       <Header title="Meu perfil" />
@@ -25,8 +32,11 @@ export default async function AdminProfilePage() {
         <div className="mx-auto max-w-5xl space-y-6">
           <ProfileForm
             user={dbUser}
+            avatarUrl={avatarUrl}
             homeHref={getDefaultRoute(dbUser.role)}
             onSubmit={updateMyProfile}
+            onUploadAvatar={uploadMyAvatar}
+            onRemoveAvatar={removeMyAvatar}
           />
         </div>
       </main>
