@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import {
   Document,
   Page,
@@ -7,11 +9,32 @@ import {
   Image,
 } from "@react-pdf/renderer";
 
-const BRAND_GREEN = "#2D6A4F";
+const BRAND_GOLD = "#F5B800";
 const DARK = "#1A1A1A";
 const GRAY = "#666666";
 const LIGHT_GRAY = "#F5F5F5";
 const BORDER = "#DDDDDD";
+
+function getPdfAssetDataUri(relativePath: string) {
+  const absolutePath = path.join(
+    process.cwd(),
+    "public",
+    relativePath.replace(/^\/+/, "")
+  );
+  const extension = path.extname(absolutePath).toLowerCase();
+  const mimeType =
+    extension === ".jpg" || extension === ".jpeg"
+      ? "image/jpeg"
+      : extension === ".svg"
+        ? "image/svg+xml"
+        : "image/png";
+
+  return `data:${mimeType};base64,${readFileSync(absolutePath).toString("base64")}`;
+}
+
+const LOGO_SRC = getPdfAssetDataUri("brand/abiptom-logo.png");
+const SIGNATURE_SRC = getPdfAssetDataUri("brand/signature.png");
+const STAMP_SRC = getPdfAssetDataUri("brand/stamp.png");
 
 const styles = StyleSheet.create({
   page: {
@@ -29,8 +52,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   logo: {
-    width: 120,
-    height: 50,
+    width: 80,
+    height: 80,
     objectFit: "contain",
   },
   invoiceBox: {
@@ -39,7 +62,7 @@ const styles = StyleSheet.create({
   invoiceType: {
     fontSize: 13,
     fontFamily: "Helvetica-Bold",
-    color: BRAND_GREEN,
+    color: BRAND_GOLD,
     textTransform: "uppercase",
     letterSpacing: 1,
   },
@@ -56,7 +79,7 @@ const styles = StyleSheet.create({
   },
   separator: {
     borderBottomWidth: 1.5,
-    borderBottomColor: BRAND_GREEN,
+    borderBottomColor: BRAND_GOLD,
     marginBottom: 14,
   },
   // Seller block
@@ -125,7 +148,7 @@ const styles = StyleSheet.create({
   // Items table
   tableHeader: {
     flexDirection: "row",
-    backgroundColor: BRAND_GREEN,
+    backgroundColor: BRAND_GOLD,
     paddingVertical: 5,
     paddingHorizontal: 6,
     borderRadius: 3,
@@ -133,7 +156,7 @@ const styles = StyleSheet.create({
   tableHeaderCell: {
     fontSize: 8,
     fontFamily: "Helvetica-Bold",
-    color: "#FFFFFF",
+    color: DARK,
   },
   tableRow: {
     flexDirection: "row",
@@ -184,10 +207,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 6,
     paddingHorizontal: 8,
-    backgroundColor: BRAND_GREEN,
+    backgroundColor: BRAND_GOLD,
   },
-  grandTotalLabel: { fontSize: 9, fontFamily: "Helvetica-Bold", color: "#FFFFFF" },
-  grandTotalValue: { fontSize: 9, fontFamily: "Helvetica-Bold", color: "#FFFFFF" },
+  grandTotalLabel: { fontSize: 9, fontFamily: "Helvetica-Bold", color: DARK },
+  grandTotalValue: { fontSize: 9, fontFamily: "Helvetica-Bold", color: DARK },
   // Footer
   footer: {
     position: "absolute",
@@ -277,7 +300,7 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
         {/* ── Header ─────────────────────────────────── */}
         <View style={styles.header}>
           <Image
-            src="/brand/abiptom-logo.png"
+            src={LOGO_SRC}
             style={styles.logo}
           />
           <View style={styles.invoiceBox}>
@@ -411,11 +434,11 @@ export function InvoicePDF({ data }: { data: InvoicePDFData }) {
         {/* ── Footer ───────────────────────────────── */}
         <View style={styles.footer}>
           <View style={styles.footerLeft}>
-            <Image src="/brand/signature.png" style={styles.signature} />
+            <Image src={SIGNATURE_SRC} style={styles.signature} />
             <Text style={styles.footerText}>Assinatura</Text>
           </View>
           <View style={{ alignItems: "center" }}>
-            <Image src="/brand/stamp.png" style={styles.stamp} />
+            <Image src={STAMP_SRC} style={styles.stamp} />
           </View>
           <View style={{ alignItems: "flex-end" }}>
             <Text style={styles.footerText}>
