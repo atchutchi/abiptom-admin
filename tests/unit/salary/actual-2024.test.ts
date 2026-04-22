@@ -1,149 +1,563 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { calculateActual2024 } from "@/lib/salary/engines/actual-2024";
-import type { Actual2024PolicyConfig, ProjectInput, StaffInput } from "@/lib/salary/types";
 
-// ─── Fixtures ────────────────────────────────────────────────────────────────
-// Designed to exactly reproduce SPEC acceptance values (ABIPTOM_ADMIN_CLAUDE_CODE_PROMPT.md):
-//   Arianna PF = 210.500 XOF, subsídio = 5.456 XOF, outros = 50.000 XOF → total 265.956 XOF
-//
-// Math: 4 projects (2 with 1-aux, 2 with 2-aux)
-//   S1 (1-aux nets: 250k+180k = 430k) → Arianna PF = 30% × 430k = 129.000
-//   S2 (2-aux nets: 200k+126k = 326k) → Arianna PF = 25% × 326k =  81.500
-//   Total Arianna PF = 210.500 ✓
-//   Total Resto      = 50% × 756k  = 378.000 ✓
-//   Saldo            = 378k - 179.600 = 198.400 ✓
-//   Subsídio total   = 198.400 × 22% = 43.648 → 43.648 / 8 = 5.456 ✓
-
-const ARIANNA = "arianna";
-const ALISSON = "alisson";
-const AMELISSA = "amelissa";
-const EMERSON = "emerson";
-const SWELINE = "sweline";
-const VALBER = "valber";
-
-const policy: Actual2024PolicyConfig = {
-  tipo: "actual_2024",
-  percentagens: {
-    pf_0aux: 0.30,
-    pf_1aux: 0.30,
-    pf_2aux: 0.25,
-    aux_1aux: 0.15,
-    aux_2aux: 0.10,
-    dg: 0.05,
-    resto: 0.50,
-  },
-  subsidio: { percentagem: 0.22, numPessoas: 8 },
+const POLICY_DEFAULTS = {
+  percentagem_pf: 0.3,
+  percentagem_aux_total: 0.15,
+  percentagem_rubrica_gestao: 0.05,
+  percentagem_subsidio: 0.22,
 };
 
-const staff: StaffInput[] = [
-  { id: ARIANNA, nomeCurto: "Arianna", role: "staff", salarioBase: 0 },
-  { id: ALISSON, nomeCurto: "Alisson", role: "staff", salarioBase: 0 },
-  { id: AMELISSA, nomeCurto: "Amelissa", role: "staff", salarioBase: 0 },
-  { id: EMERSON, nomeCurto: "Emerson", role: "dg", salarioBase: 37_500 },
-  { id: SWELINE, nomeCurto: "Sweline", role: "coord", salarioBase: 0 },
-  { id: VALBER, nomeCurto: "Valber", role: "staff", salarioBase: 0 },
-  { id: "jose", nomeCurto: "José", role: "staff", salarioBase: 0 },
-  { id: "carlos", nomeCurto: "Carlos", role: "staff", salarioBase: 0 },
-];
+type TestUser = {
+  id: string;
+  nomeCurto: string;
+  salarioBaseMensal: number;
+  percentagemDescontoFolha: number;
+  role: "ca" | "dg" | "coord" | "staff";
+};
 
-const projects: ProjectInput[] = [
-  { id: "p1", titulo: "Proj 1", valorLiquido: 250_000, pontoFocalId: ARIANNA, assistants: [{ userId: ALISSON }] },
-  { id: "p2", titulo: "Proj 2", valorLiquido: 180_000, pontoFocalId: ARIANNA, assistants: [{ userId: ALISSON }] },
-  { id: "p3", titulo: "Proj 3", valorLiquido: 200_000, pontoFocalId: ARIANNA, assistants: [{ userId: ALISSON }, { userId: AMELISSA }] },
-  { id: "p4", titulo: "Proj 4", valorLiquido: 126_000, pontoFocalId: ARIANNA, assistants: [{ userId: ALISSON }, { userId: AMELISSA }] },
-];
+type SalaryLineCalculated = {
+  userId: string;
+  salarioBase: number;
+  pagamentosProjectos: number;
+  pagamentoGestaoPessoa: number;
+  subsidioDinamico: number;
+  subsidios: {
+    dinamico: number;
+    rubrica_gestao: number;
+  };
+  outrosBeneficios: number;
+  descontoPercentagem: number;
+  descontoValor: number;
+  totalBrutoCalculado: number;
+  totalLiquidoCalculado: number;
+};
 
-const OPS = 179_600;
-const overrides = [{ userId: ARIANNA, outrosBeneficios: 50_000, overrideMotivo: "Benefício mensal" }];
+type Actual2024Result = {
+  projectBreakdowns: Array<{
+    projectId: string;
+    titulo: string;
+    valorLiquido: number;
+    pagamentoPf: number;
+    pagamentoAuxTotal: number;
+    pagamentoGestao: number;
+    restoAbiptom: number;
+    percentagemPfAplicada: number;
+    percentagemAuxTotalAplicada: number;
+    percentagemRubricaGestaoAplicada: number;
+  }>;
+  projectPayments: Array<{
+    projectId: string;
+    userId: string;
+    papel: "pf" | "aux" | "dg" | "coord";
+    percentagemAplicada: number;
+    valorLiquidoProjecto: number;
+    valorRecebido: number;
+  }>;
+  salaryLines: SalaryLineCalculated[];
+  aggregates: {
+    totalRestoAbiptom: number;
+    totalPagamentoGestao: number;
+    totalDespesasOperacionais: number;
+    saldoBaseSubsidios: number;
+    boloSubsidios: number;
+    subsidioPorPessoa: number;
+    numeroElegiveis: number;
+    totalFolhaBruto: number;
+    totalFolhaLiquido: number;
+  };
+  warnings: string[];
+};
 
-// ─── Tests ───────────────────────────────────────────────────────────────────
+function calculate(input: unknown) {
+  return (calculateActual2024 as unknown as (payload: unknown) => Actual2024Result)(input);
+}
 
-describe("actual_2024 — percentagens por projecto", () => {
-  it("1 aux → PF 30%, Aux 15%, Resto 50%", () => {
-    const p: ProjectInput[] = [{
-      id: "t", titulo: "T", valorLiquido: 100_000,
-      pontoFocalId: ARIANNA, assistants: [{ userId: ALISSON }],
-    }];
-    const r = calculateActual2024(policy, p, staff, 0);
-    const pf = r.lines.find((l) => l.userId === ARIANNA)!.componenteDinamica[0];
-    const ax = r.lines.find((l) => l.userId === ALISSON)!.componenteDinamica[0];
-    expect(pf.valorRecebido).toBe(30_000);
-    expect(ax.valorRecebido).toBe(15_000);
-    expect(r.summary.entradas_brutas_abiptom).toBe(50_000);
+function makeUser(
+  id: string,
+  salary: number,
+  options: Partial<TestUser> = {}
+): TestUser {
+  return {
+    id,
+    nomeCurto: id,
+    salarioBaseMensal: salary,
+    percentagemDescontoFolha: 0,
+    role: "staff",
+    ...options,
+  };
+}
+
+function makeParticipant(
+  userId: string,
+  options: {
+    isElegivelSubsidio?: boolean;
+    recebeRubricaGestao?: boolean;
+    salarioBaseOverride?: number | null;
+  } = {}
+) {
+  return {
+    userId,
+    isElegivelSubsidio: options.isElegivelSubsidio ?? true,
+    recebeRubricaGestao: options.recebeRubricaGestao ?? false,
+    salarioBaseOverride:
+      options.salarioBaseOverride === undefined
+        ? null
+        : options.salarioBaseOverride,
+  };
+}
+
+function makeProject(
+  id: string,
+  valorLiquido: number,
+  options: {
+    pontoFocalId?: string | null;
+    assistants?: Array<{ userId: string; percentagemOverride?: number | null }>;
+    percentagemPf?: number | null;
+    percentagemAuxTotal?: number | null;
+    percentagemRubricaGestao?: number | null;
+  } = {}
+) {
+  return {
+    id,
+    titulo: id,
+    valorLiquido,
+    pontoFocalId:
+      options.pontoFocalId === undefined ? null : options.pontoFocalId,
+    assistants: options.assistants ?? [],
+    percentagemPf:
+      options.percentagemPf === undefined ? null : options.percentagemPf,
+    percentagemAuxTotal:
+      options.percentagemAuxTotal === undefined
+        ? null
+        : options.percentagemAuxTotal,
+    percentagemRubricaGestao:
+      options.percentagemRubricaGestao === undefined
+        ? null
+        : options.percentagemRubricaGestao,
+  };
+}
+
+function makeExpense(
+  id: string,
+  valorXof: number,
+  options: { moeda?: "XOF" | "EUR" | "USD"; beneficiarioUserId?: string | null } = {}
+) {
+  return {
+    id,
+    valorXof,
+    moeda: options.moeda ?? "XOF",
+    beneficiarioUserId:
+      options.beneficiarioUserId === undefined
+        ? null
+        : options.beneficiarioUserId,
+  };
+}
+
+function lineByUser(result: Actual2024Result, userId: string) {
+  const line = result.salaryLines.find((entry) => entry.userId === userId);
+  expect(line, `Linha salarial não encontrada para ${userId}`).toBeTruthy();
+  return line!;
+}
+
+function typicalFixture() {
+  const users = [
+    makeUser("arianna", 100_000),
+    makeUser("alisson", 80_000, { percentagemDescontoFolha: 0.3 }),
+    makeUser("amelissa", 70_000),
+    makeUser("emerson", 150_000, { role: "dg" }),
+    makeUser("sweline", 90_000, { percentagemDescontoFolha: 0.6, role: "coord" }),
+    makeUser("valber", 60_000),
+    makeUser("jose", 50_000),
+  ];
+
+  const participants = [
+    makeParticipant("arianna"),
+    makeParticipant("alisson"),
+    makeParticipant("amelissa"),
+    makeParticipant("emerson", { recebeRubricaGestao: true }),
+    makeParticipant("sweline"),
+    makeParticipant("valber"),
+    makeParticipant("jose", { isElegivelSubsidio: false }),
+  ];
+
+  const projects = [
+    makeProject("p1", 100_000, {
+      pontoFocalId: "arianna",
+      assistants: [{ userId: "alisson" }],
+    }),
+    makeProject("p2", 200_000, {
+      pontoFocalId: "arianna",
+      assistants: [{ userId: "alisson" }, { userId: "amelissa" }],
+    }),
+    makeProject("p3", 150_000, {
+      assistants: [{ userId: "amelissa" }],
+    }),
+    makeProject("p4", 120_000, {
+      pontoFocalId: "sweline",
+    }),
+    makeProject("p5", 80_000),
+  ];
+
+  const expenses = [
+    makeExpense("e1", 24_000),
+    makeExpense("e2", 16_000),
+    makeExpense("e3", 20_000, { beneficiarioUserId: "valber" }),
+  ];
+
+  return {
+    period: { year: 2026, month: 3 },
+    projects,
+    participants,
+    expenses,
+    users,
+    policyDefaults: POLICY_DEFAULTS,
+  };
+}
+
+describe("actual_2024 — contrato novo do motor", () => {
+  it("1. fluxo completo típico: totais, descontos, subsídios e outros benefícios batem certo", () => {
+    const result = calculate(typicalFixture());
+
+    expect(result.warnings).toEqual([]);
+    expect(result.salaryLines).toHaveLength(7);
+    expect(result.aggregates).toMatchObject({
+      totalRestoAbiptom: 424_000,
+      totalPagamentoGestao: 32_500,
+      totalDespesasOperacionais: 60_000,
+      saldoBaseSubsidios: 364_000,
+      boloSubsidios: 80_080,
+      subsidioPorPessoa: 13_347,
+      numeroElegiveis: 6,
+      totalFolhaBruto: 926_082,
+      totalFolhaLiquido: 805_470,
+    });
+
+    expect(lineByUser(result, "alisson")).toMatchObject({
+      pagamentosProjectos: 30_000,
+      subsidioDinamico: 13_347,
+      descontoPercentagem: 0.3,
+      descontoValor: 37_004,
+      totalBrutoCalculado: 123_347,
+      totalLiquidoCalculado: 86_343,
+    });
+
+    expect(lineByUser(result, "sweline")).toMatchObject({
+      pagamentosProjectos: 36_000,
+      descontoPercentagem: 0.6,
+      descontoValor: 83_608,
+      totalBrutoCalculado: 139_347,
+      totalLiquidoCalculado: 55_739,
+    });
+
+    expect(lineByUser(result, "valber")).toMatchObject({
+      outrosBeneficios: 20_000,
+      totalBrutoCalculado: 93_347,
+    });
   });
 
-  it("2 aux → PF 25%, Aux1 10%, Aux2 10%, Resto 50%", () => {
-    const p: ProjectInput[] = [{
-      id: "t", titulo: "T", valorLiquido: 100_000,
-      pontoFocalId: ARIANNA, assistants: [{ userId: ALISSON }, { userId: AMELISSA }],
-    }];
-    const r = calculateActual2024(policy, p, staff, 0);
-    const pf = r.lines.find((l) => l.userId === ARIANNA)!.componenteDinamica[0];
-    const ax1 = r.lines.find((l) => l.userId === ALISSON)!.componenteDinamica[0];
-    const ax2 = r.lines.find((l) => l.userId === AMELISSA)!.componenteDinamica[0];
-    expect(pf.valorRecebido).toBe(25_000);
-    expect(ax1.valorRecebido).toBe(10_000);
-    expect(ax2.valorRecebido).toBe(10_000);
-    expect(r.summary.entradas_brutas_abiptom).toBe(50_000);
+  it("2. projecto sem auxiliar deixa a parcela de auxiliares no resto_abiptom", () => {
+    const result = calculate({
+      period: { year: 2026, month: 1 },
+      projects: [makeProject("p1", 100_000, { pontoFocalId: "arianna" })],
+      participants: [
+        makeParticipant("arianna"),
+        makeParticipant("emerson", { recebeRubricaGestao: true }),
+      ],
+      expenses: [],
+      users: [makeUser("arianna", 0), makeUser("emerson", 0, { role: "dg" })],
+      policyDefaults: POLICY_DEFAULTS,
+    });
+
+    expect(result.projectBreakdowns[0]).toMatchObject({
+      pagamentoPf: 30_000,
+      pagamentoAuxTotal: 0,
+      pagamentoGestao: 5_000,
+      restoAbiptom: 65_000,
+    });
   });
 
-  it("DG recebe 5% por projecto automaticamente", () => {
-    const p: ProjectInput[] = [{
-      id: "t", titulo: "T", valorLiquido: 100_000,
-      pontoFocalId: ARIANNA, assistants: [{ userId: ALISSON }],
-    }];
-    const r = calculateActual2024(policy, p, staff, 0);
-    const dg = r.lines.find((l) => l.userId === EMERSON)!.componenteDinamica[0];
-    expect(dg.papel).toBe("dg");
-    expect(dg.valorRecebido).toBe(5_000);
+  it("3. projecto sem PF deixa a parcela do PF no resto_abiptom", () => {
+    const result = calculate({
+      period: { year: 2026, month: 1 },
+      projects: [
+        makeProject("p1", 100_000, {
+          assistants: [{ userId: "alisson" }],
+        }),
+      ],
+      participants: [
+        makeParticipant("alisson"),
+        makeParticipant("emerson", { recebeRubricaGestao: true }),
+      ],
+      expenses: [],
+      users: [makeUser("alisson", 0), makeUser("emerson", 0, { role: "dg" })],
+      policyDefaults: POLICY_DEFAULTS,
+    });
+
+    expect(result.projectBreakdowns[0]).toMatchObject({
+      pagamentoPf: 0,
+      pagamentoAuxTotal: 15_000,
+      pagamentoGestao: 5_000,
+      restoAbiptom: 80_000,
+    });
   });
 
-  it("percentagemOverride substitui o padrão", () => {
-    const p: ProjectInput[] = [{
-      id: "t", titulo: "T", valorLiquido: 100_000,
-      pontoFocalId: ARIANNA, pfPercentagemOverride: 0.40,
-      assistants: [{ userId: ALISSON, percentagemOverride: 0.20 }],
-    }];
-    const r = calculateActual2024(policy, p, staff, 0);
-    const pf = r.lines.find((l) => l.userId === ARIANNA)!.componenteDinamica[0];
-    const ax = r.lines.find((l) => l.userId === ALISSON)!.componenteDinamica[0];
-    expect(pf.valorRecebido).toBe(40_000);
-    expect(ax.valorRecebido).toBe(20_000);
-  });
-});
+  it("4. projecto sem PF nem auxiliar deixa tudo excepto gestão no resto_abiptom", () => {
+    const result = calculate({
+      period: { year: 2026, month: 1 },
+      projects: [makeProject("p1", 100_000)],
+      participants: [makeParticipant("emerson", { recebeRubricaGestao: true })],
+      expenses: [],
+      users: [makeUser("emerson", 0, { role: "dg" })],
+      policyDefaults: POLICY_DEFAULTS,
+    });
 
-describe("actual_2024 — subsídio mensal", () => {
-  it("calcula entradas brutas ABIPTOM correctamente", () => {
-    const r = calculateActual2024(policy, projects, staff, OPS);
-    expect(r.summary.entradas_brutas_abiptom).toBe(378_000);
+    expect(result.projectBreakdowns[0]).toMatchObject({
+      pagamentoPf: 0,
+      pagamentoAuxTotal: 0,
+      pagamentoGestao: 5_000,
+      restoAbiptom: 95_000,
+    });
   });
 
-  it("calcula saldo correctamente (378.000 - 179.600)", () => {
-    const r = calculateActual2024(policy, projects, staff, OPS);
-    expect(r.summary.saldo).toBe(198_400);
+  it("5. dois auxiliares com override 50/50 recebem metade do pagamento_aux_total", () => {
+    const result = calculate({
+      period: { year: 2026, month: 1 },
+      projects: [
+        makeProject("p1", 100_000, {
+          percentagemAuxTotal: 0.2,
+          assistants: [
+            { userId: "alisson", percentagemOverride: 0.5 },
+            { userId: "amelissa", percentagemOverride: 0.5 },
+          ],
+        }),
+      ],
+      participants: [makeParticipant("alisson"), makeParticipant("amelissa")],
+      expenses: [],
+      users: [makeUser("alisson", 0), makeUser("amelissa", 0)],
+      policyDefaults: POLICY_DEFAULTS,
+    });
+
+    expect(lineByUser(result, "alisson").pagamentosProjectos).toBe(10_000);
+    expect(lineByUser(result, "amelissa").pagamentosProjectos).toBe(10_000);
   });
 
-  it("calcula subsídio por pessoa correctamente (198.400 × 22% / 8)", () => {
-    const r = calculateActual2024(policy, projects, staff, OPS);
-    expect(r.summary.subsidioPerPerson).toBe(5_456);
-  });
-});
+  it("6. dois auxiliares com override 70/30 distribuem correctamente", () => {
+    const result = calculate({
+      period: { year: 2026, month: 1 },
+      projects: [
+        makeProject("p1", 100_000, {
+          percentagemAuxTotal: 0.2,
+          assistants: [
+            { userId: "alisson", percentagemOverride: 0.7 },
+            { userId: "amelissa", percentagemOverride: 0.3 },
+          ],
+        }),
+      ],
+      participants: [makeParticipant("alisson"), makeParticipant("amelissa")],
+      expenses: [],
+      users: [makeUser("alisson", 0), makeUser("amelissa", 0)],
+      policyDefaults: POLICY_DEFAULTS,
+    });
 
-describe("actual_2024 — cenário Março 2026 (SPEC acceptance)", () => {
-  it("Arianna PF total = 210.500 XOF", () => {
-    const r = calculateActual2024(policy, projects, staff, OPS, overrides);
-    const line = r.lines.find((l) => l.userId === ARIANNA)!;
-    const pfTotal = line.componenteDinamica
-      .filter((c) => c.papel === "pf")
-      .reduce((s, c) => s + c.valorRecebido, 0);
-    expect(pfTotal).toBe(210_500);
+    expect(lineByUser(result, "alisson").pagamentosProjectos).toBe(14_000);
+    expect(lineByUser(result, "amelissa").pagamentosProjectos).toBe(6_000);
   });
 
-  it("Arianna total líquido = 265.956 XOF", () => {
-    const r = calculateActual2024(policy, projects, staff, OPS, overrides);
-    const line = r.lines.find((l) => l.userId === ARIANNA)!;
-    expect(line.subsidios.dinamico).toBe(5_456);
-    expect(line.outrosBeneficios).toBe(50_000);
-    expect(line.totalLiquido).toBe(265_956);
+  it("7. auxiliares com overrides que não somam 1.0 lançam erro", () => {
+    expect(() =>
+      calculate({
+        period: { year: 2026, month: 1 },
+        projects: [
+          makeProject("p1", 100_000, {
+            assistants: [
+              { userId: "alisson", percentagemOverride: 0.7 },
+              { userId: "amelissa", percentagemOverride: 0.2 },
+            ],
+          }),
+        ],
+        participants: [makeParticipant("alisson"), makeParticipant("amelissa")],
+        expenses: [],
+        users: [makeUser("alisson", 0), makeUser("amelissa", 0)],
+        policyDefaults: POLICY_DEFAULTS,
+      })
+    ).toThrow();
+  });
+
+  it("8. zero elegíveis aos subsídios dá subsídio por pessoa igual a zero", () => {
+    const result = calculate({
+      period: { year: 2026, month: 1 },
+      projects: [makeProject("p1", 100_000)],
+      participants: [
+        makeParticipant("arianna", { isElegivelSubsidio: false }),
+        makeParticipant("emerson", {
+          isElegivelSubsidio: false,
+          recebeRubricaGestao: true,
+        }),
+      ],
+      expenses: [],
+      users: [makeUser("arianna", 0), makeUser("emerson", 0, { role: "dg" })],
+      policyDefaults: POLICY_DEFAULTS,
+    });
+
+    expect(result.aggregates.subsidioPorPessoa).toBe(0);
+    expect(lineByUser(result, "arianna").subsidioDinamico).toBe(0);
+    expect(lineByUser(result, "emerson").subsidioDinamico).toBe(0);
+  });
+
+  it("9. zero beneficiário da rubrica de gestão não atribui gestão a ninguém", () => {
+    const result = calculate({
+      period: { year: 2026, month: 1 },
+      projects: [makeProject("p1", 100_000)],
+      participants: [makeParticipant("arianna"), makeParticipant("emerson")],
+      expenses: [],
+      users: [makeUser("arianna", 0), makeUser("emerson", 0, { role: "dg" })],
+      policyDefaults: POLICY_DEFAULTS,
+    });
+
+    expect(result.aggregates.totalPagamentoGestao).toBe(5_000);
+    expect(
+      result.salaryLines.reduce(
+        (sum: number, line) => sum + line.pagamentoGestaoPessoa,
+        0
+      )
+    ).toBe(0);
+    expect(
+      result.projectPayments.filter((entry) => entry.papel === "dg")
+    ).toHaveLength(0);
+  });
+
+  it("10. dois beneficiários da rubrica de gestão lançam erro claro", () => {
+    expect(() =>
+      calculate({
+        period: { year: 2026, month: 1 },
+        projects: [makeProject("p1", 100_000)],
+        participants: [
+          makeParticipant("arianna", { recebeRubricaGestao: true }),
+          makeParticipant("emerson", { recebeRubricaGestao: true }),
+        ],
+        expenses: [],
+        users: [makeUser("arianna", 0), makeUser("emerson", 0, { role: "dg" })],
+        policyDefaults: POLICY_DEFAULTS,
+      })
+    ).toThrow();
+  });
+
+  it("11. despesa sem beneficiário reduz o saldo mas não aparece em outros benefícios", () => {
+    const result = calculate({
+      period: { year: 2026, month: 1 },
+      projects: [makeProject("p1", 100_000)],
+      participants: [
+        makeParticipant("arianna"),
+        makeParticipant("emerson", { recebeRubricaGestao: true }),
+      ],
+      expenses: [makeExpense("e1", 10_000)],
+      users: [makeUser("arianna", 0), makeUser("emerson", 0, { role: "dg" })],
+      policyDefaults: POLICY_DEFAULTS,
+    });
+
+    expect(result.aggregates.saldoBaseSubsidios).toBe(85_000);
+    expect(lineByUser(result, "arianna").outrosBeneficios).toBe(0);
+    expect(lineByUser(result, "emerson").outrosBeneficios).toBe(0);
+  });
+
+  it("12. despesa com beneficiário aparece como outros benefícios e também reduz o saldo", () => {
+    const result = calculate({
+      period: { year: 2026, month: 1 },
+      projects: [makeProject("p1", 100_000)],
+      participants: [
+        makeParticipant("arianna"),
+        makeParticipant("valber"),
+        makeParticipant("emerson", { recebeRubricaGestao: true }),
+      ],
+      expenses: [makeExpense("e1", 10_000, { beneficiarioUserId: "valber" })],
+      users: [
+        makeUser("arianna", 0),
+        makeUser("valber", 0),
+        makeUser("emerson", 0, { role: "dg" }),
+      ],
+      policyDefaults: POLICY_DEFAULTS,
+    });
+
+    expect(result.aggregates.saldoBaseSubsidios).toBe(85_000);
+    expect(lineByUser(result, "valber").outrosBeneficios).toBe(10_000);
+  });
+
+  it("13. desconto percentual por colaborador altera o líquido como esperado", () => {
+    const result = calculate({
+      period: { year: 2026, month: 1 },
+      projects: [],
+      participants: [makeParticipant("alisson"), makeParticipant("sweline")],
+      expenses: [],
+      users: [
+        makeUser("alisson", 100_000, { percentagemDescontoFolha: 0.3 }),
+        makeUser("sweline", 100_000, { percentagemDescontoFolha: 0.6 }),
+      ],
+      policyDefaults: POLICY_DEFAULTS,
+    });
+
+    expect(lineByUser(result, "alisson")).toMatchObject({
+      totalBrutoCalculado: 100_000,
+      descontoValor: 30_000,
+      totalLiquidoCalculado: 70_000,
+    });
+    expect(lineByUser(result, "sweline")).toMatchObject({
+      totalBrutoCalculado: 100_000,
+      descontoValor: 60_000,
+      totalLiquidoCalculado: 40_000,
+    });
+  });
+
+  it("14. validação de coerência mantém a soma dos brutos consistente", () => {
+    const result = calculate(typicalFixture());
+
+    const somaBrutaReal = result.salaryLines.reduce(
+      (sum: number, line) => sum + line.totalBrutoCalculado,
+      0
+    );
+
+    expect(somaBrutaReal).toBe(result.aggregates.totalFolhaBruto);
+    expect(() => calculate(typicalFixture())).not.toThrow();
+  });
+
+  it("15. salario_base_override sobrepõe null, valor e zero correctamente", () => {
+    const result = calculate({
+      period: { year: 2026, month: 1 },
+      projects: [],
+      participants: [
+        makeParticipant("arianna", { salarioBaseOverride: null }),
+        makeParticipant("alisson", { salarioBaseOverride: 120_000 }),
+        makeParticipant("jose", { salarioBaseOverride: 0 }),
+      ],
+      expenses: [],
+      users: [
+        makeUser("arianna", 100_000),
+        makeUser("alisson", 80_000),
+        makeUser("jose", 50_000),
+      ],
+      policyDefaults: POLICY_DEFAULTS,
+    });
+
+    expect(lineByUser(result, "arianna").salarioBase).toBe(100_000);
+    expect(lineByUser(result, "alisson").salarioBase).toBe(120_000);
+    expect(lineByUser(result, "jose").salarioBase).toBe(0);
+  });
+
+  it("16. despesa em moeda não XOF emite warning e é ignorada no cálculo", () => {
+    const result = calculate({
+      period: { year: 2026, month: 1 },
+      projects: [makeProject("p1", 100_000)],
+      participants: [
+        makeParticipant("arianna"),
+        makeParticipant("emerson", { recebeRubricaGestao: true }),
+      ],
+      expenses: [makeExpense("e1", 999_999, { moeda: "EUR" })],
+      users: [makeUser("arianna", 0), makeUser("emerson", 0, { role: "dg" })],
+      policyDefaults: POLICY_DEFAULTS,
+    });
+
+    expect(result.warnings).toHaveLength(1);
+    expect(result.aggregates.totalDespesasOperacionais).toBe(0);
+    expect(result.aggregates.saldoBaseSubsidios).toBe(95_000);
   });
 });
