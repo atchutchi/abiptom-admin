@@ -1,18 +1,36 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getDefaultRoute } from "@/lib/auth/rbac";
+import { getPostLoginRedirectPath } from "@/lib/auth/redirects";
 import type { UserRole } from "@/lib/db/schema";
 
 type Step = "credentials" | "mfa";
 
+function getNoticeMessage(code: string | null) {
+  if (code === "password-reset-success") {
+    return "Palavra-passe actualizada. Inicia sessão com as novas credenciais.";
+  }
+
+  return "";
+}
+
+function getQueryErrorMessage(code: string | null) {
+  if (code === "auth-confirm") {
+    return "Não foi possível validar o link de autenticação. Pede um novo email.";
+  }
+
+  return "";
+}
+
 export function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
 
   const [step, setStep] = useState<Step>("credentials");
@@ -23,6 +41,12 @@ export function LoginForm() {
   const [challengeId, setChallengeId] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const nextPath = searchParams?.get("next") ?? null;
+  const noticeMessage = getNoticeMessage(searchParams?.get("notice") ?? null);
+  const queryErrorMessage = getQueryErrorMessage(
+    searchParams?.get("error") ?? null
+  );
 
   async function handleCredentials(e: React.FormEvent) {
     e.preventDefault();
@@ -63,7 +87,7 @@ export function LoginForm() {
           data: { user },
         } = await supabase.auth.getUser();
         const role = (user?.user_metadata?.role ?? "staff") as UserRole;
-        router.push(getDefaultRoute(role));
+        router.push(getPostLoginRedirectPath(role, nextPath));
         router.refresh();
       }
     } finally {
@@ -92,7 +116,7 @@ export function LoginForm() {
         data: { user },
       } = await supabase.auth.getUser();
       const role = (user?.user_metadata?.role ?? "staff") as UserRole;
-      router.push(getDefaultRoute(role));
+      router.push(getPostLoginRedirectPath(role, nextPath));
       router.refresh();
     } finally {
       setLoading(false);
@@ -169,11 +193,23 @@ export function LoginForm() {
         />
       </div>
 
+      {noticeMessage ? (
+        <p className="text-sm text-emerald-700">{noticeMessage}</p>
+      ) : null}
+      {!error && queryErrorMessage ? (
+        <p className="text-sm text-red-600">{queryErrorMessage}</p>
+      ) : null}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? "A iniciar sessão..." : "Iniciar sessão"}
       </Button>
+
+      <div className="text-right text-sm text-gray-500">
+        <Link href="/forgot-password" className="hover:underline">
+          Esqueceste-te da palavra-passe?
+        </Link>
+      </div>
     </form>
   );
 }

@@ -3,7 +3,13 @@ import { updateSession } from "@/lib/supabase/middleware";
 import { canAccessRoute, getDefaultRoute } from "@/lib/auth/rbac";
 import type { UserRole } from "@/lib/db/schema";
 
-const PUBLIC_ROUTES = ["/login", "/setup-mfa"];
+const PUBLIC_ROUTES = [
+  "/login",
+  "/setup-mfa",
+  "/forgot-password",
+  "/update-password",
+  "/auth/confirm",
+];
 const AUTH_REQUIRED_PREFIXES = ["/admin", "/staff"];
 
 export async function middleware(request: NextRequest) {

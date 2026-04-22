@@ -1,30 +1,15 @@
-import Image from "next/image";
+import { AuthShell } from "@/components/auth/AuthShell";
 import { LoginForm } from "@/components/forms/LoginForm";
 
 export const metadata = { title: "Iniciar sessão — ABIPTOM Admin" };
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-md space-y-8 p-8 bg-white rounded-xl shadow-sm border">
-        <div className="text-center">
-          <Image
-            src="/brand/abiptom-logo.png"
-            alt="ABIPTOM"
-            width={180}
-            height={48}
-            className="mx-auto mb-3 h-11 w-auto"
-            priority
-          />
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-            ABIPTOM Admin
-          </h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Plataforma de gestão interna
-          </p>
-        </div>
-        <LoginForm />
-      </div>
-    </div>
+    <AuthShell
+      title="ABIPTOM Admin"
+      description="Plataforma de gestão interna"
+    >
+      <LoginForm />
+    </AuthShell>
   );
 }

@@ -1,0 +1,38 @@
+import Link from "next/link";
+import { AuthShell } from "@/components/auth/AuthShell";
+import { UpdatePasswordForm } from "@/components/forms/UpdatePasswordForm";
+import { createClient } from "@/lib/supabase/server";
+
+export const metadata = { title: "Definir palavra-passe — ABIPTOM Admin" };
+
+export default async function UpdatePasswordPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return (
+      <AuthShell
+        title="Definir palavra-passe"
+        description="Este link de recuperação é inválido, já expirou ou foi usado."
+      >
+        <div className="space-y-4 text-sm text-gray-600">
+          <p>Pede um novo link para voltares a definir a tua palavra-passe.</p>
+          <Link href="/forgot-password" className="font-medium text-gray-900 hover:underline">
+            Pedir novo link
+          </Link>
+        </div>
+      </AuthShell>
+    );
+  }
+
+  return (
+    <AuthShell
+      title="Definir palavra-passe"
+      description="Escolhe uma nova palavra-passe para continuar."
+    >
+      <UpdatePasswordForm email={user.email} />
+    </AuthShell>
+  );
+}

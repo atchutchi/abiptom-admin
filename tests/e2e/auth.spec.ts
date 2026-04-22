@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { E2E_USERS } from "./credentials";
+import { createSupabaseAdminClient } from "./supabase-admin";
 
 /**
  * Fase 1 — Testes de autenticação e RBAC
@@ -34,6 +35,13 @@ test.describe("Login", () => {
     await expect(page.getByText("Email ou palavra-passe incorrectos")).toBeVisible();
   });
 
+  test("mostra link de recuperação de palavra-passe", async ({ page }) => {
+    await page.goto("/login");
+    await expect(
+      page.getByRole("link", { name: "Esqueceste-te da palavra-passe?" })
+    ).toBeVisible();
+  });
+
   test("staff faz login sem MFA e vai para /staff/me/dashboard", async ({ page }) => {
     await page.goto("/login");
     await page.getByLabel("Email").fill(STAFF_EMAIL);
@@ -65,6 +73,72 @@ test.describe("Login", () => {
 
     await page.getByRole("button", { name: "Sair" }).click();
     await expect(page).toHaveURL(/\/login/, { timeout: 5_000 });
+  });
+});
+
+test.describe("Recuperação de palavra-passe", () => {
+  test("update-password sem sessão mostra instrução para novo link", async ({
+    page,
+  }) => {
+    await page.goto("/update-password");
+    await expect(
+      page.getByText("Este link de recuperação é inválido, já expirou ou foi usado.")
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Pedir novo link" })
+    ).toBeVisible();
+  });
+
+  test("staff redefine a palavra-passe com link de recovery", async ({
+    page,
+    baseURL,
+  }) => {
+    const supabaseAdmin = createSupabaseAdminClient();
+    const redirectTo = `${baseURL}/auth/confirm?next=/update-password`;
+    const newPassword = `SenhaNova_${Date.now()}!`;
+
+    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: "recovery",
+      email: STAFF_EMAIL,
+      options: { redirectTo },
+    });
+
+    expect(error).toBeNull();
+    expect(data.properties?.action_link).toBeTruthy();
+    expect(data.user?.id).toBeTruthy();
+
+    try {
+      await page.goto(data.properties!.action_link);
+      await expect(page).toHaveURL(/\/update-password/, { timeout: 20_000 });
+
+      await page.getByLabel("Nova palavra-passe").fill(newPassword);
+      await page.getByLabel("Confirmar palavra-passe").fill(newPassword);
+      await page.getByRole("button", { name: "Actualizar palavra-passe" }).click();
+
+      await expect(page).toHaveURL(/\/login\?notice=password-reset-success/, {
+        timeout: 10_000,
+      });
+      await expect(
+        page.getByText("Palavra-passe actualizada. Inicia sessão com as novas credenciais.")
+      ).toBeVisible();
+
+      await page.getByLabel("Email").fill(STAFF_EMAIL);
+      await page.getByLabel("Palavra-passe").fill(newPassword);
+      await page.getByRole("button", { name: "Iniciar sessão" }).click();
+      await expect(page).toHaveURL(/\/staff\/me\/dashboard/, { timeout: 10_000 });
+    } finally {
+      if (data.user?.id) {
+        await supabaseAdmin.auth.admin.updateUserById(data.user.id, {
+          password: STAFF_PASSWORD,
+          email_confirm: true,
+          user_metadata: {
+            role: "staff",
+            mfa_enabled: false,
+            active: true,
+          },
+        });
+      }
+    }
   });
 });
 
