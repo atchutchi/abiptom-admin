@@ -119,7 +119,7 @@ export default function ProjectForm({
         <div className="space-y-1">
           <Label htmlFor="clientId">Cliente *</Label>
           <Select name="clientId" defaultValue={project?.clientId ?? ""} required>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Seleccionar cliente" />
             </SelectTrigger>
             <SelectContent>
@@ -135,7 +135,7 @@ export default function ProjectForm({
         <div className="space-y-1">
           <Label htmlFor="servicoId">Serviço</Label>
           <Select name="servicoId" defaultValue={project?.servicoId ?? ""}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="(opcional)" />
             </SelectTrigger>
             <SelectContent>
@@ -173,7 +173,7 @@ export default function ProjectForm({
         <div className="space-y-1">
           <Label htmlFor="estado">Estado</Label>
           <Select name="estado" defaultValue={project?.estado ?? "proposta"}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -189,7 +189,7 @@ export default function ProjectForm({
         <div className="space-y-1">
           <Label htmlFor="pontoFocalId">Ponto Focal (PF)</Label>
           <Select name="pontoFocalId" defaultValue={project?.pontoFocalId ?? ""}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Seleccionar PF" />
             </SelectTrigger>
             <SelectContent>
@@ -219,7 +219,7 @@ export default function ProjectForm({
         <div className="space-y-1">
           <Label htmlFor="moeda">Moeda</Label>
           <Select name="moeda" defaultValue={project?.moeda ?? "XOF"}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
