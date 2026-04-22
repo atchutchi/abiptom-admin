@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { AuthShell } from "@/components/auth/AuthShell";
@@ -48,7 +48,7 @@ function getHashSession() {
   };
 }
 
-export default function AuthConfirmPage() {
+function AuthConfirmContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
@@ -116,5 +116,24 @@ export default function AuthConfirmPage() {
     >
       <p className="text-sm text-gray-500">Se este passo demorar, volta a pedir um novo link.</p>
     </AuthShell>
+  );
+}
+
+export default function AuthConfirmPage() {
+  return (
+    <Suspense
+      fallback={
+        <AuthShell
+          title="A validar acesso"
+          description="Estamos a confirmar o link e a preparar a tua sessão."
+        >
+          <p className="text-sm text-gray-500">
+            Se este passo demorar, volta a pedir um novo link.
+          </p>
+        </AuthShell>
+      }
+    >
+      <AuthConfirmContent />
+    </Suspense>
   );
 }

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { ForgotPasswordForm } from "@/components/forms/ForgotPasswordForm";
 
@@ -9,7 +10,9 @@ export default function ForgotPasswordPage() {
       title="Recuperar acesso"
       description="Recebe um link seguro para redefinir a tua palavra-passe."
     >
-      <ForgotPasswordForm />
+      <Suspense fallback={null}>
+        <ForgotPasswordForm />
+      </Suspense>
     </AuthShell>
   );
 }

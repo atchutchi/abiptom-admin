@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { LoginForm } from "@/components/forms/LoginForm";
 
@@ -9,7 +10,9 @@ export default function LoginPage() {
       title="ABIPTOM Admin"
       description="Plataforma de gestão interna"
     >
-      <LoginForm />
+      <Suspense fallback={null}>
+        <LoginForm />
+      </Suspense>
     </AuthShell>
   );
 }
