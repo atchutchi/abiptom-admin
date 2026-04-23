@@ -1,12 +1,25 @@
 import ExpenseForm from "@/components/forms/ExpenseForm";
 import { createExpense } from "@/lib/expenses/actions";
+import { dbAdmin } from "@/lib/db";
+import { users } from "@/lib/db/schema";
 import { Header } from "@/components/layout/Header";
 import Link from "next/link";
+import { eq } from "drizzle-orm";
 import { ChevronLeft } from "lucide-react";
 
 export const metadata = { title: "Nova Despesa — ABIPTOM Admin" };
 
-export default function NewExpensePage() {
+export default async function NewExpensePage() {
+  const activeUsers = await dbAdmin.query.users.findMany({
+    where: eq(users.activo, true),
+    columns: {
+      id: true,
+      nomeCurto: true,
+      role: true,
+    },
+    orderBy: (table, { asc }) => [asc(table.nomeCurto)],
+  });
+
   return (
     <>
       <Header title="Nova Despesa" />
@@ -22,10 +35,14 @@ export default function NewExpensePage() {
             </Link>
             <h1 className="mt-2 text-2xl font-semibold">Nova Despesa</h1>
             <p className="text-sm text-muted-foreground">
-              Registar uma nova despesa operacional.
+              Registar uma despesa operacional ou um benefício directo a um colaborador.
             </p>
           </div>
-          <ExpenseForm action={createExpense} submitLabel="Registar despesa" />
+          <ExpenseForm
+            action={createExpense}
+            activeUsers={activeUsers}
+            submitLabel="Registar despesa"
+          />
         </div>
       </main>
     </>

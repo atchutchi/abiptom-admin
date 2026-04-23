@@ -12,9 +12,15 @@ interface UserFormProps {
   defaultValues?: Partial<User>;
   onSubmit: (data: UserFormData) => Promise<{ error?: string; success?: boolean }>;
   isEdit?: boolean;
+  canEditDiscount?: boolean;
 }
 
-export function UserForm({ defaultValues, onSubmit, isEdit = false }: UserFormProps) {
+export function UserForm({
+  defaultValues,
+  onSubmit,
+  isEdit = false,
+  canEditDiscount = false,
+}: UserFormProps) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -34,6 +40,12 @@ export function UserForm({ defaultValues, onSubmit, isEdit = false }: UserFormPr
       cargo: (form.elements.namedItem("cargo") as HTMLInputElement).value || undefined,
       salarioBaseMensal: (form.elements.namedItem("salarioBaseMensal") as HTMLInputElement).value || undefined,
       dataEntrada: (form.elements.namedItem("dataEntrada") as HTMLInputElement).value || undefined,
+      percentagemDescontoFolha:
+        (form.elements.namedItem("percentagemDescontoFolha") as HTMLInputElement).value ||
+        undefined,
+      elegivelSubsidioDinamicoDefault: (
+        form.elements.namedItem("elegivelSubsidioDinamicoDefault") as HTMLInputElement
+      ).checked,
     };
 
     try {
@@ -133,6 +145,27 @@ export function UserForm({ defaultValues, onSubmit, isEdit = false }: UserFormPr
         </div>
 
         <div className="space-y-2">
+          <Label htmlFor="percentagemDescontoFolha">Desconto sobre folha (%)</Label>
+          <Input
+            id="percentagemDescontoFolha"
+            name="percentagemDescontoFolha"
+            type="number"
+            min="0"
+            max="100"
+            step="0.01"
+            defaultValue={
+              defaultValues?.percentagemDescontoFolha !== undefined
+                ? (Number(defaultValues.percentagemDescontoFolha) * 100).toFixed(2)
+                : "0.00"
+            }
+            disabled={!canEditDiscount}
+          />
+          <p className="text-xs text-muted-foreground">
+            Percentagem aplicada ao total bruto da folha antes de produzir o valor líquido. Usa 0 para sem desconto.
+          </p>
+        </div>
+
+        <div className="space-y-2">
           <Label htmlFor="dataEntrada">Data de entrada</Label>
           <Input
             id="dataEntrada"
@@ -141,6 +174,26 @@ export function UserForm({ defaultValues, onSubmit, isEdit = false }: UserFormPr
             defaultValue={defaultValues?.dataEntrada ?? ""}
           />
         </div>
+      </div>
+
+      <div className="rounded-lg border border-border bg-muted/30 p-4">
+        <label className="flex items-start gap-3">
+          <input
+            id="elegivelSubsidioDinamicoDefault"
+            name="elegivelSubsidioDinamicoDefault"
+            type="checkbox"
+            defaultChecked={defaultValues?.elegivelSubsidioDinamicoDefault ?? true}
+            className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600"
+          />
+          <span className="space-y-1">
+            <span className="block text-sm font-medium">
+              Elegível a subsídios dinâmicos por defeito
+            </span>
+            <span className="block text-xs text-muted-foreground">
+              Controla se esta pessoa aparece marcada como elegível ao criar um novo período de folha. Pode ser alterado depois no próprio período.
+            </span>
+          </span>
+        </label>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

@@ -67,6 +67,8 @@ export default async function UsersPage() {
                   <TableHead>Email</TableHead>
                   <TableHead>Cargo</TableHead>
                   <TableHead>Papel</TableHead>
+                  <TableHead>Desconto folha</TableHead>
+                  <TableHead>Elegível 22%</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="w-24" />
                 </TableRow>
@@ -74,7 +76,7 @@ export default async function UsersPage() {
               <TableBody>
                 {allUsers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-gray-400 py-8">
+                    <TableCell colSpan={8} className="text-center text-gray-400 py-8">
                       Nenhum utilizador criado ainda.
                     </TableCell>
                   </TableRow>
@@ -88,6 +90,20 @@ export default async function UsersPage() {
                       <Badge variant="outline">
                         {ROLE_LABELS[u.role] ?? u.role}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="font-mono text-gray-600">
+                      {(Number(u.percentagemDescontoFolha ?? 0) * 100).toFixed(2)}%
+                    </TableCell>
+                    <TableCell>
+                      {u.elegivelSubsidioDinamicoDefault ? (
+                        <Badge variant="secondary" className="text-blue-700 bg-blue-50">
+                          Sim
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-gray-500 bg-gray-100">
+                          Não
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       {u.activo ? (

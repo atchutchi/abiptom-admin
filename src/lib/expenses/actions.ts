@@ -33,6 +33,7 @@ const expenseSchema = z.object({
   metodoPagamento: z.string().optional(),
   referencia: z.string().optional(),
   notas: z.string().optional(),
+  beneficiarioUserId: z.string().uuid().optional(),
 });
 
 function parseForm(formData: FormData) {
@@ -48,6 +49,7 @@ function parseForm(formData: FormData) {
     metodoPagamento: formData.get("metodoPagamento") || undefined,
     referencia: formData.get("referencia") || undefined,
     notas: formData.get("notas") || undefined,
+    beneficiarioUserId: formData.get("beneficiarioUserId") || undefined,
   });
 }
 
@@ -97,6 +99,15 @@ export async function listExpenses(filters: ExpenseFilters = {}) {
 
   return dbAdmin.query.expenses.findMany({
     where: conditions.length ? and(...conditions) : undefined,
+    with: {
+      beneficiario: {
+        columns: {
+          id: true,
+          nomeCurto: true,
+          role: true,
+        },
+      },
+    },
     orderBy: [desc(expenses.data), desc(expenses.createdAt)],
   });
 }
@@ -106,7 +117,18 @@ export async function getExpense(id: string) {
   if (!user || !dbUser) throw new Error("Não autenticado");
   if (!["ca", "dg"].includes(dbUser.role)) throw new Error("Sem permissão");
 
-  return dbAdmin.query.expenses.findFirst({ where: eq(expenses.id, id) });
+  return dbAdmin.query.expenses.findFirst({
+    where: eq(expenses.id, id),
+    with: {
+      beneficiario: {
+        columns: {
+          id: true,
+          nomeCurto: true,
+          role: true,
+        },
+      },
+    },
+  });
 }
 
 export async function sumExpensesByMonth(mes: string) {
@@ -136,6 +158,7 @@ export async function createExpense(_: unknown, formData: FormData) {
     .insert(expenses)
     .values({
       ...parsed.data,
+      beneficiarioUserId: parsed.data.beneficiarioUserId ?? null,
       valorXof,
       criadoPor: dbUser.id,
     })
@@ -178,7 +201,11 @@ export async function updateExpense(id: string, _: unknown, formData: FormData) 
 
   const [updated] = await dbAdmin
     .update(expenses)
-    .set({ ...parsed.data, valorXof })
+    .set({
+      ...parsed.data,
+      beneficiarioUserId: parsed.data.beneficiarioUserId ?? null,
+      valorXof,
+    })
     .where(eq(expenses.id, id))
     .returning();
 
@@ -271,4 +298,3 @@ export async function cancelExpense(id: string, motivo: string) {
   revalidatePath("/admin/expenses");
   revalidatePath(`/admin/expenses/${id}`);
 }
-

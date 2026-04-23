@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { getExpense, updateExpense } from "@/lib/expenses/actions";
+import { dbAdmin } from "@/lib/db";
+import { users } from "@/lib/db/schema";
 import {
   EXPENSE_CATEGORY_LABEL,
   EXPENSE_STATE_LABEL,
@@ -10,6 +12,7 @@ import ExpenseActions from "@/components/forms/ExpenseActions";
 import { Header } from "@/components/layout/Header";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
+import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
@@ -23,6 +26,16 @@ export default async function ExpensePage({
   const { id } = await params;
   const expense = await getExpense(id);
   if (!expense) notFound();
+
+  const activeUsers = await dbAdmin.query.users.findMany({
+    where: eq(users.activo, true),
+    columns: {
+      id: true,
+      nomeCurto: true,
+      role: true,
+    },
+    orderBy: (table, { asc }) => [asc(table.nomeCurto)],
+  });
 
   const action = updateExpense.bind(null, id);
   const readOnly = expense.estado === "paga" || expense.estado === "anulada";
@@ -80,7 +93,12 @@ export default async function ExpensePage({
           {!readOnly && (
             <div className="space-y-4 rounded-lg border border-border p-5">
               <h2 className="font-medium">Editar detalhes</h2>
-              <ExpenseForm expense={expense} action={action} submitLabel="Actualizar" />
+              <ExpenseForm
+                expense={expense}
+                action={action}
+                activeUsers={activeUsers}
+                submitLabel="Actualizar"
+              />
             </div>
           )}
 
@@ -104,6 +122,14 @@ export default async function ExpensePage({
                   <>
                     <dt className="text-muted-foreground">Método</dt>
                     <dd>{expense.metodoPagamento}</dd>
+                  </>
+                )}
+                {expense.beneficiario && (
+                  <>
+                    <dt className="text-muted-foreground">Beneficiário</dt>
+                    <dd>
+                      {expense.beneficiario.nomeCurto} · {expense.beneficiario.role}
+                    </dd>
                   </>
                 )}
                 {expense.dataPagamento && (

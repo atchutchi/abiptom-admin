@@ -30,7 +30,7 @@ export default async function NewUserPage() {
       <main className="flex-1 p-6">
         <div className="max-w-2xl mx-auto">
           <div className="bg-white rounded-lg border p-6">
-            <UserForm onSubmit={createUser} />
+            <UserForm onSubmit={createUser} canEditDiscount={dbUser.role === "ca"} />
           </div>
         </div>
       </main>

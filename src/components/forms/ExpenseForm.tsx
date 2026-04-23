@@ -11,12 +11,18 @@ type ActionResult = { error?: string; success?: boolean; id?: string };
 interface Props {
   expense?: Expense;
   action: (prev: unknown, formData: FormData) => Promise<ActionResult>;
+  activeUsers: Array<{ id: string; nomeCurto: string; role: string }>;
   submitLabel?: string;
 }
 
 const MOEDAS = ["XOF", "EUR", "USD"] as const;
 
-export default function ExpenseForm({ expense, action, submitLabel = "Guardar" }: Props) {
+export default function ExpenseForm({
+  expense,
+  action,
+  activeUsers,
+  submitLabel = "Guardar",
+}: Props) {
   const [state, formAction, pending] = useActionState(action, null);
   const router = useRouter();
 
@@ -181,6 +187,25 @@ export default function ExpenseForm({ expense, action, submitLabel = "Guardar" }
           defaultValue={expense?.notas ?? ""}
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50 resize-none"
         />
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Beneficiário (opcional)</label>
+        <select
+          name="beneficiarioUserId"
+          defaultValue={expense?.beneficiarioUserId ?? ""}
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
+        >
+          <option value="">Despesa operacional da empresa</option>
+          {activeUsers.map((user) => (
+            <option key={user.id} value={user.id}>
+              {user.nomeCurto} · {user.role}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-muted-foreground">
+          Se esta despesa for um benefício directo a um colaborador, selecciona-o aqui. Se for despesa operacional, deixa vazio.
+        </p>
       </div>
 
       <div className="flex gap-3 pt-2">

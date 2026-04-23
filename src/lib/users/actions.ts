@@ -23,6 +23,8 @@ const UserSchema = z.object({
   cargo: z.string().optional(),
   salarioBaseMensal: z.string().optional(),
   dataEntrada: z.string().optional(),
+  percentagemDescontoFolha: z.string().optional(),
+  elegivelSubsidioDinamicoDefault: z.boolean().default(true),
 });
 
 export type UserFormData = z.infer<typeof UserSchema>;
@@ -35,6 +37,22 @@ const ProfileSchema = z.object({
 
 export type ProfileFormData = z.infer<typeof ProfileSchema>;
 
+function normaliseDiscountFraction(
+  rawValue: string | undefined,
+): { fraction: string; percentage: number } | { error: string } {
+  const value = rawValue?.trim() || "0";
+  const parsed = Number(value.replace(",", "."));
+
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+    return { error: "Desconto sobre folha deve estar entre 0 e 100%." };
+  }
+
+  return {
+    fraction: (parsed / 100).toFixed(4),
+    percentage: parsed,
+  };
+}
+
 export async function createUser(formData: UserFormData) {
   const parsed = UserSchema.safeParse(formData);
   if (!parsed.success) {
@@ -45,6 +63,14 @@ export async function createUser(formData: UserFormData) {
   const { dbUser: actor } = await getCurrentUser();
   if (!actor || (actor.role !== "ca" && actor.role !== "dg")) {
     return { error: "Sem permissão." };
+  }
+
+  const discount = normaliseDiscountFraction(parsed.data.percentagemDescontoFolha);
+  if ("error" in discount) {
+    return { error: discount.error };
+  }
+  if (actor.role !== "ca" && discount.percentage > 0) {
+    return { error: "Só CA pode definir desconto sobre folha." };
   }
 
   const supabaseAdmin = createAdminClient();
@@ -78,6 +104,8 @@ export async function createUser(formData: UserFormData) {
       role: parsed.data.role,
       cargo: parsed.data.cargo ?? null,
       salarioBaseMensal: parsed.data.salarioBaseMensal ?? "0",
+      percentagemDescontoFolha: discount.fraction,
+      elegivelSubsidioDinamicoDefault: parsed.data.elegivelSubsidioDinamicoDefault,
       dataEntrada: parsed.data.dataEntrada ?? null,
     })
     .returning();
@@ -106,13 +134,49 @@ export async function updateUser(id: string, formData: Partial<UserFormData>) {
 
   if (!existing) return { error: "Utilizador não encontrado." };
 
+  const mergedInput: UserFormData = {
+    nomeCompleto: formData.nomeCompleto ?? existing.nomeCompleto,
+    nomeCurto: formData.nomeCurto ?? existing.nomeCurto,
+    email: formData.email ?? existing.email,
+    telefone: formData.telefone ?? existing.telefone ?? undefined,
+    role: formData.role ?? existing.role,
+    cargo: formData.cargo ?? existing.cargo ?? undefined,
+    salarioBaseMensal:
+      formData.salarioBaseMensal ?? existing.salarioBaseMensal?.toString() ?? "0",
+    dataEntrada: formData.dataEntrada ?? existing.dataEntrada ?? undefined,
+    percentagemDescontoFolha:
+      formData.percentagemDescontoFolha ??
+      (Number(existing.percentagemDescontoFolha ?? 0) * 100).toFixed(2),
+    elegivelSubsidioDinamicoDefault:
+      formData.elegivelSubsidioDinamicoDefault ??
+      existing.elegivelSubsidioDinamicoDefault,
+  };
+
+  const parsed = UserSchema.safeParse(mergedInput);
+  if (!parsed.success) {
+    const issues = parsed.error.issues ?? [];
+    return { error: issues[0]?.message ?? parsed.error.message };
+  }
+
+  const discount = normaliseDiscountFraction(parsed.data.percentagemDescontoFolha);
+  if ("error" in discount) {
+    return { error: discount.error };
+  }
+  const existingDiscountPercentage = Number(existing.percentagemDescontoFolha ?? 0) * 100;
+  if (
+    actor.role !== "ca" &&
+    Math.abs(discount.percentage - existingDiscountPercentage) > 0.0001
+  ) {
+    return { error: "Só CA pode alterar desconto sobre folha." };
+  }
+
   const supabaseAdmin = createAdminClient();
   const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
     existing.authUserId,
     {
-      ...(formData.email ? { email: formData.email } : {}),
+      ...(parsed.data.email ? { email: parsed.data.email } : {}),
       user_metadata: {
-        role: formData.role ?? existing.role,
+        role: parsed.data.role,
         mfa_enabled: existing.mfaEnabled,
         active: existing.activo,
       },
@@ -128,7 +192,16 @@ export async function updateUser(id: string, formData: Partial<UserFormData>) {
   const [updated] = await dbAdmin
     .update(users)
     .set({
-      ...formData,
+      nomeCompleto: parsed.data.nomeCompleto,
+      nomeCurto: parsed.data.nomeCurto,
+      email: parsed.data.email,
+      telefone: parsed.data.telefone ?? null,
+      role: parsed.data.role,
+      cargo: parsed.data.cargo ?? null,
+      salarioBaseMensal: parsed.data.salarioBaseMensal ?? "0",
+      percentagemDescontoFolha: discount.fraction,
+      elegivelSubsidioDinamicoDefault: parsed.data.elegivelSubsidioDinamicoDefault,
+      dataEntrada: parsed.data.dataEntrada ?? null,
       updatedAt: new Date(),
     })
     .where(eq(users.id, id))

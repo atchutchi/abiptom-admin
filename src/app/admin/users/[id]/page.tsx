@@ -49,6 +49,7 @@ export default async function EditUserPage({ params }: Props) {
               defaultValues={target}
               onSubmit={updateWithId}
               isEdit
+              canEditDiscount={actor.role === "ca"}
             />
           </div>
 
