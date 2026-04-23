@@ -26,7 +26,7 @@ export function Header({ title }: HeaderProps) {
   }
 
   return (
-    <header className="h-16 border-b bg-white flex items-center justify-between px-6">
+    <header className="h-16 border-b border-[rgb(245_184_0_/_30%)] bg-[linear-gradient(90deg,#fffdf8_0%,#fff8df_55%,#fff3c2_100%)] flex items-center justify-between px-6 shadow-[0_1px_0_rgb(245_184_0_/_12%)]">
       <div className="flex min-w-0 items-center gap-4">
         <Link href={homeHref} aria-label="ABIPTOM">
           <Image
@@ -39,7 +39,7 @@ export function Header({ title }: HeaderProps) {
           />
         </Link>
         {title && (
-          <h1 className="truncate text-lg font-semibold text-gray-900">{title}</h1>
+          <h1 className="truncate text-lg font-semibold tracking-tight text-[color:var(--brand-ink)]">{title}</h1>
         )}
       </div>
       <div className="ml-auto">

@@ -193,21 +193,21 @@ export function Sidebar({ role, userName, userAvatarUrl }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "flex min-h-screen flex-col bg-gray-900 text-gray-100 transition-[width] duration-200",
+        "flex min-h-screen flex-col border-r border-[rgb(245_184_0_/_20%)] bg-[linear-gradient(180deg,#12100b_0%,#1d170f_56%,#0d0b08_100%)] text-[#fff8df] shadow-[8px_0_30px_rgb(18_16_11_/_10%)] transition-[width] duration-200",
         collapsed ? "w-20" : "w-64"
       )}
     >
       {/* Logo */}
       <div
         className={cn(
-          "flex h-16 items-center border-b border-gray-700",
+          "flex h-16 items-center border-b border-[rgb(245_184_0_/_20%)]",
           collapsed ? "px-3" : "px-4"
         )}
       >
         <Link
           href={homeHref}
           className={cn(
-            "min-w-0 text-gray-100",
+            "min-w-0 text-[#fff8df]",
             collapsed ? "inline-flex items-center" : "inline-flex items-center px-2"
           )}
           title="ABIPTOM Admin"
@@ -228,18 +228,18 @@ export function Sidebar({ role, userName, userAvatarUrl }: SidebarProps) {
               alt="ABIPTOM"
               width={32}
               height={32}
-              className="h-8 w-8 rounded-full bg-white object-contain p-0.5"
+              className="h-8 w-8 rounded-full bg-[#fff8df] object-contain p-0.5 ring-1 ring-[rgb(245_184_0_/_40%)]"
               priority
             />
           )}
           {!collapsed && (
-            <span className="ml-2 text-xs font-normal text-gray-400">Admin</span>
+            <span className="ml-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--brand-gold)]">Admin</span>
           )}
         </Link>
         <button
           type="button"
           onClick={toggleSidebar}
-          className="ml-auto rounded-md p-2 text-gray-300 transition-colors hover:bg-gray-800 hover:text-white"
+          className="ml-auto rounded-md p-2 text-[#fff3c2] transition-colors hover:bg-[rgb(245_184_0_/_15%)] hover:text-[color:var(--brand-gold)]"
           aria-label={collapsed ? "Expandir sidebar" : "Minimizar sidebar"}
         >
           {collapsed ? (
@@ -270,8 +270,8 @@ export function Sidebar({ role, userName, userAvatarUrl }: SidebarProps) {
                     "flex items-center rounded-lg py-2 text-sm transition-colors",
                     collapsed ? "justify-center px-2" : "gap-3 px-3",
                     active
-                      ? "bg-gray-700 text-white"
-                      : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                      ? "bg-[color:var(--brand-gold)] text-[color:var(--brand-ink)] shadow-[inset_3px_0_0_#fff8df]"
+                      : "text-[rgb(247_236_203_/_80%)] hover:bg-[rgb(245_184_0_/_12%)] hover:text-[#fff8df]"
                   )}
                 >
                   <Icon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
@@ -286,7 +286,7 @@ export function Sidebar({ role, userName, userAvatarUrl }: SidebarProps) {
       {/* User footer */}
       <div
         className={cn(
-          "border-t border-gray-700 pb-4 pt-3",
+          "border-t border-[rgb(245_184_0_/_20%)] pb-4 pt-3",
           collapsed ? "px-2" : "px-3"
         )}
       >
@@ -294,7 +294,7 @@ export function Sidebar({ role, userName, userAvatarUrl }: SidebarProps) {
           href={footerHref}
           title={collapsed ? `${userName} (${role.toUpperCase()})` : undefined}
           className={cn(
-            "flex items-center rounded-lg py-2 text-sm text-gray-300 transition-colors hover:bg-gray-800 hover:text-white",
+            "flex items-center rounded-lg py-2 text-sm text-[rgb(247_236_203_/_80%)] transition-colors hover:bg-[rgb(245_184_0_/_12%)] hover:text-[#fff8df]",
             collapsed ? "justify-center px-2" : "gap-3 px-3"
           )}
         >
@@ -308,8 +308,8 @@ export function Sidebar({ role, userName, userAvatarUrl }: SidebarProps) {
             <span className="sr-only">{userName}</span>
           ) : (
             <div className="min-w-0">
-              <p className="truncate font-medium text-white">{userName}</p>
-              <p className="text-xs text-gray-400 uppercase">{role}</p>
+              <p className="truncate font-medium text-[#fff8df]">{userName}</p>
+              <p className="text-xs uppercase tracking-[0.16em] text-[color:var(--brand-gold)]">{role}</p>
             </div>
           )}
         </Link>
