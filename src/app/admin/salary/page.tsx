@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils/format";
 import { Plus } from "lucide-react";
 import { Header } from "@/components/layout/Header";
+import { RecalculateHistoricalPeriodsButton } from "@/components/forms/RecalculateHistoricalPeriodsButton";
 
 const PERIOD_STATE_LABELS: Record<string, string> = {
   aberto: "Aberto",
@@ -33,16 +34,19 @@ export default async function SalaryPage() {
       <Header title="Folha Salarial" />
       <main className="flex-1 p-6">
         <div className="mx-auto max-w-6xl space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-4">
             <p className="text-sm text-gray-500">
               Processamento de salários por período
             </p>
-            <Button asChild>
-              <Link href="/admin/salary/new">
-                <Plus className="h-4 w-4 mr-2" />
-                Novo período
-              </Link>
-            </Button>
+            <div className="flex items-start gap-2">
+              <RecalculateHistoricalPeriodsButton />
+              <Button asChild>
+                <Link href="/admin/salary/new">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Novo período
+                </Link>
+              </Button>
+            </div>
           </div>
 
           <div className="rounded-lg border bg-white overflow-hidden">

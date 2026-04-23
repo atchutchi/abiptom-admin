@@ -64,6 +64,28 @@ export type CreatePeriodResult = { success: true; periodId: string } | { error: 
 export type CalculatePeriodResult =
   | { success: true; periodId: string; warnings: string[] }
   | { error: string };
+export type RecalculateHistoricalPeriodsResult =
+  | {
+      success: true;
+      periods: Array<{
+        periodId: string;
+        ano: number;
+        mes: number;
+        estado: string;
+        totalLiquidoAntes: number;
+        totalLiquidoDepois: number;
+        totalFolhaAntes: number;
+        totalFolhaDepois: number;
+        warnings: string[];
+      }>;
+      skipped: Array<{
+        periodId: string;
+        ano: number;
+        mes: number;
+        reason: string;
+      }>;
+    }
+  | { error: string };
 
 type PayrollAdminResult =
   | {
@@ -83,6 +105,19 @@ type LoadedProjectForSalary = {
     percentagemOverride: string | null;
   }>;
 };
+
+type CalculatedPeriodPayload = {
+  totalBruto: number;
+  totalLiquido: number;
+  totalFolha: number;
+  lines: Array<Record<string, unknown>>;
+  payments: Array<Record<string, unknown>>;
+  warnings: string[];
+};
+
+type EnsureHistoricalPeriodSnapshotResult =
+  | { success: true }
+  | { error: string };
 
 export async function listSalaryPolicies() {
   const { user, dbUser } = await getCurrentUser();
@@ -360,6 +395,130 @@ export async function calculatePeriod(
         error instanceof Error ? error.message : "Erro no calculo salarial",
     };
   }
+}
+
+export async function recalculateHistoricalPeriods(): Promise<RecalculateHistoricalPeriodsResult> {
+  const actor = await requirePayrollAdmin();
+  if ("error" in actor) return { error: actor.error };
+
+  const periods = await dbAdmin.query.salaryPeriods.findMany({
+    where: and(
+      gte(salaryPeriods.ano, 2020),
+      lte(salaryPeriods.ano, 2100),
+    ),
+    with: {
+      policy: true,
+      participants: true,
+      periodProjects: true,
+      lines: true,
+      projectPayments: true,
+    },
+    orderBy: (table, { asc: orderAsc }) => [orderAsc(table.ano), orderAsc(table.mes)],
+  });
+
+  const eligiblePeriods = periods.filter((period) =>
+    ["aberto", "calculado", "confirmado", "pago"].includes(period.estado),
+  );
+
+  const summary: RecalculateHistoricalPeriodsResult = {
+    success: true,
+    periods: [],
+    skipped: [],
+  };
+
+  for (const period of eligiblePeriods) {
+    try {
+      const prepared = await ensureHistoricalPeriodSnapshot(period.id);
+      if ("error" in prepared) {
+        summary.skipped.push({
+          periodId: period.id,
+          ano: period.ano,
+          mes: period.mes,
+          reason: prepared.error,
+        });
+        continue;
+      }
+
+      const policyConfig = period.policy.configuracaoJson as PolicyConfig;
+      const beforeSnapshot = {
+        estado: period.estado,
+        totals: {
+          totalBruto: Number(period.totalBruto ?? 0),
+          totalLiquido: Number(period.totalLiquido ?? 0),
+          totalFolha: Number(period.totalFolha ?? 0),
+        },
+        lines: period.lines,
+        projectPayments: period.projectPayments,
+        participants: period.participants,
+        periodProjects: period.periodProjects,
+      };
+
+      const payload =
+        policyConfig.tipo === "actual_2024"
+          ? await buildActual2024CalculatedPayload({
+              periodId: period.id,
+              policyConfig,
+            })
+          : await buildGuia2026CalculatedPayload({
+              periodId: period.id,
+              policyConfig,
+            });
+
+      await persistCalculatedPeriod({
+        periodId: period.id,
+        totalBruto: payload.totalBruto,
+        totalLiquido: payload.totalLiquido,
+        totalFolha: payload.totalFolha,
+        lines: payload.lines,
+        payments: payload.payments,
+        estado: period.estado,
+      });
+
+      await insertAuditLog({
+        userId: actor.dbUser.id,
+        acao: "historical_recalculate",
+        entidade: "salary_periods",
+        entidadeId: period.id,
+        dadosAntes: beforeSnapshot,
+        dadosDepois: {
+          estado: period.estado,
+          totals: {
+            totalBruto: payload.totalBruto,
+            totalLiquido: payload.totalLiquido,
+            totalFolha: payload.totalFolha,
+          },
+          lineCount: payload.lines.length,
+          paymentCount: payload.payments.length,
+          warnings: payload.warnings,
+        },
+      });
+
+      summary.periods.push({
+        periodId: period.id,
+        ano: period.ano,
+        mes: period.mes,
+        estado: period.estado,
+        totalLiquidoAntes: Number(period.totalLiquido ?? 0),
+        totalLiquidoDepois: payload.totalLiquido,
+        totalFolhaAntes: Number(period.totalFolha ?? 0),
+        totalFolhaDepois: payload.totalFolha,
+        warnings: payload.warnings,
+      });
+    } catch (error) {
+      summary.skipped.push({
+        periodId: period.id,
+        ano: period.ano,
+        mes: period.mes,
+        reason:
+          error instanceof Error
+            ? error.message
+            : "Erro ao recalcular período histórico",
+      });
+    }
+  }
+
+  revalidatePath("/admin/salary");
+  return summary;
 }
 
 export async function updateParticipant(
@@ -658,99 +817,25 @@ async function calculateActual2024Period(args: {
 }): Promise<CalculatePeriodResult> {
   const period = await dbAdmin.query.salaryPeriods.findFirst({
     where: eq(salaryPeriods.id, args.periodId),
-    with: {
-      participants: true,
-      periodProjects: true,
-    },
+    columns: { id: true },
   });
 
   if (!period) {
     return { error: "Periodo nao encontrado" };
   }
 
-  const usersInput = await loadUsersForParticipants(period.participants);
-  const projectsById = await loadProjectsForPeriod(period.periodProjects);
-  const monthExpenses = await loadExpensesForMonth(period.ano, period.mes);
-
-  const engineInput: CalculateActual2024Input = {
-    period: { year: period.ano, month: period.mes },
-    projects: period.periodProjects.map((entry) => {
-      const project = projectsById.get(entry.projectId);
-      if (!project) throw new Error(`Projecto ${entry.projectId} nao encontrado`);
-      return {
-        id: project.id,
-        titulo: project.titulo,
-        valorLiquido: Number(entry.valorLiquido),
-        pontoFocalId: project.pontoFocalId,
-        percentagemPf:
-          entry.pfPercentagemOverride !== null
-            ? Number(entry.pfPercentagemOverride)
-            : project.percentagemPf !== null
-              ? Number(project.percentagemPf)
-              : null,
-        percentagemAuxTotal:
-          project.percentagemAuxTotal !== null ? Number(project.percentagemAuxTotal) : null,
-        percentagemRubricaGestao:
-          project.percentagemRubricaGestao !== null
-            ? Number(project.percentagemRubricaGestao)
-            : null,
-        assistants: project.assistants.map((assistant) => ({
-          userId: assistant.userId,
-          percentagemOverride:
-            assistant.percentagemOverride !== null
-              ? Number(assistant.percentagemOverride)
-              : null,
-        })),
-      } satisfies ProjectWithAssignmentsInput;
-    }),
-    participants: period.participants.map((entry) => ({
-      userId: entry.userId,
-      isElegivelSubsidio: entry.isElegivelSubsidio,
-      recebeRubricaGestao: entry.recebeRubricaGestao,
-      salarioBaseOverride:
-        entry.salarioBaseOverride !== null ? Number(entry.salarioBaseOverride) : null,
-    })),
-    expenses: monthExpenses.map((expense) => ({
-      id: expense.id,
-      valorXof: Number(expense.valorXof),
-      moeda: expense.moeda,
-      projectId: expense.projectId,
-      beneficiarioUserId: expense.beneficiarioUserId,
-    })) satisfies ExpenseForSalary[],
-    users: usersInput,
-    policyDefaults: extractActual2024Defaults(args.policyConfig),
-  };
-
-  const result = calculateActual2024(engineInput);
+  const payload = await buildActual2024CalculatedPayload({
+    periodId: args.periodId,
+    policyConfig: args.policyConfig,
+  });
 
   await persistCalculatedPeriod({
     periodId: period.id,
-    totalBruto: result.aggregates.totalFolhaBruto,
-    totalLiquido: result.aggregates.totalFolhaLiquido,
-    totalFolha: result.aggregates.totalFolhaBruto,
-    lines: result.salaryLines.map((line) => ({
-      periodId: period.id,
-      userId: line.userId,
-      salarioBase: String(line.salarioBase),
-      componenteDinamica: line.componenteDinamica,
-      subsidios: line.subsidios,
-      outrosBeneficios: String(line.outrosBeneficios),
-      descontos: String(line.descontoValor),
-      totalBrutoCalculado: String(line.totalBrutoCalculado),
-      totalBrutoFinal: String(line.totalBrutoCalculado),
-      totalLiquidoCalculado: String(line.totalLiquidoCalculado),
-      totalLiquidoFinal: String(line.totalLiquidoCalculado),
-      overrideMotivo: null,
-    })),
-    payments: result.projectPayments.map((payment) => ({
-      periodId: period.id,
-      projectId: payment.projectId,
-      userId: payment.userId,
-      papel: payment.papel,
-      percentagemAplicada: String(payment.percentagemAplicada),
-      valorLiquidoProjecto: String(payment.valorLiquidoProjecto),
-      valorRecebido: String(payment.valorRecebido),
-    })),
+    totalBruto: payload.totalBruto,
+    totalLiquido: payload.totalLiquido,
+    totalFolha: payload.totalFolha,
+    lines: payload.lines,
+    payments: payload.payments,
   });
 
   await insertAuditLog({
@@ -758,12 +843,17 @@ async function calculateActual2024Period(args: {
     acao: "calculate",
     entidade: "salary_periods",
     entidadeId: period.id,
-    dadosDepois: { aggregates: result.aggregates, warnings: result.warnings },
+    dadosDepois: {
+      totalBruto: payload.totalBruto,
+      totalLiquido: payload.totalLiquido,
+      totalFolha: payload.totalFolha,
+      warnings: payload.warnings,
+    },
   });
 
   revalidatePath(`/admin/salary/${period.id}`);
   revalidatePath("/admin/salary");
-  return { success: true, periodId: period.id, warnings: result.warnings };
+  return { success: true, periodId: period.id, warnings: payload.warnings };
 }
 
 async function calculateGuia2026Period(args: {
@@ -782,17 +872,318 @@ async function calculateGuia2026Period(args: {
     return { error: "Periodo nao encontrado" };
   }
 
-  const activeUsers = await dbAdmin.query.users.findMany({
-    where: eq(users.activo, true),
-    columns: {
-      id: true,
-      nomeCurto: true,
-      role: true,
-      salarioBaseMensal: true,
+  const payload = await buildGuia2026CalculatedPayload({
+    periodId: args.periodId,
+    policyConfig: args.policyConfig,
+  });
+
+  await persistCalculatedPeriod({
+    periodId: period.id,
+    totalBruto: payload.totalBruto,
+    totalLiquido: payload.totalLiquido,
+    totalFolha: payload.totalFolha,
+    lines: payload.lines,
+    payments: payload.payments,
+  });
+
+  await insertAuditLog({
+    userId: args.actorId,
+    acao: "calculate",
+    entidade: "salary_periods",
+    entidadeId: period.id,
+    dadosDepois: {
+      totalBruto: payload.totalBruto,
+      totalLiquido: payload.totalLiquido,
+      totalFolha: payload.totalFolha,
     },
   });
 
-  const staffInput: StaffInput[] = activeUsers.map((user) => ({
+  revalidatePath(`/admin/salary/${period.id}`);
+  revalidatePath("/admin/salary");
+  return { success: true, periodId: period.id, warnings: payload.warnings };
+}
+
+async function persistCalculatedPeriod(args: {
+  periodId: string;
+  totalBruto: number;
+  totalLiquido: number;
+  totalFolha: number;
+  lines: Array<Record<string, unknown>>;
+  payments: Array<Record<string, unknown>>;
+  estado?: "aberto" | "calculado" | "confirmado" | "pago";
+}) {
+  await dbAdmin.transaction(async (tx) => {
+    await tx.delete(salaryLines).where(eq(salaryLines.periodId, args.periodId));
+    await tx.delete(projectPaymentsTable).where(eq(projectPaymentsTable.periodId, args.periodId));
+
+    if (args.lines.length > 0) {
+      await tx.insert(salaryLines).values(args.lines as never);
+    }
+    if (args.payments.length > 0) {
+      await tx.insert(projectPaymentsTable).values(args.payments as never);
+    }
+
+    await tx
+      .update(salaryPeriods)
+      .set({
+        estado: args.estado ?? "calculado",
+        totalBruto: String(args.totalBruto),
+        totalLiquido: String(args.totalLiquido),
+        totalFolha: String(args.totalFolha),
+      })
+      .where(eq(salaryPeriods.id, args.periodId));
+  });
+}
+
+async function ensureHistoricalPeriodSnapshot(
+  periodId: string,
+): Promise<EnsureHistoricalPeriodSnapshotResult> {
+  const period = await dbAdmin.query.salaryPeriods.findFirst({
+    where: eq(salaryPeriods.id, periodId),
+    with: {
+      participants: true,
+      periodProjects: true,
+      lines: true,
+      projectPayments: true,
+    },
+  });
+
+  if (!period) {
+    return { error: "Periodo nao encontrado" };
+  }
+
+  const candidateUserIds = Array.from(
+    new Set([
+      ...period.participants.map((entry) => entry.userId),
+      ...period.lines.map((entry) => entry.userId),
+      ...period.projectPayments.map((entry) => entry.userId),
+    ]),
+  );
+
+  const referencedUsers =
+    candidateUserIds.length > 0
+      ? await dbAdmin.query.users.findMany({
+          where: (table, { inArray }) => inArray(table.id, candidateUserIds),
+          columns: {
+            id: true,
+            role: true,
+            elegivelSubsidioDinamicoDefault: true,
+          },
+        })
+      : [];
+
+  const legacyRubricaCandidates = Array.from(
+    new Set(
+      period.projectPayments
+        .filter((entry) => entry.papel === "dg" || entry.papel === "coord")
+        .map((entry) => entry.userId),
+    ),
+  );
+
+  let defaultRubricaUserId =
+    legacyRubricaCandidates.length === 1 ? legacyRubricaCandidates[0] : null;
+
+  if (!defaultRubricaUserId) {
+    const activeDgs = await dbAdmin.query.users.findMany({
+      where: and(eq(users.activo, true), eq(users.role, "dg")),
+      columns: { id: true },
+    });
+    if (activeDgs.length === 1) {
+      defaultRubricaUserId = activeDgs[0].id;
+    }
+  }
+
+  await dbAdmin.transaction(async (tx) => {
+    const existingParticipantIds = new Set(
+      period.participants.map((entry) => entry.userId),
+    );
+    const participantsToInsert = referencedUsers
+      .filter((entry) => !existingParticipantIds.has(entry.id))
+      .map((entry) => ({
+        periodId,
+        userId: entry.id,
+        isElegivelSubsidio: entry.elegivelSubsidioDinamicoDefault,
+        recebeRubricaGestao: entry.id === defaultRubricaUserId,
+        salarioBaseOverride: null,
+      }));
+
+    if (period.participants.length === 0 && participantsToInsert.length === 0) {
+      return;
+    }
+
+    if (participantsToInsert.length > 0) {
+      await tx
+        .insert(salaryPeriodParticipants)
+        .values(participantsToInsert)
+        .onConflictDoNothing();
+    }
+
+    if (period.periodProjects.length === 0) {
+      const projectSnapshotMap = new Map<
+        string,
+        { valorLiquido: number; pfPercentagemOverride: number | null; coordId: string | null }
+      >();
+
+      for (const payment of period.projectPayments) {
+        const current = projectSnapshotMap.get(payment.projectId);
+        const valorLiquidoProjecto = Number(payment.valorLiquidoProjecto ?? 0);
+        const percentagemAplicada = Number(payment.percentagemAplicada ?? 0);
+
+        if (!current) {
+          projectSnapshotMap.set(payment.projectId, {
+            valorLiquido: valorLiquidoProjecto,
+            pfPercentagemOverride:
+              payment.papel === "pf" ? percentagemAplicada : null,
+            coordId: payment.papel === "coord" ? payment.userId : null,
+          });
+          continue;
+        }
+
+        current.valorLiquido = Math.max(current.valorLiquido, valorLiquidoProjecto);
+        if (current.pfPercentagemOverride === null && payment.papel === "pf") {
+          current.pfPercentagemOverride = percentagemAplicada;
+        }
+        if (current.coordId === null && payment.papel === "coord") {
+          current.coordId = payment.userId;
+        }
+      }
+
+      if (projectSnapshotMap.size === 0) {
+        return;
+      }
+
+      await tx
+        .insert(salaryPeriodProjects)
+        .values(
+          Array.from(projectSnapshotMap.entries()).map(([projectId, snapshot]) => ({
+            periodId,
+            projectId,
+            valorLiquido: String(snapshot.valorLiquido),
+            pfPercentagemOverride:
+              snapshot.pfPercentagemOverride === null
+                ? null
+                : String(snapshot.pfPercentagemOverride),
+            coordId: snapshot.coordId,
+          })),
+        )
+        .onConflictDoNothing();
+    }
+  });
+
+  const refreshed = await dbAdmin.query.salaryPeriods.findFirst({
+    where: eq(salaryPeriods.id, periodId),
+    with: {
+      participants: true,
+      periodProjects: true,
+    },
+  });
+
+  if (!refreshed) {
+    return { error: "Periodo nao encontrado apos preparar snapshot" };
+  }
+  if (refreshed.participants.length === 0) {
+    return { error: "Periodo sem participantes suficientes para recalcular" };
+  }
+  if (refreshed.periodProjects.length === 0) {
+    return { error: "Periodo sem snapshot de projectos para recalcular" };
+  }
+
+  return { success: true };
+}
+
+async function buildActual2024CalculatedPayload(args: {
+  periodId: string;
+  policyConfig: Actual2024PolicyConfig;
+}): Promise<CalculatedPeriodPayload> {
+  const engineInput = await loadActual2024EngineInput(
+    args.periodId,
+    args.policyConfig,
+  );
+  const result = calculateActual2024(engineInput);
+
+  return {
+    totalBruto: result.aggregates.totalFolhaBruto,
+    totalLiquido: result.aggregates.totalFolhaLiquido,
+    totalFolha: result.aggregates.totalFolhaBruto,
+    lines: result.salaryLines.map((line) => ({
+      periodId: args.periodId,
+      userId: line.userId,
+      salarioBase: String(line.salarioBase),
+      componenteDinamica: line.componenteDinamica,
+      subsidios: line.subsidios,
+      outrosBeneficios: String(line.outrosBeneficios),
+      descontos: String(line.descontoValor),
+      totalBrutoCalculado: String(line.totalBrutoCalculado),
+      totalBrutoFinal: String(line.totalBrutoCalculado),
+      totalLiquidoCalculado: String(line.totalLiquidoCalculado),
+      totalLiquidoFinal: String(line.totalLiquidoCalculado),
+      overrideMotivo: null,
+      pago: false,
+      dataPagamento: null,
+      referenciaPagamento: null,
+      reciboUrl: null,
+    })),
+    payments: result.projectPayments.map((payment) => ({
+      periodId: args.periodId,
+      projectId: payment.projectId,
+      userId: payment.userId,
+      papel: payment.papel,
+      percentagemAplicada: String(payment.percentagemAplicada),
+      valorLiquidoProjecto: String(payment.valorLiquidoProjecto),
+      valorRecebido: String(payment.valorRecebido),
+    })),
+    warnings: result.warnings,
+  };
+}
+
+async function buildGuia2026CalculatedPayload(args: {
+  periodId: string;
+  policyConfig: Guia2026PolicyConfig;
+}): Promise<CalculatedPeriodPayload> {
+  const period = await dbAdmin.query.salaryPeriods.findFirst({
+    where: eq(salaryPeriods.id, args.periodId),
+    with: {
+      periodProjects: true,
+      lines: { columns: { userId: true } },
+      participants: { columns: { userId: true } },
+      projectPayments: { columns: { userId: true } },
+    },
+  });
+
+  if (!period) {
+    throw new Error("Periodo nao encontrado");
+  }
+
+  const candidateUserIds = Array.from(
+    new Set([
+      ...period.participants.map((entry) => entry.userId),
+      ...period.lines.map((entry) => entry.userId),
+      ...period.projectPayments.map((entry) => entry.userId),
+    ]),
+  );
+
+  const userRows =
+    candidateUserIds.length > 0
+      ? await dbAdmin.query.users.findMany({
+          where: (table, { inArray }) => inArray(table.id, candidateUserIds),
+          columns: {
+            id: true,
+            nomeCurto: true,
+            role: true,
+            salarioBaseMensal: true,
+          },
+        })
+      : await dbAdmin.query.users.findMany({
+          where: eq(users.activo, true),
+          columns: {
+            id: true,
+            nomeCurto: true,
+            role: true,
+            salarioBaseMensal: true,
+          },
+        });
+
+  const staffInput: StaffInput[] = userRows.map((user) => ({
     id: user.id,
     nomeCurto: user.nomeCurto,
     role: user.role,
@@ -825,13 +1216,12 @@ async function calculateGuia2026Period(args: {
 
   const result = calculateGuia2026(args.policyConfig, projectInputs, staffInput, []);
 
-  await persistCalculatedPeriod({
-    periodId: period.id,
+  return {
     totalBruto: result.summary.totalBruto,
     totalLiquido: result.summary.totalLiquido,
     totalFolha: result.summary.totalFolha,
     lines: result.lines.map((line) => ({
-      periodId: period.id,
+      periodId: args.periodId,
       userId: line.userId,
       salarioBase: String(line.salarioBase),
       componenteDinamica: line.componenteDinamica,
@@ -843,9 +1233,13 @@ async function calculateGuia2026Period(args: {
       totalLiquidoCalculado: String(line.totalLiquido),
       totalLiquidoFinal: String(line.totalLiquido),
       overrideMotivo: null,
+      pago: false,
+      dataPagamento: null,
+      referenciaPagamento: null,
+      reciboUrl: null,
     })),
     payments: result.projectPayments.map((payment) => ({
-      periodId: period.id,
+      periodId: args.periodId,
       projectId: payment.projectId,
       userId: payment.userId,
       papel: payment.papel,
@@ -853,56 +1247,22 @@ async function calculateGuia2026Period(args: {
       valorLiquidoProjecto: String(payment.valorLiquidoProjecto),
       valorRecebido: String(payment.valorRecebido),
     })),
-  });
-
-  await insertAuditLog({
-    userId: args.actorId,
-    acao: "calculate",
-    entidade: "salary_periods",
-    entidadeId: period.id,
-    dadosDepois: { summary: result.summary },
-  });
-
-  revalidatePath(`/admin/salary/${period.id}`);
-  revalidatePath("/admin/salary");
-  return { success: true, periodId: period.id, warnings: [] };
-}
-
-async function persistCalculatedPeriod(args: {
-  periodId: string;
-  totalBruto: number;
-  totalLiquido: number;
-  totalFolha: number;
-  lines: Array<Record<string, unknown>>;
-  payments: Array<Record<string, unknown>>;
-}) {
-  await dbAdmin.transaction(async (tx) => {
-    await tx.delete(salaryLines).where(eq(salaryLines.periodId, args.periodId));
-    await tx.delete(projectPaymentsTable).where(eq(projectPaymentsTable.periodId, args.periodId));
-
-    if (args.lines.length > 0) {
-      await tx.insert(salaryLines).values(args.lines as never);
-    }
-    if (args.payments.length > 0) {
-      await tx.insert(projectPaymentsTable).values(args.payments as never);
-    }
-
-    await tx
-      .update(salaryPeriods)
-      .set({
-        estado: "calculado",
-        totalBruto: String(args.totalBruto),
-        totalLiquido: String(args.totalLiquido),
-        totalFolha: String(args.totalFolha),
-      })
-      .where(eq(salaryPeriods.id, args.periodId));
-  });
+    warnings: [],
+  };
 }
 
 async function buildActual2024Preview(
   periodId: string,
   policyConfig: Actual2024PolicyConfig,
 ): Promise<CalculateActual2024Output> {
+  const engineInput = await loadActual2024EngineInput(periodId, policyConfig);
+  return calculateActual2024(engineInput);
+}
+
+async function loadActual2024EngineInput(
+  periodId: string,
+  policyConfig: Actual2024PolicyConfig,
+): Promise<CalculateActual2024Input> {
   const period = await dbAdmin.query.salaryPeriods.findFirst({
     where: eq(salaryPeriods.id, periodId),
     with: {
@@ -919,7 +1279,7 @@ async function buildActual2024Preview(
   const projectsById = await loadProjectsForPeriod(period.periodProjects);
   const monthExpenses = await loadExpensesForMonth(period.ano, period.mes);
 
-  return calculateActual2024({
+  return {
     period: { year: period.ano, month: period.mes },
     projects: period.periodProjects.map((entry) => {
       const project = projectsById.get(entry.projectId);
@@ -936,7 +1296,9 @@ async function buildActual2024Preview(
               ? Number(project.percentagemPf)
               : null,
         percentagemAuxTotal:
-          project.percentagemAuxTotal !== null ? Number(project.percentagemAuxTotal) : null,
+          project.percentagemAuxTotal !== null
+            ? Number(project.percentagemAuxTotal)
+            : null,
         percentagemRubricaGestao:
           project.percentagemRubricaGestao !== null
             ? Number(project.percentagemRubricaGestao)
@@ -955,7 +1317,9 @@ async function buildActual2024Preview(
       isElegivelSubsidio: entry.isElegivelSubsidio,
       recebeRubricaGestao: entry.recebeRubricaGestao,
       salarioBaseOverride:
-        entry.salarioBaseOverride !== null ? Number(entry.salarioBaseOverride) : null,
+        entry.salarioBaseOverride !== null
+          ? Number(entry.salarioBaseOverride)
+          : null,
     })),
     expenses: monthExpenses.map((expense) => ({
       id: expense.id,
@@ -966,7 +1330,7 @@ async function buildActual2024Preview(
     })) satisfies ExpenseForSalary[],
     users: usersInput,
     policyDefaults: extractActual2024Defaults(policyConfig),
-  });
+  };
 }
 
 async function loadUsersForParticipants(
