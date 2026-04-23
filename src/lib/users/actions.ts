@@ -22,6 +22,7 @@ import {
   getAvatarExtension,
 } from "@/lib/users/avatar";
 import { sql } from "drizzle-orm";
+import { repairAuthLinkForInternalUser } from "@/lib/users/auth-link";
 
 const UserSchema = z.object({
   nomeCompleto: z.string().min(2, "Nome completo obrigatório"),
@@ -160,23 +161,27 @@ export async function updateUser(id: string, formData: Partial<UserFormData>) {
   });
 
   if (!existing) return { error: "Utilizador não encontrado." };
+  const syncedExisting = await repairAuthLinkForInternalUser(existing);
+  if (!syncedExisting) {
+    return { error: "Conta Auth não encontrada para este utilizador." };
+  }
 
   const mergedInput: UserFormData = {
-    nomeCompleto: formData.nomeCompleto ?? existing.nomeCompleto,
-    nomeCurto: formData.nomeCurto ?? existing.nomeCurto,
-    email: formData.email ?? existing.email,
-    telefone: formData.telefone ?? existing.telefone ?? undefined,
-    role: formData.role ?? existing.role,
-    cargo: formData.cargo ?? existing.cargo ?? undefined,
+    nomeCompleto: formData.nomeCompleto ?? syncedExisting.nomeCompleto,
+    nomeCurto: formData.nomeCurto ?? syncedExisting.nomeCurto,
+    email: formData.email ?? syncedExisting.email,
+    telefone: formData.telefone ?? syncedExisting.telefone ?? undefined,
+    role: formData.role ?? syncedExisting.role,
+    cargo: formData.cargo ?? syncedExisting.cargo ?? undefined,
     salarioBaseMensal:
-      formData.salarioBaseMensal ?? existing.salarioBaseMensal?.toString() ?? "0",
-    dataEntrada: formData.dataEntrada ?? existing.dataEntrada ?? undefined,
+      formData.salarioBaseMensal ?? syncedExisting.salarioBaseMensal?.toString() ?? "0",
+    dataEntrada: formData.dataEntrada ?? syncedExisting.dataEntrada ?? undefined,
     percentagemDescontoFolha:
       formData.percentagemDescontoFolha ??
-      (Number(existing.percentagemDescontoFolha ?? 0) * 100).toFixed(2),
+      (Number(syncedExisting.percentagemDescontoFolha ?? 0) * 100).toFixed(2),
     elegivelSubsidioDinamicoDefault:
       formData.elegivelSubsidioDinamicoDefault ??
-      existing.elegivelSubsidioDinamicoDefault,
+      syncedExisting.elegivelSubsidioDinamicoDefault,
   };
 
   const parsed = UserSchema.safeParse(mergedInput);
@@ -189,7 +194,7 @@ export async function updateUser(id: string, formData: Partial<UserFormData>) {
   if ("error" in discount) {
     return { error: discount.error };
   }
-  const existingDiscountPercentage = Number(existing.percentagemDescontoFolha ?? 0) * 100;
+  const existingDiscountPercentage = Number(syncedExisting.percentagemDescontoFolha ?? 0) * 100;
   if (
     !["ca", "dg"].includes(actor.role) &&
     Math.abs(discount.percentage - existingDiscountPercentage) > 0.0001
@@ -199,13 +204,13 @@ export async function updateUser(id: string, formData: Partial<UserFormData>) {
 
   const supabaseAdmin = createAdminClient();
   const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
-    existing.authUserId,
+    syncedExisting.authUserId,
     {
       ...(parsed.data.email ? { email: parsed.data.email } : {}),
       user_metadata: {
         role: parsed.data.role,
-        mfa_enabled: existing.mfaEnabled,
-        active: existing.activo,
+        mfa_enabled: syncedExisting.mfaEnabled,
+        active: syncedExisting.activo,
       },
     }
   );
@@ -239,7 +244,7 @@ export async function updateUser(id: string, formData: Partial<UserFormData>) {
     acao: "editar_utilizador",
     entidade: "users",
     entidadeId: id,
-    dadosAntes: existing,
+    dadosAntes: syncedExisting,
     dadosDepois: updated,
   });
 
@@ -260,14 +265,18 @@ export async function deactivateUser(id: string) {
   });
 
   if (!existing) return { error: "Utilizador não encontrado." };
+  const syncedExisting = await repairAuthLinkForInternalUser(existing);
+  if (!syncedExisting) {
+    return { error: "Conta Auth não encontrada para este utilizador." };
+  }
 
   const supabaseAdmin = createAdminClient();
   const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
-    existing.authUserId,
+    syncedExisting.authUserId,
     {
       user_metadata: {
-        role: existing.role,
-        mfa_enabled: existing.mfaEnabled,
+        role: syncedExisting.role,
+        mfa_enabled: syncedExisting.mfaEnabled,
         active: false,
       },
     }
@@ -290,7 +299,7 @@ export async function deactivateUser(id: string) {
     acao: "desactivar_utilizador",
     entidade: "users",
     entidadeId: id,
-    dadosAntes: existing,
+    dadosAntes: syncedExisting,
     dadosDepois: updated,
   });
 
@@ -313,6 +322,7 @@ export async function deleteUserPermanently(id: string) {
   });
 
   if (!existing) return { error: "Utilizador não encontrado." };
+  const syncedExisting = await repairAuthLinkForInternalUser(existing);
 
   const blockers = [
     {
@@ -352,7 +362,7 @@ export async function deleteUserPermanently(id: string) {
     };
   }
 
-  const avatarPath = existing.fotografiaUrl;
+  const avatarPath = syncedExisting?.fotografiaUrl ?? existing.fotografiaUrl;
   const supabaseAdmin = createAdminClient();
 
   await dbAdmin.delete(users).where(eq(users.id, id));
@@ -362,7 +372,7 @@ export async function deleteUserPermanently(id: string) {
   }
 
   const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(
-    existing.authUserId,
+    syncedExisting?.authUserId ?? existing.authUserId,
   );
 
   await insertAuditLog({
@@ -370,7 +380,7 @@ export async function deleteUserPermanently(id: string) {
     acao: "eliminar_utilizador",
     entidade: "users",
     entidadeId: id,
-    dadosAntes: existing,
+    dadosAntes: syncedExisting ?? existing,
     dadosDepois: { eliminado: true },
   });
 

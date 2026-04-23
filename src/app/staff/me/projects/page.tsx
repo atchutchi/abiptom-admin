@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { eq, inArray, or } from "drizzle-orm";
 import { Header } from "@/components/layout/Header";
-import { createClient } from "@/lib/supabase/server";
 import { withAuthenticatedDb } from "@/lib/db";
-import { projectAssistants, projects, users } from "@/lib/db/schema";
+import { projectAssistants, projects } from "@/lib/db/schema";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
+import { getCurrentUser } from "@/lib/auth/actions";
 
 export const metadata = { title: "Meus projectos — ABIPTOM Admin" };
 
@@ -25,35 +25,24 @@ const STATE_COLOR: Record<string, string> = {
 };
 
 export default async function StaffProjectsPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const { user, dbUser } = await getCurrentUser();
   if (!user) redirect("/login");
+  if (!dbUser) redirect("/login");
 
-  const { dbUser, ownProjects } = await withAuthenticatedDb(user, async (db) => {
-    const currentUser = await db.query.users.findFirst({
-      where: eq(users.authUserId, user.id),
-    });
-
-    if (!currentUser) {
-      return { dbUser: null, ownProjects: [] };
-    }
-
+  const { ownProjects } = await withAuthenticatedDb(user, async (db) => {
     const assistantRows = await db
       .select({ projectId: projectAssistants.projectId })
       .from(projectAssistants)
-      .where(eq(projectAssistants.userId, currentUser.id));
+      .where(eq(projectAssistants.userId, dbUser.id));
 
     const assistantProjectIds = assistantRows.map((row) => row.projectId);
     const where =
       assistantProjectIds.length > 0
         ? or(
-            eq(projects.pontoFocalId, currentUser.id),
+            eq(projects.pontoFocalId, dbUser.id),
             inArray(projects.id, assistantProjectIds)
           )
-        : eq(projects.pontoFocalId, currentUser.id);
+        : eq(projects.pontoFocalId, dbUser.id);
 
     const ownProjects = await db.query.projects.findMany({
       where,
@@ -87,10 +76,8 @@ export default async function StaffProjectsPage() {
       ],
     });
 
-    return { dbUser: currentUser, ownProjects };
+    return { ownProjects };
   });
-
-  if (!dbUser) redirect("/login");
   if (dbUser.role !== "staff" && dbUser.role !== "coord") {
     redirect("/staff/me/dashboard");
   }

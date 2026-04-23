@@ -1,9 +1,5 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { dbAdmin } from "@/lib/db";
-import { users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
 import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Plus } from "lucide-react";
 import { listUsers } from "@/lib/users/actions";
+import { getCurrentUser } from "@/lib/auth/actions";
 
 const ROLE_LABELS: Record<string, string> = {
   ca: "CA",
@@ -28,15 +25,8 @@ const ROLE_LABELS: Record<string, string> = {
 export const metadata = { title: "Utilizadores — ABIPTOM Admin" };
 
 export default async function UsersPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user, dbUser } = await getCurrentUser();
   if (!user) redirect("/login");
-
-  const dbUser = await dbAdmin.query.users.findFirst({
-    where: eq(users.authUserId, user.id),
-  });
 
   if (!dbUser || (dbUser.role !== "ca" && dbUser.role !== "dg")) {
     redirect("/admin/dashboard");

@@ -1,14 +1,13 @@
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { Header } from "@/components/layout/Header";
-import { createClient } from "@/lib/supabase/server";
 import { withAuthenticatedDb } from "@/lib/db";
 import {
   projectPayments,
   salaryLines,
-  users,
 } from "@/lib/db/schema";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
+import { getCurrentUser } from "@/lib/auth/actions";
 
 export const metadata = { title: "Histórico salarial — ABIPTOM Admin" };
 
@@ -36,24 +35,13 @@ const MONTH_LABELS = [
 ];
 
 export default async function SalaryHistoryPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const { user, dbUser } = await getCurrentUser();
   if (!user) redirect("/login");
+  if (!dbUser) redirect("/login");
 
-  const { dbUser, visibleLines, projectBonuses } = await withAuthenticatedDb(user, async (db) => {
-    const currentUser = await db.query.users.findFirst({
-      where: eq(users.authUserId, user.id),
-    });
-
-    if (!currentUser) {
-      return { dbUser: null, visibleLines: [], projectBonuses: [] };
-    }
-
+  const { visibleLines, projectBonuses } = await withAuthenticatedDb(user, async (db) => {
     const lines = await db.query.salaryLines.findMany({
-      where: eq(salaryLines.userId, currentUser.id),
+      where: eq(salaryLines.userId, dbUser.id),
       with: {
         period: {
           columns: {
@@ -71,10 +59,10 @@ export default async function SalaryHistoryPage() {
       .sort((a, b) => {
         if (a.period.ano !== b.period.ano) return b.period.ano - a.period.ano;
         return b.period.mes - a.period.mes;
-      });
+    });
 
     const bonuses = await db.query.projectPayments.findMany({
-      where: eq(projectPayments.userId, currentUser.id),
+      where: eq(projectPayments.userId, dbUser.id),
       with: {
         project: {
           columns: {
@@ -96,10 +84,8 @@ export default async function SalaryHistoryPage() {
       return b.period.mes - a.period.mes;
     });
 
-    return { dbUser: currentUser, visibleLines, projectBonuses };
+    return { visibleLines, projectBonuses };
   });
-
-  if (!dbUser) redirect("/login");
   if (dbUser.role !== "staff" && dbUser.role !== "coord") {
     redirect("/staff/me/dashboard");
   }

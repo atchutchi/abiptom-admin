@@ -1,5 +1,4 @@
 import { notFound, redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { dbAdmin } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -12,6 +11,7 @@ import {
 } from "@/lib/users/actions";
 import { DeactivateUserButton } from "@/components/forms/DeactivateUserButton";
 import { DeleteUserPermanentlyButton } from "@/components/forms/DeleteUserPermanentlyButton";
+import { getCurrentUser } from "@/lib/auth/actions";
 
 export const metadata = { title: "Editar utilizador — ABIPTOM Admin" };
 
@@ -22,15 +22,8 @@ interface Props {
 export default async function EditUserPage({ params }: Props) {
   const { id } = await params;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user, dbUser: actor } = await getCurrentUser();
   if (!user) redirect("/login");
-
-  const actor = await dbAdmin.query.users.findFirst({
-    where: eq(users.authUserId, user.id),
-  });
 
   if (!actor || (actor.role !== "ca" && actor.role !== "dg")) {
     redirect("/admin/dashboard");

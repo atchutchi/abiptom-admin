@@ -1,8 +1,6 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { withAuthenticatedDb } from "@/lib/db";
 import {
-  users,
   salaryLines,
   projectPayments,
   dividendLines,
@@ -19,6 +17,7 @@ import {
   TrendingUp,
   Wallet,
 } from "lucide-react";
+import { getCurrentUser } from "@/lib/auth/actions";
 
 const ROLE_LABELS: Record<string, string> = {
   ca: "Conselho de Administração",
@@ -60,28 +59,13 @@ const PERIOD_STATE_LABELS: Record<string, string> = {
 export const metadata = { title: "O meu painel — ABIPTOM Admin" };
 
 export default async function StaffDashboardPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const { user, dbUser } = await getCurrentUser();
   if (!user) redirect("/login");
+  if (!dbUser) redirect("/login");
 
-  const {
-    dbUser,
-    myLines,
-    myDividends,
-  } = await withAuthenticatedDb(user, async (db) => {
-    const currentUser = await db.query.users.findFirst({
-      where: eq(users.authUserId, user.id),
-    });
-
-    if (!currentUser) {
-      return { dbUser: null, myLines: [], myDividends: [] };
-    }
-
+  const { myLines, myDividends } = await withAuthenticatedDb(user, async (db) => {
     const salaryHistory = await db.query.salaryLines.findMany({
-      where: eq(salaryLines.userId, currentUser.id),
+      where: eq(salaryLines.userId, dbUser.id),
       with: {
         period: {
           columns: { ano: true, mes: true, estado: true },
@@ -90,7 +74,7 @@ export default async function StaffDashboardPage() {
     });
 
     const dividends = await db.query.dividendLines.findMany({
-      where: eq(dividendLines.userId, currentUser.id),
+      where: eq(dividendLines.userId, dbUser.id),
       with: {
         period: {
           columns: { ano: true, trimestre: true, estado: true },
@@ -98,14 +82,8 @@ export default async function StaffDashboardPage() {
       },
     });
 
-    return {
-      dbUser: currentUser,
-      myLines: salaryHistory,
-      myDividends: dividends,
-    };
+    return { myLines: salaryHistory, myDividends: dividends };
   });
-
-  if (!dbUser) redirect("/login");
 
   const visibleLines = myLines
     .filter((l) => l.period.estado !== "aberto")

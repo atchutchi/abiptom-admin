@@ -1,21 +1,16 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { dbAdmin } from "@/lib/db";
 import { users, clients, servicesCatalog } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { Header } from "@/components/layout/Header";
 import ProjectForm from "@/components/forms/ProjectForm";
+import { getCurrentUser } from "@/lib/auth/actions";
 
 export const metadata = { title: "Novo Projecto — ABIPTOM Admin" };
 
 export default async function NewProjectPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user, dbUser } = await getCurrentUser();
   if (!user) redirect("/login");
-
-  const dbUser = await dbAdmin.query.users.findFirst({
-    where: eq(users.authUserId, user.id),
-  });
   if (!dbUser || !["ca", "dg", "coord"].includes(dbUser.role)) {
     redirect("/admin/dashboard");
   }

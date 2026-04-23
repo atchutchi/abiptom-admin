@@ -1,27 +1,16 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { dbAdmin } from "@/lib/db";
-import { users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
 import { Sidebar } from "@/components/layout/Sidebar";
 import type { UserRole } from "@/lib/db/schema";
 import { getAvatarUrl } from "@/lib/users/avatar";
+import { getCurrentUser } from "@/lib/auth/actions";
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const { user, dbUser } = await getCurrentUser();
   if (!user) redirect("/login");
-
-  const dbUser = await dbAdmin.query.users.findFirst({
-    where: eq(users.authUserId, user.id),
-  });
 
   if (!dbUser) redirect("/login");
 
