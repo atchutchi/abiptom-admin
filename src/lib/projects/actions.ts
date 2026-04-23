@@ -7,6 +7,7 @@ import { eq, ilike, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/actions";
 import { insertAuditLog } from "@/lib/db/audit";
+import { toCurrencyStorageString } from "@/lib/utils/money";
 
 const projectSchema = z.object({
   clientId: z.string().uuid("Cliente inválido"),
@@ -87,10 +88,13 @@ export async function createProject(_: unknown, formData: FormData) {
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
 
   const { assistants, ...projectData } = parsed.data;
+  const valorPrevisto = projectData.valorPrevisto
+    ? toCurrencyStorageString(projectData.valorPrevisto, projectData.moeda)
+    : null;
 
   const [created] = await dbAdmin
     .insert(projects)
-    .values({ ...projectData, createdBy: dbUser.id })
+    .values({ ...projectData, valorPrevisto, createdBy: dbUser.id })
     .returning();
 
   if (assistants.length > 0) {
@@ -143,10 +147,13 @@ export async function updateProject(id: string, _: unknown, formData: FormData) 
   if (!existing) return { error: "Projecto não encontrado" };
 
   const { assistants, ...projectData } = parsed.data;
+  const valorPrevisto = projectData.valorPrevisto
+    ? toCurrencyStorageString(projectData.valorPrevisto, projectData.moeda)
+    : null;
 
   const [updated] = await dbAdmin
     .update(projects)
-    .set({ ...projectData, updatedAt: new Date() })
+    .set({ ...projectData, valorPrevisto, updatedAt: new Date() })
     .where(eq(projects.id, id))
     .returning();
 

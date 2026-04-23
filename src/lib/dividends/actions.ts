@@ -12,6 +12,7 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/actions";
 import { insertAuditLog } from "@/lib/db/audit";
 import { headers } from "next/headers";
+import { toXofInteger, toXofString } from "@/lib/utils/money";
 
 const createPeriodSchema = z.object({
   ano: z.coerce.number().int().min(2020).max(2100),
@@ -107,14 +108,14 @@ export async function createDividendPeriod(_: unknown, formData: FormData) {
     return { error: `Quotas somam ${totalPct}% (máximo 100%)` };
   }
 
-  const base = Number(baseCalculada);
+  const base = toXofInteger(baseCalculada);
 
   const [period] = await dbAdmin
     .insert(dividendPeriods)
     .values({
       ano,
       trimestre: trimestre ?? null,
-      baseCalculada,
+      baseCalculada: toXofString(base),
       totalDistribuido: "0",
       notas,
       criadoPor: dbUser.id,
@@ -124,13 +125,13 @@ export async function createDividendPeriod(_: unknown, formData: FormData) {
   let totalDistribuido = 0;
   const linesToInsert = activeShares.map((share) => {
     const pct = Number(share.percentagemQuota);
-    const valorBruto = (base * pct) / 100;
+    const valorBruto = toXofInteger((base * pct) / 100);
     totalDistribuido += valorBruto;
     return {
       periodId: period.id,
       userId: share.userId,
       percentagemQuota: share.percentagemQuota,
-      valorBruto: valorBruto.toFixed(2),
+      valorBruto: toXofString(valorBruto),
     };
   });
 
@@ -138,7 +139,7 @@ export async function createDividendPeriod(_: unknown, formData: FormData) {
 
   await dbAdmin
     .update(dividendPeriods)
-    .set({ totalDistribuido: totalDistribuido.toFixed(2) })
+    .set({ totalDistribuido: toXofString(totalDistribuido) })
     .where(eq(dividendPeriods.id, period.id));
 
   const hdrs = await headers();

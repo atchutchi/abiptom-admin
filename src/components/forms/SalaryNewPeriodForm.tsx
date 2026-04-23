@@ -17,6 +17,7 @@ import type {
   CreatePeriodInput,
   PaidInvoiceProjectEntry,
 } from "@/lib/salary/actions";
+import { toXofInteger } from "@/lib/utils/money";
 
 interface PolicyOption {
   id: string;
@@ -206,7 +207,7 @@ export function SalaryNewPeriodForm({
       policyId,
       projectEntries: includedEntries.map((entry) => ({
         projectId: entry.projectId,
-        valorLiquido: Number(entry.valorLiquido),
+        valorLiquido: toXofInteger(entry.valorLiquido),
       })),
     };
 

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { registerPayment } from "@/lib/invoices/actions";
 import { useRouter } from "next/navigation";
 import type { Currency } from "@/lib/db/schema";
+import { toXofInteger } from "@/lib/utils/money";
 
 interface Props {
   invoiceId: string;
@@ -29,7 +30,7 @@ export default function PaymentForm({ invoiceId, moeda }: Props) {
     startTransition(async () => {
       const res = await registerPayment(invoiceId, {
         data,
-        valor: Number(valor),
+        valor: moeda === "XOF" ? toXofInteger(valor) : Number(valor),
         moeda,
         taxaCambio: 1,
         metodo,
@@ -72,7 +73,7 @@ export default function PaymentForm({ invoiceId, moeda }: Props) {
           <input
             type="number"
             min={0}
-            step="any"
+            step={moeda === "XOF" ? "1" : "any"}
             value={valor}
             onChange={(e) => setValor(e.target.value)}
             placeholder="0"

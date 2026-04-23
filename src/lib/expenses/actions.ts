@@ -9,6 +9,7 @@ import { getCurrentUser } from "@/lib/auth/actions";
 import { insertAuditLog } from "@/lib/db/audit";
 import { headers } from "next/headers";
 import type { ExpenseFilters } from "./labels";
+import { multiplyToXofInteger, toCurrencyStorageString } from "@/lib/utils/money";
 
 const expenseSchema = z.object({
   data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida"),
@@ -175,7 +176,7 @@ export async function sumExpensesByMonth(mes: string) {
   if (!canManageExpenses(dbUser.role)) throw new Error("Sem permissão");
 
   const rows = await listExpenses({ mes });
-  return rows.reduce((sum, e) => sum + Number(e.valorXof), 0);
+  return rows.reduce((sum, e) => sum + multiplyToXofInteger(e.valorXof), 0);
 }
 
 export async function createExpense(_: unknown, formData: FormData) {
@@ -188,9 +189,11 @@ export async function createExpense(_: unknown, formData: FormData) {
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
   }
 
-  const valor = Number(parsed.data.valor);
-  const taxaCambio = Number(parsed.data.taxaCambio);
-  const valorXof = (valor * taxaCambio).toFixed(2);
+  const valorXof = multiplyToXofInteger(
+    parsed.data.valor,
+    parsed.data.taxaCambio,
+  );
+  const valor = toCurrencyStorageString(parsed.data.valor, parsed.data.moeda);
 
   const [created] = await dbAdmin
     .insert(expenses)
@@ -198,7 +201,8 @@ export async function createExpense(_: unknown, formData: FormData) {
       ...parsed.data,
       projectId: parsed.data.projectId ?? null,
       beneficiarioUserId: parsed.data.beneficiarioUserId ?? null,
-      valorXof,
+      valor,
+      valorXof: String(valorXof),
       criadoPor: dbUser.id,
     })
     .returning();
@@ -234,9 +238,11 @@ export async function updateExpense(id: string, _: unknown, formData: FormData) 
     return { error: "Não é possível editar despesas anuladas" };
   }
 
-  const valor = Number(parsed.data.valor);
-  const taxaCambio = Number(parsed.data.taxaCambio);
-  const valorXof = (valor * taxaCambio).toFixed(2);
+  const valorXof = multiplyToXofInteger(
+    parsed.data.valor,
+    parsed.data.taxaCambio,
+  );
+  const valor = toCurrencyStorageString(parsed.data.valor, parsed.data.moeda);
 
   const [updated] = await dbAdmin
     .update(expenses)
@@ -244,7 +250,8 @@ export async function updateExpense(id: string, _: unknown, formData: FormData) 
       ...parsed.data,
       projectId: parsed.data.projectId ?? null,
       beneficiarioUserId: parsed.data.beneficiarioUserId ?? null,
-      valorXof,
+      valor,
+      valorXof: String(valorXof),
     })
     .where(eq(expenses.id, id))
     .returning();

@@ -12,6 +12,7 @@ import {
 } from "@/lib/db/schema";
 import { eq, and, gte, lte, inArray } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth/actions";
+import { toXofInteger } from "@/lib/utils/money";
 
 interface MonthRange {
   start: string;
@@ -89,7 +90,7 @@ async function computeMonthlyProfitLoss(
       )
     );
 
-  const facturado = facturasDoMes.reduce((s, f) => s + Number(f.total), 0);
+  const facturado = facturasDoMes.reduce((s, f) => s + toXofInteger(f.total), 0);
 
   const pagamentosDoMes = await db
     .select({
@@ -100,7 +101,7 @@ async function computeMonthlyProfitLoss(
     .where(and(gte(invoicePayments.data, start), lte(invoicePayments.data, end)));
 
   const recebido = pagamentosDoMes.reduce(
-    (s, p) => s + Number(p.valor) * Number(p.taxaCambio ?? "1"),
+    (s, p) => s + toXofInteger(Number(p.valor) * Number(p.taxaCambio ?? "1")),
     0
   );
 
@@ -115,10 +116,14 @@ async function computeMonthlyProfitLoss(
     .where(and(gte(expenses.data, start), lte(expenses.data, end)));
 
   const despesasValidas = despesasDoMes.filter((d) => d.estado !== "anulada");
-  const totalDespesas = despesasValidas.reduce((s, d) => s + Number(d.valorXof), 0);
+  const totalDespesas = despesasValidas.reduce(
+    (s, d) => s + toXofInteger(d.valorXof),
+    0,
+  );
   const porCategoria: Record<string, number> = {};
   for (const d of despesasValidas) {
-    porCategoria[d.categoria] = (porCategoria[d.categoria] ?? 0) + Number(d.valorXof);
+    porCategoria[d.categoria] =
+      (porCategoria[d.categoria] ?? 0) + toXofInteger(d.valorXof);
   }
 
   // salários: período ano/mes
@@ -132,9 +137,9 @@ async function computeMonthlyProfitLoss(
   let estadoSalario: string | null = null;
 
   if (periodo) {
-    totalFolha = Number(periodo.totalFolha ?? 0);
-    totalLiquido = Number(periodo.totalLiquido ?? 0);
-    totalBruto = Number(periodo.totalBruto ?? 0);
+    totalFolha = toXofInteger(periodo.totalFolha ?? 0);
+    totalLiquido = toXofInteger(periodo.totalLiquido ?? 0);
+    totalBruto = toXofInteger(periodo.totalBruto ?? 0);
     estadoSalario = periodo.estado;
 
     if (totalFolha === 0) {
@@ -145,8 +150,11 @@ async function computeMonthlyProfitLoss(
         })
         .from(salaryLines)
         .where(eq(salaryLines.periodId, periodo.id));
-      totalBruto = linhas.reduce((s, l) => s + Number(l.totalBruto), 0);
-      totalLiquido = linhas.reduce((s, l) => s + Number(l.totalLiquido), 0);
+      totalBruto = linhas.reduce((s, l) => s + toXofInteger(l.totalBruto), 0);
+      totalLiquido = linhas.reduce(
+        (s, l) => s + toXofInteger(l.totalLiquido),
+        0,
+      );
       totalFolha = totalBruto;
     }
   }
@@ -167,7 +175,10 @@ async function computeMonthlyProfitLoss(
       )
     );
 
-  const pagoNoMes = linhasDivPagas.reduce((s, l) => s + Number(l.valorBruto), 0);
+  const pagoNoMes = linhasDivPagas.reduce(
+    (s, l) => s + toXofInteger(l.valorBruto),
+    0,
+  );
 
   // totalDistribuido de periodos com ano/mes correspondente (se aplicável ao trimestre)
   const periodosAno = await db
@@ -184,7 +195,7 @@ async function computeMonthlyProfitLoss(
       const tMes = [0, 3, 6, 9, 12];
       return p.trimestre >= 1 && p.trimestre <= 4 && tMes[p.trimestre] === mes;
     })
-    .reduce((s, p) => s + Number(p.totalDistribuido), 0);
+    .reduce((s, p) => s + toXofInteger(p.totalDistribuido), 0);
 
   const margemBruta = facturado - totalDespesas;
   const margemLiquida = margemBruta - totalFolha;

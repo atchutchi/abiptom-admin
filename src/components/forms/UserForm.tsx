@@ -139,7 +139,7 @@ export function UserForm({
             name="salarioBaseMensal"
             type="number"
             min="0"
-            step="500"
+            step="1"
             defaultValue={defaultValues?.salarioBaseMensal?.toString() ?? "0"}
           />
         </div>

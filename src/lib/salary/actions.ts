@@ -19,6 +19,7 @@ import { insertAuditLog } from "@/lib/db/audit";
 import { getCurrentUser } from "@/lib/auth/actions";
 import { calculateActual2024 } from "./engines/actual-2024";
 import { calculateGuia2026 } from "./engines/guia-2026";
+import { toXofInteger, toXofString } from "@/lib/utils/money";
 import type {
   Actual2024PolicyConfig,
   Actual2024PolicyDefaults,
@@ -355,7 +356,11 @@ export async function createPeriod(
     return { error: parsed.error.issues[0]?.message ?? "Dados invalidos" };
   }
 
-  const { ano, mes, policyId, projectEntries } = parsed.data;
+  const { ano, mes, policyId } = parsed.data;
+  const projectEntries = parsed.data.projectEntries.map((entry) => ({
+    ...entry,
+    valorLiquido: toXofInteger(entry.valorLiquido),
+  }));
 
   const existing = await dbAdmin.query.salaryPeriods.findFirst({
     where: and(
@@ -422,7 +427,7 @@ export async function createPeriod(
         projectEntries.map((entry) => ({
           periodId: period.id,
           projectId: entry.projectId,
-          valorLiquido: String(entry.valorLiquido),
+          valorLiquido: toXofString(entry.valorLiquido),
           pfPercentagemOverride:
             entry.pfPercentagemOverride !== undefined &&
             entry.pfPercentagemOverride !== null
@@ -552,9 +557,9 @@ export async function recalculateHistoricalPeriods(): Promise<RecalculateHistori
       const beforeSnapshot = {
         estado: period.estado,
         totals: {
-          totalBruto: Number(period.totalBruto ?? 0),
-          totalLiquido: Number(period.totalLiquido ?? 0),
-          totalFolha: Number(period.totalFolha ?? 0),
+          totalBruto: toXofInteger(period.totalBruto ?? 0),
+          totalLiquido: toXofInteger(period.totalLiquido ?? 0),
+          totalFolha: toXofInteger(period.totalFolha ?? 0),
         },
         lines: period.lines,
         projectPayments: period.projectPayments,
@@ -607,9 +612,9 @@ export async function recalculateHistoricalPeriods(): Promise<RecalculateHistori
         ano: period.ano,
         mes: period.mes,
         estado: period.estado,
-        totalLiquidoAntes: Number(period.totalLiquido ?? 0),
+        totalLiquidoAntes: toXofInteger(period.totalLiquido ?? 0),
         totalLiquidoDepois: payload.totalLiquido,
-        totalFolhaAntes: Number(period.totalFolha ?? 0),
+        totalFolhaAntes: toXofInteger(period.totalFolha ?? 0),
         totalFolhaDepois: payload.totalFolha,
         warnings: payload.warnings,
       });
@@ -673,7 +678,7 @@ export async function updateParticipant(
           salarioBaseOverride:
             parsed.data.salarioBaseOverride === null
               ? null
-              : String(parsed.data.salarioBaseOverride),
+              : toXofString(parsed.data.salarioBaseOverride),
           updatedAt: new Date(),
         })
         .where(eq(salaryPeriodParticipants.id, participantId));
@@ -746,8 +751,8 @@ export async function updateSalaryLine(
     return { error: "Apenas linhas de periodos calculados podem ser ajustadas" };
   }
 
-  const totalBrutoCalculado = Number(line.totalBrutoCalculado ?? 0);
-  const totalBrutoFinal = parsed.data.totalBrutoFinal;
+  const totalBrutoCalculado = toXofInteger(line.totalBrutoCalculado ?? 0);
+  const totalBrutoFinal = toXofInteger(parsed.data.totalBrutoFinal);
   const changed = Math.abs(totalBrutoFinal - totalBrutoCalculado) > 0.0001;
   const overrideMotivo = parsed.data.overrideMotivo?.trim() ?? "";
 
@@ -760,9 +765,9 @@ export async function updateSalaryLine(
   const totalLiquidoFinal = totalBrutoFinal - descontoValor;
 
   const before = {
-    totalBrutoFinal: Number(line.totalBrutoFinal),
-    totalLiquidoFinal: Number(line.totalLiquidoFinal),
-    descontos: Number(line.descontos),
+    totalBrutoFinal: toXofInteger(line.totalBrutoFinal),
+    totalLiquidoFinal: toXofInteger(line.totalLiquidoFinal),
+    descontos: toXofInteger(line.descontos),
     overrideMotivo: line.overrideMotivo,
   };
 
@@ -1088,9 +1093,9 @@ async function persistCalculatedPeriod(args: {
       .update(salaryPeriods)
       .set({
         estado: args.estado ?? "calculado",
-        totalBruto: String(args.totalBruto),
-        totalLiquido: String(args.totalLiquido),
-        totalFolha: String(args.totalFolha),
+        totalBruto: toXofString(args.totalBruto),
+        totalLiquido: toXofString(args.totalLiquido),
+        totalFolha: toXofString(args.totalFolha),
       })
       .where(eq(salaryPeriods.id, args.periodId));
   });
@@ -1219,7 +1224,7 @@ async function ensureHistoricalPeriodSnapshot(
           Array.from(projectSnapshotMap.entries()).map(([projectId, snapshot]) => ({
             periodId,
             projectId,
-            valorLiquido: String(snapshot.valorLiquido),
+            valorLiquido: toXofString(snapshot.valorLiquido),
             pfPercentagemOverride:
               snapshot.pfPercentagemOverride === null
                 ? null
@@ -1263,21 +1268,21 @@ async function buildActual2024CalculatedPayload(args: {
   const result = calculateActual2024(engineInput);
 
   return {
-    totalBruto: result.aggregates.totalFolhaBruto,
-    totalLiquido: result.aggregates.totalFolhaLiquido,
-    totalFolha: result.aggregates.totalFolhaBruto,
+    totalBruto: toXofInteger(result.aggregates.totalFolhaBruto),
+    totalLiquido: toXofInteger(result.aggregates.totalFolhaLiquido),
+    totalFolha: toXofInteger(result.aggregates.totalFolhaBruto),
     lines: result.salaryLines.map((line) => ({
       periodId: args.periodId,
       userId: line.userId,
-      salarioBase: String(line.salarioBase),
+      salarioBase: toXofString(line.salarioBase),
       componenteDinamica: line.componenteDinamica,
       subsidios: line.subsidios,
-      outrosBeneficios: String(line.outrosBeneficios),
-      descontos: String(line.descontoValor),
-      totalBrutoCalculado: String(line.totalBrutoCalculado),
-      totalBrutoFinal: String(line.totalBrutoCalculado),
-      totalLiquidoCalculado: String(line.totalLiquidoCalculado),
-      totalLiquidoFinal: String(line.totalLiquidoCalculado),
+      outrosBeneficios: toXofString(line.outrosBeneficios),
+      descontos: toXofString(line.descontoValor),
+      totalBrutoCalculado: toXofString(line.totalBrutoCalculado),
+      totalBrutoFinal: toXofString(line.totalBrutoCalculado),
+      totalLiquidoCalculado: toXofString(line.totalLiquidoCalculado),
+      totalLiquidoFinal: toXofString(line.totalLiquidoCalculado),
       overrideMotivo: null,
       pago: false,
       dataPagamento: null,
@@ -1290,8 +1295,8 @@ async function buildActual2024CalculatedPayload(args: {
       userId: payment.userId,
       papel: payment.papel,
       percentagemAplicada: String(payment.percentagemAplicada),
-      valorLiquidoProjecto: String(payment.valorLiquidoProjecto),
-      valorRecebido: String(payment.valorRecebido),
+      valorLiquidoProjecto: toXofString(payment.valorLiquidoProjecto),
+      valorRecebido: toXofString(payment.valorRecebido),
     })),
     warnings: result.warnings,
   };
@@ -1348,7 +1353,7 @@ async function buildGuia2026CalculatedPayload(args: {
     id: user.id,
     nomeCurto: user.nomeCurto,
     role: user.role,
-    salarioBase: Number(user.salarioBaseMensal ?? 0),
+    salarioBase: toXofInteger(user.salarioBaseMensal ?? 0),
   }));
 
   const projectsById = await loadProjectsForPeriod(period.periodProjects);
@@ -1358,7 +1363,7 @@ async function buildGuia2026CalculatedPayload(args: {
     return {
       id: project.id,
       titulo: project.titulo,
-      valorLiquido: Number(entry.valorLiquido),
+      valorLiquido: toXofInteger(entry.valorLiquido),
       pontoFocalId: project.pontoFocalId,
       pfPercentagemOverride:
         entry.pfPercentagemOverride !== null
@@ -1378,21 +1383,21 @@ async function buildGuia2026CalculatedPayload(args: {
   const result = calculateGuia2026(args.policyConfig, projectInputs, staffInput, []);
 
   return {
-    totalBruto: result.summary.totalBruto,
-    totalLiquido: result.summary.totalLiquido,
-    totalFolha: result.summary.totalFolha,
+    totalBruto: toXofInteger(result.summary.totalBruto),
+    totalLiquido: toXofInteger(result.summary.totalLiquido),
+    totalFolha: toXofInteger(result.summary.totalFolha),
     lines: result.lines.map((line) => ({
       periodId: args.periodId,
       userId: line.userId,
-      salarioBase: String(line.salarioBase),
+      salarioBase: toXofString(line.salarioBase),
       componenteDinamica: line.componenteDinamica,
       subsidios: line.subsidios,
-      outrosBeneficios: String(line.outrosBeneficios),
-      descontos: String(line.descontos),
-      totalBrutoCalculado: String(line.totalBruto),
-      totalBrutoFinal: String(line.totalBruto),
-      totalLiquidoCalculado: String(line.totalLiquido),
-      totalLiquidoFinal: String(line.totalLiquido),
+      outrosBeneficios: toXofString(line.outrosBeneficios),
+      descontos: toXofString(line.descontos),
+      totalBrutoCalculado: toXofString(line.totalBruto),
+      totalBrutoFinal: toXofString(line.totalBruto),
+      totalLiquidoCalculado: toXofString(line.totalLiquido),
+      totalLiquidoFinal: toXofString(line.totalLiquido),
       overrideMotivo: null,
       pago: false,
       dataPagamento: null,
@@ -1405,8 +1410,8 @@ async function buildGuia2026CalculatedPayload(args: {
       userId: payment.userId,
       papel: payment.papel,
       percentagemAplicada: String(payment.percentagemAplicada),
-      valorLiquidoProjecto: String(payment.valorLiquidoProjecto),
-      valorRecebido: String(payment.valorRecebido),
+      valorLiquidoProjecto: toXofString(payment.valorLiquidoProjecto),
+      valorRecebido: toXofString(payment.valorRecebido),
     })),
     warnings: [],
   };
@@ -1448,7 +1453,7 @@ async function loadActual2024EngineInput(
       return {
         id: project.id,
         titulo: project.titulo,
-        valorLiquido: Number(entry.valorLiquido),
+        valorLiquido: toXofInteger(entry.valorLiquido),
         pontoFocalId: project.pontoFocalId,
         percentagemPf:
           entry.pfPercentagemOverride !== null
@@ -1479,12 +1484,12 @@ async function loadActual2024EngineInput(
       recebeRubricaGestao: entry.recebeRubricaGestao,
       salarioBaseOverride:
         entry.salarioBaseOverride !== null
-          ? Number(entry.salarioBaseOverride)
+          ? toXofInteger(entry.salarioBaseOverride)
           : null,
     })),
     expenses: monthExpenses.map((expense) => ({
       id: expense.id,
-      valorXof: Number(expense.valorXof),
+      valorXof: toXofInteger(expense.valorXof),
       moeda: expense.moeda,
       projectId: expense.projectId,
       beneficiarioUserId: expense.beneficiarioUserId,
@@ -1517,7 +1522,7 @@ async function loadUsersForParticipants(
     id: row.id,
     nomeCurto: row.nomeCurto,
     role: row.role,
-    salarioBaseMensal: Number(row.salarioBaseMensal ?? 0),
+    salarioBaseMensal: toXofInteger(row.salarioBaseMensal ?? 0),
     percentagemDescontoFolha: Number(row.percentagemDescontoFolha ?? 0),
   }));
 }
@@ -1598,21 +1603,21 @@ async function refreshPeriodTotals(periodId: string) {
     },
   });
 
-  const totalBruto = lines.reduce(
-    (sum, line) => sum + Number(line.totalBrutoFinal ?? 0),
+  const totalBruto = toXofInteger(lines.reduce(
+    (sum, line) => sum + toXofInteger(line.totalBrutoFinal ?? 0),
     0,
-  );
-  const totalLiquido = lines.reduce(
-    (sum, line) => sum + Number(line.totalLiquidoFinal ?? 0),
+  ));
+  const totalLiquido = toXofInteger(lines.reduce(
+    (sum, line) => sum + toXofInteger(line.totalLiquidoFinal ?? 0),
     0,
-  );
+  ));
 
   await dbAdmin
     .update(salaryPeriods)
     .set({
-      totalBruto: String(totalBruto),
-      totalLiquido: String(totalLiquido),
-      totalFolha: String(totalBruto),
+      totalBruto: toXofString(totalBruto),
+      totalLiquido: toXofString(totalLiquido),
+      totalFolha: toXofString(totalBruto),
     })
     .where(eq(salaryPeriods.id, periodId));
 }

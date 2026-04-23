@@ -7,7 +7,7 @@ import { ChevronLeft } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDate } from "@/lib/utils/format";
+import { formatCurrency, formatDate } from "@/lib/utils/format";
 
 export const metadata = { title: "Cliente — ABIPTOM Admin" };
 
@@ -84,7 +84,7 @@ export default async function ClientPage({
                           <Badge variant="secondary" className="capitalize">{inv.estado}</Badge>
                         </td>
                         <td className="px-4 py-2 text-right font-mono">
-                          {Number(inv.total).toLocaleString("pt-PT")} {inv.moeda}
+                          {formatCurrency(inv.total, inv.moeda)}
                         </td>
                       </tr>
                     ))}

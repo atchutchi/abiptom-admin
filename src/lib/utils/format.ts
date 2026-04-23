@@ -1,3 +1,5 @@
+import { toXofInteger } from "./money";
+
 export function formatDate(d: string | null | undefined): string {
   if (!d) return "—";
   const [year, month, day] = d.split("-");
@@ -6,9 +8,14 @@ export function formatDate(d: string | null | undefined): string {
 
 export function formatCurrency(amount: string | number | null | undefined, currency = "XOF"): string {
   if (amount === null || amount === undefined) return "—";
-  const n = Number(amount);
-  if (isNaN(n)) return "—";
-  return `${n.toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${currency}`;
+  const raw =
+    typeof amount === "string"
+      ? Number(amount.trim().replace(/\s/g, "").replace(",", "."))
+      : Number(amount);
+  if (!Number.isFinite(raw)) return "—";
+  const n = currency === "XOF" ? toXofInteger(raw) : raw;
+  const decimals = currency === "XOF" ? 0 : 2;
+  return `${n.toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: decimals })} ${currency}`;
 }
 
 export function invoiceNumber(n: number | null | undefined): string {

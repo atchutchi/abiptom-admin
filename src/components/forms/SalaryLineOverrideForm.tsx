@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { updateSalaryLine } from "@/lib/salary/actions";
+import { toXofInteger } from "@/lib/utils/money";
 
 interface SalaryLineOverrideFormProps {
   lineId: string;
@@ -34,7 +35,7 @@ export function SalaryLineOverrideForm({
 
     startTransition(async () => {
       const result = await updateSalaryLine(lineId, {
-        totalBrutoFinal: Number(form.totalBrutoFinal),
+        totalBrutoFinal: toXofInteger(form.totalBrutoFinal),
         overrideMotivo: form.overrideMotivo,
       });
 

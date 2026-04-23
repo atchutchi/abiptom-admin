@@ -7,6 +7,7 @@ import { Header } from "@/components/layout/Header";
 import ProjectForm from "@/components/forms/ProjectForm";
 import { getProject } from "@/lib/projects/actions";
 import { getCurrentUser } from "@/lib/auth/actions";
+import { formatCurrency } from "@/lib/utils/format";
 
 export const metadata = { title: "Projecto — ABIPTOM Admin" };
 
@@ -83,7 +84,7 @@ export default async function ProjectDetailPage({
                       {inv.numero ? `Nº ${String(inv.numero).padStart(5, "0")}` : "Rascunho"}
                     </Link>
                     <span className="text-gray-500">
-                      {Number(inv.total).toLocaleString("pt-PT")} {inv.moeda}
+                      {formatCurrency(inv.total, inv.moeda)}
                     </span>
                   </li>
                 ))}

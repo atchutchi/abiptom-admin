@@ -11,6 +11,7 @@ import {
 } from "@/lib/db/schema";
 import { and, count, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth/actions";
+import { toXofInteger } from "@/lib/utils/money";
 
 export interface DashboardStats {
   facturasAbertas: {
@@ -100,7 +101,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     );
 
   const recebidoMes = pagamentos.reduce(
-    (s, p) => s + Number(p.valor) * Number(p.taxaCambio ?? "1"),
+    (s, p) => s + toXofInteger(Number(p.valor) * Number(p.taxaCambio ?? "1")),
     0
   );
 
@@ -114,7 +115,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
   const despesasMes = despesasDoMes
     .filter((d) => d.estado !== "anulada")
-    .reduce((s, d) => s + Number(d.valorXof), 0);
+    .reduce((s, d) => s + toXofInteger(d.valorXof), 0);
 
   const facturasMes = await dbAdmin
     .select({ total: invoices.total })
@@ -126,7 +127,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         inArray(invoices.estado, ["definitiva", "paga_parcial", "paga"])
       )
     );
-  const facturadoMes = facturasMes.reduce((s, f) => s + Number(f.total), 0);
+  const facturadoMes = facturasMes.reduce((s, f) => s + toXofInteger(f.total), 0);
 
   const ultimas = await dbAdmin
     .select({
@@ -145,18 +146,18 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   return {
     facturasAbertas: {
       count: Number(abertasRow?.count ?? 0),
-      totalXof: Number(abertasRow?.total ?? 0),
+      totalXof: toXofInteger(abertasRow?.total ?? 0),
     },
     facturasVencidas: {
       count: Number(vencidasRow?.count ?? 0),
-      totalXof: Number(vencidasRow?.total ?? 0),
+      totalXof: toXofInteger(vencidasRow?.total ?? 0),
     },
     projectosActivos: Number(projRow?.count ?? 0),
     clientesActivos: Number(cliRow?.count ?? 0),
     folhaMes: {
       ano,
       mes,
-      totalLiquido: Number(folha?.totalLiquido ?? 0),
+      totalLiquido: toXofInteger(folha?.totalLiquido ?? 0),
       estado: folha?.estado ?? null,
     },
     recebidoMes,

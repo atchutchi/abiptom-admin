@@ -6,6 +6,7 @@ import { Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { updateParticipant } from "@/lib/salary/actions";
+import { toXofInteger } from "@/lib/utils/money";
 
 type ParticipantRow = {
   id: string;
@@ -100,7 +101,8 @@ export function SalaryParticipantsEditor({
         const result = await updateParticipant(row.id, {
           isElegivelSubsidio: row.isElegivelSubsidio,
           recebeRubricaGestao: row.recebeRubricaGestao,
-          salarioBaseOverride: nextOverride === "" ? null : Number(nextOverride),
+          salarioBaseOverride:
+            nextOverride === "" ? null : toXofInteger(nextOverride),
         });
 
         if ("error" in result) {

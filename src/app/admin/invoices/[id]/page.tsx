@@ -26,6 +26,11 @@ export default async function InvoicePage({
   const { id } = await params;
   const invoice = await getInvoice(id);
   if (!invoice) notFound();
+  const formatInvoiceAmount = (value: string | number) =>
+    Number(value).toLocaleString("pt-PT", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: invoice.moeda === "XOF" ? 0 : 2,
+    });
   const projectRows = await dbAdmin.query.projects.findMany({
     where: (table, { and, eq, inArray }) =>
       and(
@@ -148,10 +153,10 @@ export default async function InvoicePage({
                     <td className="px-4 py-2 text-muted-foreground">{item.unidade}</td>
                     <td className="px-4 py-2 text-right font-mono">{Number(item.quantidade).toLocaleString("pt-PT")}</td>
                     <td className="px-4 py-2 text-right font-mono">
-                      {Number(item.precoUnitario).toLocaleString("pt-PT")}
+                      {formatInvoiceAmount(item.precoUnitario)}
                     </td>
                     <td className="px-4 py-2 text-right font-mono font-medium">
-                      {Number(item.total).toLocaleString("pt-PT")}
+                      {formatInvoiceAmount(item.total)}
                     </td>
                   </tr>
                 ))}

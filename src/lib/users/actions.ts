@@ -23,6 +23,7 @@ import {
 } from "@/lib/users/avatar";
 import { sql } from "drizzle-orm";
 import { repairAuthLinkForInternalUser } from "@/lib/users/auth-link";
+import { toXofString } from "@/lib/utils/money";
 
 const UserSchema = z.object({
   nomeCompleto: z.string().min(2, "Nome completo obrigatório"),
@@ -131,7 +132,7 @@ export async function createUser(formData: UserFormData) {
       telefone: parsed.data.telefone ?? null,
       role: parsed.data.role,
       cargo: parsed.data.cargo ?? null,
-      salarioBaseMensal: parsed.data.salarioBaseMensal ?? "0",
+      salarioBaseMensal: toXofString(parsed.data.salarioBaseMensal ?? "0"),
       percentagemDescontoFolha: discount.fraction,
       elegivelSubsidioDinamicoDefault: parsed.data.elegivelSubsidioDinamicoDefault,
       dataEntrada: parsed.data.dataEntrada ?? null,
@@ -230,7 +231,7 @@ export async function updateUser(id: string, formData: Partial<UserFormData>) {
       telefone: parsed.data.telefone ?? null,
       role: parsed.data.role,
       cargo: parsed.data.cargo ?? null,
-      salarioBaseMensal: parsed.data.salarioBaseMensal ?? "0",
+      salarioBaseMensal: toXofString(parsed.data.salarioBaseMensal ?? "0"),
       percentagemDescontoFolha: discount.fraction,
       elegivelSubsidioDinamicoDefault: parsed.data.elegivelSubsidioDinamicoDefault,
       dataEntrada: parsed.data.dataEntrada ?? null,

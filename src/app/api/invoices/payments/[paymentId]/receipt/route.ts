@@ -8,6 +8,7 @@ import {
   PaymentReceiptPDF,
   type PaymentReceiptPDFData,
 } from "@/lib/pdf/payment-receipt";
+import { toXofInteger } from "@/lib/utils/money";
 
 export async function GET(
   _req: NextRequest,
@@ -56,10 +57,10 @@ export async function GET(
       : [payment];
 
   const totalPago = pagamentosAteRecibo.reduce(
-    (s, p) => s + Number(p.valor) * Number(p.taxaCambio ?? "1"),
+    (s, p) => s + toXofInteger(Number(p.valor) * Number(p.taxaCambio ?? "1")),
     0
   );
-  const saldoRestante = Math.max(Number(invoice.total) - totalPago, 0);
+  const saldoRestante = Math.max(toXofInteger(invoice.total) - totalPago, 0);
 
   const receiptSeq = String(idxRecibo + 1).padStart(2, "0");
   const baseNumero = invoice.numero
@@ -73,7 +74,7 @@ export async function GET(
     receiptNumber,
     payment: {
       data: payment.data,
-      valor: Number(payment.valor),
+      valor: payment.moeda === "XOF" ? toXofInteger(payment.valor) : Number(payment.valor),
       moeda: payment.moeda,
       taxaCambio: Number(payment.taxaCambio ?? "1"),
       referencia: payment.referencia ?? null,
@@ -82,7 +83,7 @@ export async function GET(
     },
     invoice: {
       numero: invoice.numero,
-      total: Number(invoice.total),
+      total: invoice.moeda === "XOF" ? toXofInteger(invoice.total) : Number(invoice.total),
       moeda: invoice.moeda,
       dataEmissao: invoice.dataEmissao,
       totalPago,

@@ -62,7 +62,7 @@ export default function StockMovementForm({ action }: Props) {
           <input
             name="custoUnitario"
             type="number"
-            step="0.01"
+            step="1"
             min="0"
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
           />

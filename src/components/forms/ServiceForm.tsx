@@ -107,7 +107,7 @@ export default function ServiceForm({ service, action, submitLabel = "Guardar" }
             name="precoXof"
             type="number"
             min="0"
-            step="0.01"
+            step="1"
             defaultValue={service?.precoXof ?? ""}
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
           />

@@ -6,6 +6,7 @@ import { servicesCatalog } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/actions";
+import { toXofString } from "@/lib/utils/money";
 
 const serviceSchema = z.object({
   categoria: z.string().min(1, "Categoria obrigatória"),
@@ -43,7 +44,10 @@ export async function createService(_: unknown, formData: FormData) {
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
 
-  await dbAdmin.insert(servicesCatalog).values(parsed.data);
+  await dbAdmin.insert(servicesCatalog).values({
+    ...parsed.data,
+    precoXof: parsed.data.precoXof ? toXofString(parsed.data.precoXof) : null,
+  });
   revalidatePath("/admin/settings/services");
   return { success: true };
 }
@@ -69,7 +73,10 @@ export async function updateService(id: string, _: unknown, formData: FormData) 
 
   await dbAdmin
     .update(servicesCatalog)
-    .set(parsed.data)
+    .set({
+      ...parsed.data,
+      precoXof: parsed.data.precoXof ? toXofString(parsed.data.precoXof) : null,
+    })
     .where(eq(servicesCatalog.id, id));
 
   revalidatePath("/admin/settings/services");

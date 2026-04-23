@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createInvoice } from "@/lib/invoices/actions";
 import type { Client, ServiceCatalog } from "@/lib/db/schema";
 import { Plus, Trash2 } from "lucide-react";
+import { toXofInteger } from "@/lib/utils/money";
 
 interface Item {
   descricao: string;
@@ -65,9 +66,19 @@ export default function InvoiceForm({ clientes, servicos, projects }: Props) {
     if (svc.precoXof) updateItem(i, "precoUnitario", Number(svc.precoXof));
   };
 
-  const subtotal = items.reduce((s, it) => s + it.quantidade * it.precoUnitario, 0);
-  const igvValor = Math.round(subtotal * (igvPercentagem / 100) * 100) / 100;
-  const total = subtotal + igvValor;
+  const roundMoney = (value: number) =>
+    moeda === "XOF" ? toXofInteger(value) : Math.round(value * 100) / 100;
+  const formatMoney = (value: number) =>
+    value.toLocaleString("pt-PT", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: moeda === "XOF" ? 0 : 2,
+    });
+  const subtotal = items.reduce(
+    (s, it) => s + roundMoney(it.quantidade * it.precoUnitario),
+    0,
+  );
+  const igvValor = roundMoney(subtotal * (igvPercentagem / 100));
+  const total = roundMoney(subtotal + igvValor);
   const clientProjects = clientId
     ? projects.filter((project) => project.clientId === clientId)
     : projects;
@@ -261,7 +272,7 @@ export default function InvoiceForm({ clientes, servicos, projects }: Props) {
                     <input
                       type="number"
                       min={0}
-                      step="any"
+                      step={moeda === "XOF" ? "1" : "any"}
                       value={item.quantidade}
                       onChange={(e) =>
                         updateItem(i, "quantidade", Number(e.target.value))
@@ -276,13 +287,19 @@ export default function InvoiceForm({ clientes, servicos, projects }: Props) {
                       step="any"
                       value={item.precoUnitario}
                       onChange={(e) =>
-                        updateItem(i, "precoUnitario", Number(e.target.value))
+                        updateItem(
+                          i,
+                          "precoUnitario",
+                          moeda === "XOF"
+                            ? toXofInteger(e.target.value)
+                            : Number(e.target.value),
+                        )
                       }
                       className="w-full rounded border border-border bg-background px-2 py-1 text-sm text-right outline-none font-mono"
                     />
                   </td>
                   <td className="px-3 py-2 text-right font-mono text-sm">
-                    {(item.quantidade * item.precoUnitario).toLocaleString("pt-PT")}
+                    {formatMoney(roundMoney(item.quantidade * item.precoUnitario))}
                   </td>
                   <td className="px-2">
                     {items.length > 1 && (
@@ -306,7 +323,7 @@ export default function InvoiceForm({ clientes, servicos, projects }: Props) {
           <div className="w-64 space-y-1 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Subtotal</span>
-              <span className="font-mono">{subtotal.toLocaleString("pt-PT")} {moeda}</span>
+              <span className="font-mono">{formatMoney(subtotal)} {moeda}</span>
             </div>
             <div className="flex items-center gap-2 justify-between">
               <span className="text-muted-foreground">
@@ -321,11 +338,11 @@ export default function InvoiceForm({ clientes, servicos, projects }: Props) {
                 />
                 %)
               </span>
-              <span className="font-mono">{igvValor.toLocaleString("pt-PT")} {moeda}</span>
+              <span className="font-mono">{formatMoney(igvValor)} {moeda}</span>
             </div>
             <div className="flex justify-between border-t border-border pt-1 font-semibold">
               <span>TOTAL</span>
-              <span className="font-mono">{total.toLocaleString("pt-PT")} {moeda}</span>
+              <span className="font-mono">{formatMoney(total)} {moeda}</span>
             </div>
           </div>
         </div>

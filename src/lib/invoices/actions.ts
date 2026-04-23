@@ -16,6 +16,7 @@ import { insertAuditLog } from "@/lib/db/audit";
 import { headers } from "next/headers";
 import { sql } from "drizzle-orm";
 import { canTransition } from "./state";
+import { toCurrencyStorageString, toFiniteNumber, toXofInteger } from "@/lib/utils/money";
 
 // ─── Schemas ────────────────────────────────────────────────────────────────
 
@@ -67,14 +68,16 @@ function canManageInvoices(role: string) {
 
 function calcTotals(
   items: { quantidade: number; precoUnitario: number }[],
-  igvPct: number
+  igvPct: number,
+  currency = "XOF",
 ) {
-  const subtotal = items.reduce(
-    (s, i) => s + i.quantidade * i.precoUnitario,
-    0
-  );
-  const igvValor = Math.round(subtotal * (igvPct / 100) * 100) / 100;
-  const total = subtotal + igvValor;
+  const roundMoney = (value: number) =>
+    currency === "XOF" ? toXofInteger(value) : Math.round(value * 100) / 100;
+  const subtotal = items.reduce((s, i) => {
+    return s + roundMoney(i.quantidade * i.precoUnitario);
+  }, 0);
+  const igvValor = roundMoney(subtotal * (igvPct / 100));
+  const total = roundMoney(subtotal + igvValor);
   return { subtotal, igvValor, total };
 }
 
@@ -161,16 +164,20 @@ export async function createInvoice(data: z.infer<typeof invoiceSchema>) {
     }
   }
 
-  const { subtotal, igvValor, total } = calcTotals(items, igvPercentagem);
+  const { subtotal, igvValor, total } = calcTotals(
+    items,
+    igvPercentagem,
+    invoiceData.moeda,
+  );
 
   const [created] = await dbAdmin
     .insert(invoices)
     .values({
       ...invoiceData,
       igvPercentagem: String(igvPercentagem),
-      igvValor: String(igvValor),
-      subtotal: String(subtotal),
-      total: String(total),
+      igvValor: toCurrencyStorageString(igvValor, invoiceData.moeda),
+      subtotal: toCurrencyStorageString(subtotal, invoiceData.moeda),
+      total: toCurrencyStorageString(total, invoiceData.moeda),
       taxaCambio: String(invoiceData.taxaCambio),
       createdBy: dbUser.id,
     })
@@ -183,8 +190,11 @@ export async function createInvoice(data: z.infer<typeof invoiceSchema>) {
       descricao: item.descricao,
       unidade: item.unidade ?? "serviço",
       quantidade: String(item.quantidade),
-      precoUnitario: String(item.precoUnitario),
-      total: String(item.quantidade * item.precoUnitario),
+      precoUnitario: toCurrencyStorageString(item.precoUnitario, invoiceData.moeda),
+      total: toCurrencyStorageString(
+        item.quantidade * item.precoUnitario,
+        invoiceData.moeda,
+      ),
     }))
   );
 
@@ -222,7 +232,11 @@ export async function updateInvoiceItems(
   if (invoice.estado !== "rascunho")
     return { error: "Só é possível editar rascunhos" };
 
-  const { subtotal, igvValor, total } = calcTotals(items, igvPercentagem);
+  const { subtotal, igvValor, total } = calcTotals(
+    items,
+    igvPercentagem,
+    invoice.moeda,
+  );
 
   await dbAdmin.delete(invoiceItems).where(eq(invoiceItems.invoiceId, invoiceId));
   await dbAdmin.insert(invoiceItems).values(
@@ -232,8 +246,11 @@ export async function updateInvoiceItems(
       descricao: item.descricao,
       unidade: item.unidade ?? "serviço",
       quantidade: String(item.quantidade),
-      precoUnitario: String(item.precoUnitario),
-      total: String(item.quantidade * item.precoUnitario),
+      precoUnitario: toCurrencyStorageString(item.precoUnitario, invoice.moeda),
+      total: toCurrencyStorageString(
+        item.quantidade * item.precoUnitario,
+        invoice.moeda,
+      ),
     }))
   );
 
@@ -241,9 +258,9 @@ export async function updateInvoiceItems(
     .update(invoices)
     .set({
       igvPercentagem: String(igvPercentagem),
-      igvValor: String(igvValor),
-      subtotal: String(subtotal),
-      total: String(total),
+      igvValor: toCurrencyStorageString(igvValor, invoice.moeda),
+      subtotal: toCurrencyStorageString(subtotal, invoice.moeda),
+      total: toCurrencyStorageString(total, invoice.moeda),
     })
     .where(eq(invoices.id, invoiceId));
 
@@ -334,10 +351,15 @@ export async function registerPayment(
   if (!["definitiva", "paga_parcial"].includes(invoice.estado))
     return { error: "Factura não está em estado pagável" };
 
+  const paymentValue =
+    parsed.data.moeda === "XOF"
+      ? toXofInteger(parsed.data.valor)
+      : toFiniteNumber(parsed.data.valor);
+
   await dbAdmin.insert(invoicePayments).values({
     invoiceId,
     data: parsed.data.data,
-    valor: String(parsed.data.valor),
+    valor: toCurrencyStorageString(paymentValue, parsed.data.moeda),
     moeda: parsed.data.moeda,
     taxaCambio: String(parsed.data.taxaCambio),
     referencia: parsed.data.referencia,
@@ -349,11 +371,17 @@ export async function registerPayment(
   // Determina novo estado
   const totalPago =
     (invoice.payments ?? []).reduce(
-      (s, p) => s + Number(p.valor),
+      (s, p) =>
+        s + (p.moeda === "XOF" ? toXofInteger(p.valor) : toFiniteNumber(p.valor)),
       0
-    ) + parsed.data.valor;
+    ) + paymentValue;
   const newState: InvoiceState =
-    totalPago >= Number(invoice.total) ? "paga" : "paga_parcial";
+    totalPago >=
+    (invoice.moeda === "XOF"
+      ? toXofInteger(invoice.total)
+      : toFiniteNumber(invoice.total))
+      ? "paga"
+      : "paga_parcial";
 
   await dbAdmin
     .update(invoices)

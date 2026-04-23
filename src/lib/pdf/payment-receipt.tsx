@@ -185,9 +185,9 @@ const styles = StyleSheet.create({
 });
 
 function formatNum(n: number): string {
-  return n.toLocaleString("pt-PT", {
+  return Math.round(n).toLocaleString("pt-PT", {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 0,
   });
 }
 

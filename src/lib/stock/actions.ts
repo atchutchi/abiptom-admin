@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/auth/actions";
 import { insertAuditLog } from "@/lib/db/audit";
 import { withAuthenticatedDb } from "@/lib/db";
 import { stockItems, stockMovements } from "@/lib/db/schema";
+import { toXofString } from "@/lib/utils/money";
 
 const stockItemSchema = z.object({
   nome: z.string().min(2, "Nome obrigatório"),
@@ -130,9 +131,7 @@ export async function createStockItem(_: unknown, formData: FormData) {
           unidade: data.unidade,
           quantidadeAtual: Number(data.quantidadeAtual).toFixed(3),
           quantidadeMinima: Number(data.quantidadeMinima).toFixed(3),
-          custoUnitario: data.custoUnitario
-            ? Number(data.custoUnitario).toFixed(2)
-            : null,
+          custoUnitario: data.custoUnitario ? toXofString(data.custoUnitario) : null,
           localizacao: data.localizacao || null,
           createdBy: dbUser.id,
         })
@@ -148,7 +147,7 @@ export async function createStockItem(_: unknown, formData: FormData) {
         itemId: created.id,
         tipo: "entrada",
         quantidade: Number(data.quantidadeAtual).toFixed(3),
-        custoUnitario: data.custoUnitario ? Number(data.custoUnitario).toFixed(2) : null,
+        custoUnitario: data.custoUnitario ? toXofString(data.custoUnitario) : null,
         referencia: "Saldo inicial",
         criadoPor: dbUser.id,
       })
@@ -218,7 +217,7 @@ export async function registerStockMovement(itemId: string, _: unknown, formData
         itemId,
         tipo: data.tipo,
         quantidade: quantidade.toFixed(3),
-        custoUnitario: data.custoUnitario ? Number(data.custoUnitario).toFixed(2) : null,
+        custoUnitario: data.custoUnitario ? toXofString(data.custoUnitario) : null,
         referencia: data.referencia || null,
         notas: data.notas || null,
         criadoPor: dbUser.id,
@@ -229,7 +228,7 @@ export async function registerStockMovement(itemId: string, _: unknown, formData
         .set({
           quantidadeAtual: proxima.toFixed(3),
           custoUnitario: data.custoUnitario
-            ? Number(data.custoUnitario).toFixed(2)
+            ? toXofString(data.custoUnitario)
             : item.custoUnitario,
           updatedAt: new Date(),
         })

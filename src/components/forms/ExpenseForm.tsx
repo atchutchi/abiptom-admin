@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import type { Expense } from "@/lib/db/schema";
 import { EXPENSE_CATEGORY_LABEL } from "@/lib/expenses/labels";
+import { toXofInteger } from "@/lib/utils/money";
 
 type ActionResult = { error?: string; success?: boolean; id?: string };
 
@@ -40,7 +41,7 @@ export default function ExpenseForm({
     const v = Number(valor);
     const t = Number(taxaCambio);
     if (!isFinite(v) || !isFinite(t)) return 0;
-    return v * t;
+    return toXofInteger(v * t);
   })();
 
   useEffect(() => {
@@ -123,7 +124,7 @@ export default function ExpenseForm({
             name="valor"
             type="number"
             required
-            step="0.01"
+            step={moeda === "XOF" ? "1" : "0.01"}
             min="0"
             value={valor}
             onChange={(e) => setValor(e.target.value)}
@@ -160,7 +161,7 @@ export default function ExpenseForm({
 
       <div className="rounded-lg bg-muted/50 px-4 py-2.5 text-sm">
         Valor em XOF: <span className="font-mono font-semibold">
-          {valorXof.toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} XOF
+          {valorXof.toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} XOF
         </span>
       </div>
 

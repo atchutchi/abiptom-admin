@@ -10,6 +10,7 @@ import { getCurrentUser } from "@/lib/auth/actions";
 import { insertAuditLog } from "@/lib/db/audit";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { formatCurrency } from "@/lib/utils/format";
 
 export async function sendInvoiceEmail(invoiceId: string) {
   const { user, dbUser } = await getCurrentUser();
@@ -72,7 +73,7 @@ export async function sendInvoiceEmail(invoiceId: string) {
     ? `factura-${String(invoice.numero).padStart(5, "0")}.pdf`
     : `factura-rascunho.pdf`;
 
-  const totalFormatted = Number(invoice.total).toLocaleString("pt-PT");
+  const totalFormatted = formatCurrency(invoice.total, invoice.moeda);
 
   const { error } = await resend.emails.send({
     from: FROM_EMAIL,
@@ -84,7 +85,7 @@ export async function sendInvoiceEmail(invoiceId: string) {
         <p>Exmo(a). Senhor(a),</p>
         <p>
           Enviamos em anexo a <strong>${tipoLabel.toLowerCase()} ${numLabel}</strong>
-          no valor de <strong>${totalFormatted} ${invoice.moeda}</strong>.
+          no valor de <strong>${totalFormatted}</strong>.
         </p>
         <p>
           Qualquer questão, contacte-nos através do email
