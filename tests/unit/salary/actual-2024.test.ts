@@ -37,6 +37,8 @@ type Actual2024Result = {
   projectBreakdowns: Array<{
     projectId: string;
     titulo: string;
+    valorBaseSnapshot?: number;
+    despesasProjecto?: number;
     valorLiquido: number;
     pagamentoPf: number;
     pagamentoAuxTotal: number;
@@ -141,12 +143,17 @@ function makeProject(
 function makeExpense(
   id: string,
   valorXof: number,
-  options: { moeda?: "XOF" | "EUR" | "USD"; beneficiarioUserId?: string | null } = {}
+  options: {
+    moeda?: "XOF" | "EUR" | "USD";
+    projectId?: string | null;
+    beneficiarioUserId?: string | null;
+  } = {}
 ) {
   return {
     id,
     valorXof,
     moeda: options.moeda ?? "XOF",
+    projectId: options.projectId === undefined ? null : options.projectId,
     beneficiarioUserId:
       options.beneficiarioUserId === undefined
         ? null
@@ -481,6 +488,41 @@ describe("actual_2024 — contrato novo do motor", () => {
 
     expect(result.aggregates.saldoBaseSubsidios).toBe(85_000);
     expect(lineByUser(result, "valber").outrosBeneficios).toBe(10_000);
+  });
+
+  it("12b. despesa ligada ao projecto reduz a base antes de calcular PF, auxiliares e rubrica", () => {
+    const result = calculate({
+      period: { year: 2026, month: 1 },
+      projects: [
+        makeProject("p1", 100_000, {
+          pontoFocalId: "pf1",
+          assistants: [{ userId: "aux1" }],
+        }),
+      ],
+      participants: [
+        makeParticipant("pf1"),
+        makeParticipant("aux1"),
+        makeParticipant("emerson", { recebeRubricaGestao: true }),
+      ],
+      expenses: [makeExpense("e1", 20_000, { projectId: "p1" })],
+      users: [
+        makeUser("pf1", 0),
+        makeUser("aux1", 0),
+        makeUser("emerson", 0, { role: "dg" }),
+      ],
+      policyDefaults: POLICY_DEFAULTS,
+    });
+
+    expect(result.aggregates.totalDespesasOperacionais).toBe(0);
+    expect(result.projectBreakdowns[0]).toMatchObject({
+      valorBaseSnapshot: 100_000,
+      despesasProjecto: 20_000,
+      valorLiquido: 80_000,
+      pagamentoPf: 24_000,
+      pagamentoAuxTotal: 12_000,
+      pagamentoGestao: 4_000,
+      restoAbiptom: 40_000,
+    });
   });
 
   it("13. desconto percentual por colaborador altera o líquido como esperado", () => {

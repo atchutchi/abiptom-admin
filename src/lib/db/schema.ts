@@ -483,6 +483,9 @@ export const expenses = pgTable("expenses", {
   aprovadoPor: uuid("aprovado_por").references(() => users.id, {
     onDelete: "set null",
   }),
+  projectId: uuid("project_id").references(() => projects.id, {
+    onDelete: "set null",
+  }),
   beneficiarioUserId: uuid("beneficiario_user_id").references(() => users.id, {
     onDelete: "set null",
   }),
@@ -942,6 +945,11 @@ export const expensesRelations = relations(expenses, ({ one }) => ({
     fields: [expenses.aprovadoPor],
     references: [users.id],
     relationName: "expense_aprovado_por",
+  }),
+  project: one(projects, {
+    fields: [expenses.projectId],
+    references: [projects.id],
+    relationName: "expense_project",
   }),
   beneficiario: one(users, {
     fields: [expenses.beneficiarioUserId],

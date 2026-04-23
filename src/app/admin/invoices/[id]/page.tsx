@@ -11,6 +11,7 @@ import {
 } from "@/lib/utils/format";
 import InvoiceActions from "@/components/forms/InvoiceActions";
 import PaymentForm from "@/components/forms/PaymentForm";
+import { InvoicePaymentDateEditor } from "@/components/forms/InvoicePaymentDateEditor";
 import { Header } from "@/components/layout/Header";
 
 export const metadata = { title: "Factura — ABIPTOM Admin" };
@@ -176,6 +177,7 @@ export default async function InvoicePage({
                       <th className="px-4 py-2 text-left font-medium">Referência</th>
                       <th className="px-4 py-2 text-right font-medium">Valor</th>
                       <th className="px-4 py-2 text-right font-medium w-24">Recibo</th>
+                      <th className="px-4 py-2 text-right font-medium w-40">Acções</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -194,6 +196,12 @@ export default async function InvoicePage({
                           >
                             PDF
                           </a>
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          <InvoicePaymentDateEditor
+                            paymentId={p.id}
+                            initialDate={p.data}
+                          />
                         </td>
                       </tr>
                     ))}

@@ -33,11 +33,16 @@ const expenseSchema = z.object({
   metodoPagamento: z.string().optional(),
   referencia: z.string().optional(),
   notas: z.string().optional(),
+  projectId: z.string().uuid().optional(),
   beneficiarioUserId: z.string().uuid().optional(),
 });
 
+function canManageExpenses(role: string) {
+  return ["ca", "dg", "coord"].includes(role);
+}
+
 function parseForm(formData: FormData) {
-  return expenseSchema.safeParse({
+  const parsed = expenseSchema.safeParse({
     data: formData.get("data"),
     categoria: formData.get("categoria"),
     descricao: formData.get("descricao"),
@@ -49,14 +54,35 @@ function parseForm(formData: FormData) {
     metodoPagamento: formData.get("metodoPagamento") || undefined,
     referencia: formData.get("referencia") || undefined,
     notas: formData.get("notas") || undefined,
+    projectId: formData.get("projectId") || undefined,
     beneficiarioUserId: formData.get("beneficiarioUserId") || undefined,
   });
+
+  if (!parsed.success) {
+    return parsed;
+  }
+
+  if (parsed.data.projectId && parsed.data.beneficiarioUserId) {
+    return {
+      success: false as const,
+      error: new z.ZodError([
+        {
+          code: "custom",
+          path: ["projectId"],
+          message:
+            "Uma despesa não pode estar ligada a um projecto e a um beneficiário ao mesmo tempo.",
+        },
+      ]),
+    };
+  }
+
+  return parsed;
 }
 
 export async function listExpenses(filters: ExpenseFilters = {}) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role)) throw new Error("Sem permissão");
+  if (!canManageExpenses(dbUser.role)) throw new Error("Sem permissão");
 
   const conditions = [];
 
@@ -100,6 +126,12 @@ export async function listExpenses(filters: ExpenseFilters = {}) {
   return dbAdmin.query.expenses.findMany({
     where: conditions.length ? and(...conditions) : undefined,
     with: {
+      project: {
+        columns: {
+          id: true,
+          titulo: true,
+        },
+      },
       beneficiario: {
         columns: {
           id: true,
@@ -115,11 +147,17 @@ export async function listExpenses(filters: ExpenseFilters = {}) {
 export async function getExpense(id: string) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role)) throw new Error("Sem permissão");
+  if (!canManageExpenses(dbUser.role)) throw new Error("Sem permissão");
 
   return dbAdmin.query.expenses.findFirst({
     where: eq(expenses.id, id),
     with: {
+      project: {
+        columns: {
+          id: true,
+          titulo: true,
+        },
+      },
       beneficiario: {
         columns: {
           id: true,
@@ -134,7 +172,7 @@ export async function getExpense(id: string) {
 export async function sumExpensesByMonth(mes: string) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role)) throw new Error("Sem permissão");
+  if (!canManageExpenses(dbUser.role)) throw new Error("Sem permissão");
 
   const rows = await listExpenses({ mes });
   return rows.reduce((sum, e) => sum + Number(e.valorXof), 0);
@@ -143,7 +181,7 @@ export async function sumExpensesByMonth(mes: string) {
 export async function createExpense(_: unknown, formData: FormData) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role)) return { error: "Sem permissão" };
+  if (!canManageExpenses(dbUser.role)) return { error: "Sem permissão" };
 
   const parsed = parseForm(formData);
   if (!parsed.success) {
@@ -158,6 +196,7 @@ export async function createExpense(_: unknown, formData: FormData) {
     .insert(expenses)
     .values({
       ...parsed.data,
+      projectId: parsed.data.projectId ?? null,
       beneficiarioUserId: parsed.data.beneficiarioUserId ?? null,
       valorXof,
       criadoPor: dbUser.id,
@@ -182,7 +221,7 @@ export async function createExpense(_: unknown, formData: FormData) {
 export async function updateExpense(id: string, _: unknown, formData: FormData) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role)) return { error: "Sem permissão" };
+  if (!canManageExpenses(dbUser.role)) return { error: "Sem permissão" };
 
   const parsed = parseForm(formData);
   if (!parsed.success) {
@@ -191,8 +230,8 @@ export async function updateExpense(id: string, _: unknown, formData: FormData) 
 
   const before = await dbAdmin.query.expenses.findFirst({ where: eq(expenses.id, id) });
   if (!before) return { error: "Despesa não encontrada" };
-  if (before.estado === "paga" || before.estado === "anulada") {
-    return { error: "Não é possível editar despesas pagas ou anuladas" };
+  if (before.estado === "anulada") {
+    return { error: "Não é possível editar despesas anuladas" };
   }
 
   const valor = Number(parsed.data.valor);
@@ -203,6 +242,7 @@ export async function updateExpense(id: string, _: unknown, formData: FormData) 
     .update(expenses)
     .set({
       ...parsed.data,
+      projectId: parsed.data.projectId ?? null,
       beneficiarioUserId: parsed.data.beneficiarioUserId ?? null,
       valorXof,
     })
@@ -229,7 +269,7 @@ export async function updateExpense(id: string, _: unknown, formData: FormData) 
 export async function approveExpense(id: string) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role)) throw new Error("Sem permissão");
+  if (!canManageExpenses(dbUser.role)) throw new Error("Sem permissão");
 
   const before = await dbAdmin.query.expenses.findFirst({ where: eq(expenses.id, id) });
   if (!before) throw new Error("Despesa não encontrada");
@@ -254,7 +294,7 @@ export async function approveExpense(id: string) {
 export async function markExpensePaid(id: string, dataPagamento: string) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role)) throw new Error("Sem permissão");
+  if (!canManageExpenses(dbUser.role)) throw new Error("Sem permissão");
 
   const before = await dbAdmin.query.expenses.findFirst({ where: eq(expenses.id, id) });
   if (!before) throw new Error("Despesa não encontrada");
@@ -267,9 +307,10 @@ export async function markExpensePaid(id: string, dataPagamento: string) {
 
   await insertAuditLog({
     userId: dbUser.id,
-    acao: "mark_paid",
+    acao: before.estado === "paga" ? "update_payment_date" : "mark_paid",
     entidade: "expenses",
     entidadeId: id,
+    dadosAntes: { estado: before.estado, dataPagamento: before.dataPagamento },
     dadosDepois: { dataPagamento },
   });
 
@@ -280,11 +321,20 @@ export async function markExpensePaid(id: string, dataPagamento: string) {
 export async function cancelExpense(id: string, motivo: string) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role)) throw new Error("Sem permissão");
+  if (!canManageExpenses(dbUser.role)) throw new Error("Sem permissão");
+
+  const before = await dbAdmin.query.expenses.findFirst({ where: eq(expenses.id, id) });
+  if (!before) throw new Error("Despesa não encontrada");
+  if (before.estado === "anulada") throw new Error("Despesa já está anulada");
 
   await dbAdmin
     .update(expenses)
-    .set({ estado: "anulada", notas: motivo })
+    .set({
+      estado: "anulada",
+      notas: before.notas
+        ? `${before.notas}\n\nMotivo de anulação: ${motivo}`
+        : `Motivo de anulação: ${motivo}`,
+    })
     .where(eq(expenses.id, id));
 
   await insertAuditLog({
@@ -292,6 +342,7 @@ export async function cancelExpense(id: string, motivo: string) {
     acao: "cancel",
     entidade: "expenses",
     entidadeId: id,
+    dadosAntes: { estado: before.estado, notas: before.notas },
     dadosDepois: { motivo },
   });
 

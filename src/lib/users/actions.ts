@@ -3,7 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dbAdmin } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import {
+  dividendLines,
+  partnerShares,
+  projectPayments,
+  salaryLines,
+  salaryPeriodParticipants,
+  tasks,
+  users,
+} from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { insertAuditLog } from "@/lib/db/audit";
 import { getCurrentUser } from "@/lib/auth/actions";
@@ -13,6 +21,7 @@ import {
   ensureAvatarBucket,
   getAvatarExtension,
 } from "@/lib/users/avatar";
+import { sql } from "drizzle-orm";
 
 const UserSchema = z.object({
   nomeCompleto: z.string().min(2, "Nome completo obrigatório"),
@@ -53,6 +62,24 @@ function normaliseDiscountFraction(
   };
 }
 
+async function countRowsForUser(
+  table:
+    | typeof partnerShares
+    | typeof salaryLines
+    | typeof projectPayments
+    | typeof salaryPeriodParticipants
+    | typeof tasks
+    | typeof dividendLines,
+  predicate: ReturnType<typeof eq>,
+) {
+  const [result] = await dbAdmin
+    .select({ count: sql<number>`count(*)::int` })
+    .from(table)
+    .where(predicate);
+
+  return Number(result?.count ?? 0);
+}
+
 export async function createUser(formData: UserFormData) {
   const parsed = UserSchema.safeParse(formData);
   if (!parsed.success) {
@@ -69,8 +96,8 @@ export async function createUser(formData: UserFormData) {
   if ("error" in discount) {
     return { error: discount.error };
   }
-  if (actor.role !== "ca" && discount.percentage > 0) {
-    return { error: "Só CA pode definir desconto sobre folha." };
+  if (!["ca", "dg"].includes(actor.role) && discount.percentage > 0) {
+    return { error: "Só CA ou DG podem definir desconto sobre folha." };
   }
 
   const supabaseAdmin = createAdminClient();
@@ -164,10 +191,10 @@ export async function updateUser(id: string, formData: Partial<UserFormData>) {
   }
   const existingDiscountPercentage = Number(existing.percentagemDescontoFolha ?? 0) * 100;
   if (
-    actor.role !== "ca" &&
+    !["ca", "dg"].includes(actor.role) &&
     Math.abs(discount.percentage - existingDiscountPercentage) > 0.0001
   ) {
-    return { error: "Só CA pode alterar desconto sobre folha." };
+    return { error: "Só CA ou DG podem alterar desconto sobre folha." };
   }
 
   const supabaseAdmin = createAdminClient();
@@ -268,6 +295,96 @@ export async function deactivateUser(id: string) {
   });
 
   revalidatePath("/admin/users");
+  return { success: true };
+}
+
+export async function deleteUserPermanently(id: string) {
+  const { dbUser: actor } = await getCurrentUser();
+  if (!actor || (actor.role !== "ca" && actor.role !== "dg")) {
+    return { error: "Sem permissão." };
+  }
+
+  if (actor.id === id) {
+    return { error: "Não podes eliminar a tua própria conta." };
+  }
+
+  const existing = await dbAdmin.query.users.findFirst({
+    where: eq(users.id, id),
+  });
+
+  if (!existing) return { error: "Utilizador não encontrado." };
+
+  const blockers = [
+    {
+      label: "quotas societárias",
+      count: await countRowsForUser(partnerShares, eq(partnerShares.userId, id)),
+    },
+    {
+      label: "linhas de folha salarial",
+      count: await countRowsForUser(salaryLines, eq(salaryLines.userId, id)),
+    },
+    {
+      label: "pagamentos de projectos",
+      count: await countRowsForUser(projectPayments, eq(projectPayments.userId, id)),
+    },
+    {
+      label: "participações em períodos salariais",
+      count: await countRowsForUser(
+        salaryPeriodParticipants,
+        eq(salaryPeriodParticipants.userId, id),
+      ),
+    },
+    {
+      label: "tarefas atribuídas",
+      count: await countRowsForUser(tasks, eq(tasks.atribuidaA, id)),
+    },
+    {
+      label: "linhas de dividendos",
+      count: await countRowsForUser(dividendLines, eq(dividendLines.userId, id)),
+    },
+  ].filter((entry) => entry.count > 0);
+
+  if (blockers.length > 0) {
+    return {
+      error: `Não é possível eliminar definitivamente este utilizador porque ainda tem registos em ${blockers
+        .map((entry) => entry.label)
+        .join(", ")}. Usa desactivação nesses casos.`,
+    };
+  }
+
+  const avatarPath = existing.fotografiaUrl;
+  const supabaseAdmin = createAdminClient();
+
+  await dbAdmin.delete(users).where(eq(users.id, id));
+
+  if (avatarPath) {
+    await supabaseAdmin.storage.from(AVATAR_BUCKET).remove([avatarPath]);
+  }
+
+  const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(
+    existing.authUserId,
+  );
+
+  await insertAuditLog({
+    userId: actor.id,
+    acao: "eliminar_utilizador",
+    entidade: "users",
+    entidadeId: id,
+    dadosAntes: existing,
+    dadosDepois: { eliminado: true },
+  });
+
+  revalidatePath("/admin/users");
+
+  if (authError) {
+    return {
+      success: true,
+      warning:
+        authError.message ??
+        "O registo interno foi eliminado, mas a conta Auth ficou pendente de limpeza manual.",
+    };
+  }
+
   return { success: true };
 }
 

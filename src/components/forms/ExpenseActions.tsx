@@ -15,7 +15,7 @@ export default function ExpenseActions({ expense }: Props) {
   const [showPayment, setShowPayment] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
   const [dataPagamento, setDataPagamento] = useState(
-    new Date().toISOString().split("T")[0]
+    expense.dataPagamento ?? new Date().toISOString().split("T")[0]
   );
   const [motivoAnulacao, setMotivoAnulacao] = useState("");
 
@@ -34,14 +34,6 @@ export default function ExpenseActions({ expense }: Props) {
 
   if (expense.estado === "anulada") {
     return <p className="text-sm text-muted-foreground">Despesa anulada.</p>;
-  }
-
-  if (expense.estado === "paga") {
-    return (
-      <p className="text-sm text-green-600 dark:text-green-400">
-        Despesa paga a {expense.dataPagamento}.
-      </p>
-    );
   }
 
   return (
@@ -88,7 +80,39 @@ export default function ExpenseActions({ expense }: Props) {
             </Button>
           </>
         )}
+        {expense.estado === "paga" && (
+          <>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                setShowPayment(!showPayment);
+                setShowCancel(false);
+              }}
+              disabled={isPending}
+            >
+              Corrigir data de pagamento
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setShowCancel(!showCancel);
+                setShowPayment(false);
+              }}
+              disabled={isPending}
+            >
+              Anular
+            </Button>
+          </>
+        )}
       </div>
+
+      {expense.estado === "paga" && expense.dataPagamento && (
+        <p className="text-sm text-green-600 dark:text-green-400">
+          Despesa paga a {expense.dataPagamento}.
+        </p>
+      )}
 
       {showPayment && (
         <div className="rounded-lg border border-border p-4 space-y-3">
@@ -104,7 +128,7 @@ export default function ExpenseActions({ expense }: Props) {
             onClick={() => run(() => markExpensePaid(expense.id, dataPagamento))}
             disabled={isPending}
           >
-            Confirmar pagamento
+            {expense.estado === "paga" ? "Guardar nova data" : "Confirmar pagamento"}
           </Button>
         </div>
       )}

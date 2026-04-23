@@ -85,6 +85,27 @@ function calculateActual2024V2(
 
   const beneficiarioGestaoUserId = beneficiariosGestao[0]?.userId ?? null;
   const usersById = new Map(users.map((user) => [user.id, user]));
+  const directProjectExpenses = new Map<string, number>();
+  const operationalExpenses: typeof expenses = [];
+
+  for (const expense of expenses) {
+    if (expense.moeda !== "XOF") {
+      warnings.push(
+        `Despesa ${expense.id} em moeda ${expense.moeda} foi ignorada no calculo do saldo.`,
+      );
+      continue;
+    }
+
+    if (expense.projectId) {
+      directProjectExpenses.set(
+        expense.projectId,
+        (directProjectExpenses.get(expense.projectId) ?? 0) + expense.valorXof,
+      );
+      continue;
+    }
+
+    operationalExpenses.push(expense);
+  }
 
   const projectBreakdowns = [];
   const projectPayments: ProjectPaymentRecord[] = [];
@@ -98,18 +119,27 @@ function calculateActual2024V2(
     const percentagemRubricaGestao =
       project.percentagemRubricaGestao ??
       policyDefaults.percentagem_rubrica_gestao;
+    const despesasProjecto = directProjectExpenses.get(project.id) ?? 0;
+    const valorBaseSnapshot = project.valorLiquido;
+    const valorLiquido = Math.max(valorBaseSnapshot - despesasProjecto, 0);
+
+    if (despesasProjecto > valorBaseSnapshot) {
+      warnings.push(
+        `Projecto ${project.titulo}: despesas ligadas ao projecto excedem a base do período e o cálculo foi truncado a zero.`,
+      );
+    }
 
     const pagamentoPf = project.pontoFocalId
-      ? Math.round(project.valorLiquido * percentagemPf)
+      ? Math.round(valorLiquido * percentagemPf)
       : 0;
     const pagamentoAuxTotal = project.assistants.length > 0
-      ? Math.round(project.valorLiquido * percentagemAuxTotal)
+      ? Math.round(valorLiquido * percentagemAuxTotal)
       : 0;
     const pagamentoGestao = Math.round(
-      project.valorLiquido * percentagemRubricaGestao,
+      valorLiquido * percentagemRubricaGestao,
     );
     const restoAbiptom =
-      project.valorLiquido - pagamentoPf - pagamentoAuxTotal - pagamentoGestao;
+      valorLiquido - pagamentoPf - pagamentoAuxTotal - pagamentoGestao;
 
     if (project.pontoFocalId && pagamentoPf > 0) {
       const pfRecord: ProjectPaymentRecord = {
@@ -117,7 +147,7 @@ function calculateActual2024V2(
         userId: project.pontoFocalId,
         papel: "pf",
         percentagemAplicada: percentagemPf,
-        valorLiquidoProjecto: project.valorLiquido,
+        valorLiquidoProjecto: valorLiquido,
         valorRecebido: pagamentoPf,
       };
       projectPayments.push(pfRecord);
@@ -145,7 +175,7 @@ function calculateActual2024V2(
           userId: assistant.userId,
           papel: "aux",
           percentagemAplicada: percentagemAuxTotal * auxShares[index],
-          valorLiquidoProjecto: project.valorLiquido,
+          valorLiquidoProjecto: valorLiquido,
           valorRecebido,
         };
         projectPayments.push(auxRecord);
@@ -163,7 +193,7 @@ function calculateActual2024V2(
         userId: beneficiarioGestaoUserId,
         papel: "dg",
         percentagemAplicada: percentagemRubricaGestao,
-        valorLiquidoProjecto: project.valorLiquido,
+        valorLiquidoProjecto: valorLiquido,
         valorRecebido: pagamentoGestao,
       });
     }
@@ -171,7 +201,9 @@ function calculateActual2024V2(
     projectBreakdowns.push({
       projectId: project.id,
       titulo: project.titulo,
-      valorLiquido: project.valorLiquido,
+      valorBaseSnapshot,
+      despesasProjecto,
+      valorLiquido,
       pagamentoPf,
       pagamentoAuxTotal,
       pagamentoGestao,
@@ -183,18 +215,10 @@ function calculateActual2024V2(
   }
 
   let totalDespesasOperacionais = 0;
-  const expensesXof = [];
+  const expensesXof = operationalExpenses;
 
-  for (const expense of expenses) {
-    if (expense.moeda !== "XOF") {
-      warnings.push(
-        `Despesa ${expense.id} em moeda ${expense.moeda} foi ignorada no calculo do saldo.`,
-      );
-      continue;
-    }
-
+  for (const expense of expensesXof) {
     totalDespesasOperacionais += expense.valorXof;
-    expensesXof.push(expense);
   }
 
   const totalRestoAbiptom = projectBreakdowns.reduce(

@@ -5,8 +5,13 @@ import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { Header } from "@/components/layout/Header";
 import { UserForm } from "@/components/forms/UserForm";
-import { updateUser, deactivateUser } from "@/lib/users/actions";
+import {
+  updateUser,
+  deactivateUser,
+  deleteUserPermanently,
+} from "@/lib/users/actions";
 import { DeactivateUserButton } from "@/components/forms/DeactivateUserButton";
+import { DeleteUserPermanentlyButton } from "@/components/forms/DeleteUserPermanentlyButton";
 
 export const metadata = { title: "Editar utilizador — ABIPTOM Admin" };
 
@@ -49,7 +54,7 @@ export default async function EditUserPage({ params }: Props) {
               defaultValues={target}
               onSubmit={updateWithId}
               isEdit
-              canEditDiscount={actor.role === "ca"}
+              canEditDiscount={actor.role === "ca" || actor.role === "dg"}
             />
           </div>
 
@@ -63,6 +68,12 @@ export default async function EditUserPage({ params }: Props) {
                 isActive={target.activo}
                 onDeactivate={deactivateUser}
               />
+              <div className="mt-5 border-t pt-5">
+                <DeleteUserPermanentlyButton
+                  userId={id}
+                  onDelete={deleteUserPermanently}
+                />
+              </div>
             </div>
           )}
         </div>

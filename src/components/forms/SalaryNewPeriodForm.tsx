@@ -119,7 +119,7 @@ export function SalaryNewPeriodForm({
       if (!entry.valorLiquido || Number.isNaN(valor) || valor <= 0) {
         const project = projects.find((item) => item.id === entry.projectId);
         setError(
-          `Introduz o valor liquido para o projecto "${project?.titulo ?? entry.projectId}".`,
+          `Introduz a base do projecto para "${project?.titulo ?? entry.projectId}".`,
         );
         return;
       }
@@ -262,7 +262,7 @@ export function SalaryNewPeriodForm({
                         type="number"
                         min="0"
                         step="1"
-                        placeholder="Valor liquido XOF"
+                        placeholder="Base do projecto XOF"
                         value={entry.valorLiquido}
                         onChange={(event) => setValorLiquido(project.id, event.target.value)}
                         className="text-right"
@@ -275,6 +275,12 @@ export function SalaryNewPeriodForm({
           </div>
         )}
       </section>
+
+      <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+        <p className="text-xs text-gray-500 sm:max-w-md">
+          Introduz a base do projecto antes de abater despesas ligadas directamente ao próprio projecto.
+        </p>
+      </div>
 
       <div className="flex flex-col gap-3 pt-2 sm:flex-row">
         <Button type="submit" disabled={isPending}>

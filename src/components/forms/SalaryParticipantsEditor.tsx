@@ -123,7 +123,7 @@ export function SalaryParticipantsEditor({
               <th className="px-4 py-3 text-center font-medium text-gray-600">Elegivel 22%</th>
               <th className="px-4 py-3 text-center font-medium text-gray-600">Rubrica gestao</th>
               <th className="px-4 py-3 text-right font-medium text-gray-600">Base do perfil</th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600">Override base</th>
+              <th className="px-4 py-3 text-right font-medium text-gray-600">Salário base do período</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -186,7 +186,7 @@ export function SalaryParticipantsEditor({
       {editable && (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-gray-500">
-            Guardar participantes limpa o calculo actual e volta o periodo para aberto.
+            Este campo só corrige o salário base do período. Outros benefícios vêm de despesas com beneficiário. Guardar participantes limpa o cálculo actual e volta o período para aberto.
           </p>
           <Button onClick={handleSaveAll} disabled={isPending || !hasChanges}>
             <Save className="mr-2 h-4 w-4" />

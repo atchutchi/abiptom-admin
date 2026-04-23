@@ -20,6 +20,14 @@ export default async function NewExpensePage() {
     orderBy: (table, { asc }) => [asc(table.nomeCurto)],
   });
 
+  const activeProjects = await dbAdmin.query.projects.findMany({
+    columns: {
+      id: true,
+      titulo: true,
+    },
+    orderBy: (table, { asc }) => [asc(table.titulo)],
+  });
+
   return (
     <>
       <Header title="Nova Despesa" />
@@ -35,12 +43,13 @@ export default async function NewExpensePage() {
             </Link>
             <h1 className="mt-2 text-2xl font-semibold">Nova Despesa</h1>
             <p className="text-sm text-muted-foreground">
-              Registar uma despesa operacional ou um benefício directo a um colaborador.
+              Registar uma despesa operacional, uma despesa directa de projecto ou um benefício directo a um colaborador.
             </p>
           </div>
           <ExpenseForm
             action={createExpense}
             activeUsers={activeUsers}
+            activeProjects={activeProjects}
             submitLabel="Registar despesa"
           />
         </div>

@@ -85,7 +85,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Despesas",
     href: "/admin/expenses",
     icon: Receipt,
-    roles: ["ca", "dg"],
+    roles: ["ca", "dg", "coord"],
   },
   {
     label: "Stock",

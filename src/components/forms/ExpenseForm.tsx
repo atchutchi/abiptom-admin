@@ -12,6 +12,7 @@ interface Props {
   expense?: Expense;
   action: (prev: unknown, formData: FormData) => Promise<ActionResult>;
   activeUsers: Array<{ id: string; nomeCurto: string; role: string }>;
+  activeProjects: Array<{ id: string; titulo: string }>;
   submitLabel?: string;
 }
 
@@ -21,6 +22,7 @@ export default function ExpenseForm({
   expense,
   action,
   activeUsers,
+  activeProjects,
   submitLabel = "Guardar",
 }: Props) {
   const [state, formAction, pending] = useActionState(action, null);
@@ -29,6 +31,10 @@ export default function ExpenseForm({
   const [valor, setValor] = useState(expense?.valor ?? "");
   const [moeda, setMoeda] = useState(expense?.moeda ?? "XOF");
   const [taxaCambio, setTaxaCambio] = useState(expense?.taxaCambio ?? "1");
+  const [projectId, setProjectId] = useState(expense?.projectId ?? "");
+  const [beneficiarioUserId, setBeneficiarioUserId] = useState(
+    expense?.beneficiarioUserId ?? "",
+  );
 
   const valorXof = (() => {
     const v = Number(valor);
@@ -190,10 +196,45 @@ export default function ExpenseForm({
       </div>
 
       <div className="space-y-1.5">
+        <label className="text-sm font-medium">Projecto relacionado (opcional)</label>
+        <select
+          name="projectId"
+          value={projectId}
+          onChange={(event) => {
+            const nextProjectId = event.target.value;
+            setProjectId(nextProjectId);
+            if (nextProjectId) {
+              setBeneficiarioUserId("");
+            }
+          }}
+          disabled={Boolean(beneficiarioUserId)}
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
+        >
+          <option value="">Sem ligação directa a projecto</option>
+          {activeProjects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.titulo}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-muted-foreground">
+          Usa este campo quando a despesa deve ser abatida ao projecto antes de calcular PF, auxiliares e rubrica de gestão.
+        </p>
+      </div>
+
+      <div className="space-y-1.5">
         <label className="text-sm font-medium">Beneficiário (opcional)</label>
         <select
           name="beneficiarioUserId"
-          defaultValue={expense?.beneficiarioUserId ?? ""}
+          value={beneficiarioUserId}
+          onChange={(event) => {
+            const nextBeneficiario = event.target.value;
+            setBeneficiarioUserId(nextBeneficiario);
+            if (nextBeneficiario) {
+              setProjectId("");
+            }
+          }}
+          disabled={Boolean(projectId)}
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
         >
           <option value="">Despesa operacional da empresa</option>
@@ -204,7 +245,7 @@ export default function ExpenseForm({
           ))}
         </select>
         <p className="text-xs text-muted-foreground">
-          Se esta despesa for um benefício directo a um colaborador, selecciona-o aqui. Se for despesa operacional, deixa vazio.
+          Se esta despesa for um benefício directo a um colaborador, selecciona-o aqui. Benefícios directos entram em Outros benefícios na folha. Se a despesa já estiver ligada a um projecto, este campo fica vazio.
         </p>
       </div>
 

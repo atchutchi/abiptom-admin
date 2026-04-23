@@ -8,6 +8,7 @@ export const ROLE_ROUTES: Record<UserRole, string[]> = {
     "/admin/projects",
     "/admin/clients",
     "/admin/invoices",
+    "/admin/expenses",
     "/admin/stock",
     "/admin/tasks",
     "/admin/profile",
@@ -23,7 +24,6 @@ export const ADMIN_ONLY_ROUTES = [
   "/admin/dividends",
   "/admin/settings",
   "/admin/reports",
-  "/admin/expenses",
 ];
 
 // Rotas restritas a ca
@@ -42,6 +42,7 @@ export function canAccessRoute(role: UserRole, pathname: string): boolean {
       pathname.startsWith("/admin/clients") ||
       pathname.startsWith("/admin/stock") ||
       pathname.startsWith("/admin/tasks") ||
+      pathname.startsWith("/admin/expenses") ||
       pathname.startsWith("/admin/invoices") ||
       pathname.startsWith("/staff")
     );

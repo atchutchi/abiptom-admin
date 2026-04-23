@@ -146,6 +146,7 @@ export interface ExpenseForSalary {
   id: string;
   valorXof: number;
   moeda: "XOF" | "EUR" | "USD";
+  projectId: string | null;
   beneficiarioUserId: string | null;
 }
 
@@ -161,6 +162,8 @@ export interface CalculateActual2024Input {
 export interface Actual2024ProjectBreakdown {
   projectId: string;
   titulo: string;
+  valorBaseSnapshot: number;
+  despesasProjecto: number;
   valorLiquido: number;
   pagamentoPf: number;
   pagamentoAuxTotal: number;

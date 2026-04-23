@@ -49,6 +49,14 @@ const paymentSchema = z.object({
   notas: z.string().optional(),
 });
 
+const paymentUpdateSchema = z.object({
+  data: z.string().min(1, "Data obrigatória"),
+});
+
+function canManageInvoices(role: string) {
+  return ["ca", "dg", "coord"].includes(role);
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function calcTotals(
@@ -127,7 +135,7 @@ export async function getInvoice(id: string) {
 export async function createInvoice(data: z.infer<typeof invoiceSchema>) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role))
+  if (!canManageInvoices(dbUser.role))
     return { error: "Sem permissão" };
 
   const parsed = invoiceSchema.safeParse(data);
@@ -186,6 +194,8 @@ export async function updateInvoiceItems(
 ) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
+  if (!canManageInvoices(dbUser.role))
+    return { error: "Sem permissão" };
 
   const invoice = await dbAdmin.query.invoices.findFirst({
     where: eq(invoices.id, invoiceId),
@@ -232,7 +242,7 @@ export async function transitionInvoice(
 ) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role))
+  if (!canManageInvoices(dbUser.role))
     return { error: "Sem permissão" };
 
   const invoice = await dbAdmin.query.invoices.findFirst({
@@ -291,7 +301,7 @@ export async function registerPayment(
 ) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role))
+  if (!canManageInvoices(dbUser.role))
     return { error: "Sem permissão" };
 
   const parsed = paymentSchema.safeParse(data);
@@ -337,12 +347,53 @@ export async function registerPayment(
   return { success: true };
 }
 
+export async function updateInvoicePayment(
+  paymentId: string,
+  data: z.infer<typeof paymentUpdateSchema>,
+) {
+  const { user, dbUser } = await getCurrentUser();
+  if (!user || !dbUser) throw new Error("Não autenticado");
+  if (!canManageInvoices(dbUser.role))
+    return { error: "Sem permissão" };
+
+  const parsed = paymentUpdateSchema.safeParse(data);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
+  }
+
+  const payment = await dbAdmin.query.invoicePayments.findFirst({
+    where: eq(invoicePayments.id, paymentId),
+  });
+  if (!payment) return { error: "Pagamento não encontrado" };
+
+  await dbAdmin
+    .update(invoicePayments)
+    .set({ data: parsed.data.data })
+    .where(eq(invoicePayments.id, paymentId));
+
+  const hdrs = await headers();
+  await insertAuditLog({
+    userId: dbUser.id,
+    acao: "update_payment_date",
+    entidade: "invoice_payments",
+    entidadeId: paymentId,
+    dadosAntes: { data: payment.data },
+    dadosDepois: { data: parsed.data.data },
+    ip: hdrs.get("x-forwarded-for") ?? undefined,
+    userAgent: hdrs.get("user-agent") ?? undefined,
+  });
+
+  revalidatePath(`/admin/invoices/${payment.invoiceId}`);
+  revalidatePath("/admin/invoices");
+  return { success: true };
+}
+
 // ─── Delete draft ─────────────────────────────────────────────────────────────
 
 export async function deleteInvoiceDraft(invoiceId: string) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role))
+  if (!canManageInvoices(dbUser.role))
     return { error: "Sem permissão" };
 
   const invoice = await dbAdmin.query.invoices.findFirst({

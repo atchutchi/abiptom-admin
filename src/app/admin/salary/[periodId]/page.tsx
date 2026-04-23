@@ -248,7 +248,7 @@ export default async function SalaryPeriodPage({ params }: PageProps) {
             <div>
               <h2 className="font-semibold text-gray-800">Participantes do periodo</h2>
               <p className="text-sm text-gray-500">
-                Define quem recebe subsidio dinamico, quem recebe a rubrica de gestao e overrides de salario base.
+                Define quem recebe subsidio dinamico, quem recebe a rubrica de gestao e o salário base aplicável nesse período.
               </p>
             </div>
             <SalaryParticipantsEditor
@@ -277,7 +277,7 @@ export default async function SalaryPeriodPage({ params }: PageProps) {
                   <div>
                     <h2 className="font-semibold text-gray-800">Calculo da folha</h2>
                     <p className="text-sm text-gray-500">
-                      Outros beneficios somam ao total. O ajuste do bruto final exige motivo.
+                      Outros beneficios vêm de despesas com beneficiário e somam ao total. O ajuste do bruto final exige motivo.
                     </p>
                   </div>
                   <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs text-amber-800">

@@ -37,8 +37,16 @@ export default async function ExpensePage({
     orderBy: (table, { asc }) => [asc(table.nomeCurto)],
   });
 
+  const activeProjects = await dbAdmin.query.projects.findMany({
+    columns: {
+      id: true,
+      titulo: true,
+    },
+    orderBy: (table, { asc }) => [asc(table.titulo)],
+  });
+
   const action = updateExpense.bind(null, id);
-  const readOnly = expense.estado === "paga" || expense.estado === "anulada";
+  const readOnly = expense.estado === "anulada";
 
   return (
     <>
@@ -97,56 +105,61 @@ export default async function ExpensePage({
                 expense={expense}
                 action={action}
                 activeUsers={activeUsers}
+                activeProjects={activeProjects}
                 submitLabel="Actualizar"
               />
             </div>
           )}
 
-          {readOnly && (
-            <div className="space-y-3 rounded-lg border border-border p-5">
-              <h2 className="font-medium">Detalhes</h2>
-              <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
-                {expense.fornecedor && (
-                  <>
-                    <dt className="text-muted-foreground">Fornecedor</dt>
-                    <dd>{expense.fornecedor}</dd>
-                  </>
-                )}
-                {expense.referencia && (
-                  <>
-                    <dt className="text-muted-foreground">Referência</dt>
-                    <dd className="font-mono">{expense.referencia}</dd>
-                  </>
-                )}
-                {expense.metodoPagamento && (
-                  <>
-                    <dt className="text-muted-foreground">Método</dt>
-                    <dd>{expense.metodoPagamento}</dd>
-                  </>
-                )}
-                {expense.beneficiario && (
-                  <>
-                    <dt className="text-muted-foreground">Beneficiário</dt>
-                    <dd>
-                      {expense.beneficiario.nomeCurto} · {expense.beneficiario.role}
-                    </dd>
-                  </>
-                )}
-                {expense.dataPagamento && (
-                  <>
-                    <dt className="text-muted-foreground">Data de pagamento</dt>
-                    <dd>{formatDate(expense.dataPagamento)}</dd>
-                  </>
-                )}
-                {expense.notas && (
-                  <>
-                    <dt className="text-muted-foreground sm:col-span-2">Notas</dt>
-                    <dd className="whitespace-pre-wrap sm:col-span-2">{expense.notas}</dd>
-                  </>
-                )}
-              </dl>
-            </div>
-          )}
+          <div className="space-y-3 rounded-lg border border-border p-5">
+            <h2 className="font-medium">Detalhes</h2>
+            <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+              {expense.fornecedor && (
+                <>
+                  <dt className="text-muted-foreground">Fornecedor</dt>
+                  <dd>{expense.fornecedor}</dd>
+                </>
+              )}
+              {expense.project && (
+                <>
+                  <dt className="text-muted-foreground">Projecto</dt>
+                  <dd>{expense.project.titulo}</dd>
+                </>
+              )}
+              {expense.referencia && (
+                <>
+                  <dt className="text-muted-foreground">Referência</dt>
+                  <dd className="font-mono">{expense.referencia}</dd>
+                </>
+              )}
+              {expense.metodoPagamento && (
+                <>
+                  <dt className="text-muted-foreground">Método</dt>
+                  <dd>{expense.metodoPagamento}</dd>
+                </>
+              )}
+              {expense.beneficiario && (
+                <>
+                  <dt className="text-muted-foreground">Beneficiário</dt>
+                  <dd>
+                    {expense.beneficiario.nomeCurto} · {expense.beneficiario.role}
+                  </dd>
+                </>
+              )}
+              {expense.dataPagamento && (
+                <>
+                  <dt className="text-muted-foreground">Data de pagamento</dt>
+                  <dd>{formatDate(expense.dataPagamento)}</dd>
+                </>
+              )}
+              {expense.notas && (
+                <>
+                  <dt className="text-muted-foreground sm:col-span-2">Notas</dt>
+                  <dd className="whitespace-pre-wrap sm:col-span-2">{expense.notas}</dd>
+                </>
+              )}
+            </dl>
+          </div>
         </div>
       </main>
     </>

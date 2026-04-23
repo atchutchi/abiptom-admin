@@ -121,6 +121,7 @@ export default async function ExpensesPage({
                     <th className="px-4 py-3 text-left font-medium">Categoria</th>
                     <th className="px-4 py-3 text-left font-medium">Descrição</th>
                     <th className="px-4 py-3 text-left font-medium">Fornecedor</th>
+                    <th className="px-4 py-3 text-left font-medium">Projecto</th>
                     <th className="px-4 py-3 text-left font-medium">Beneficiário</th>
                     <th className="px-4 py-3 text-right font-medium">Valor (XOF)</th>
                     <th className="px-4 py-3 text-left font-medium">Estado</th>
@@ -136,6 +137,9 @@ export default async function ExpensesPage({
                       </td>
                       <td className="px-4 py-3 font-medium">{e.descricao}</td>
                       <td className="px-4 py-3 text-muted-foreground">{e.fornecedor ?? "—"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {e.project?.titulo ?? "—"}
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {e.beneficiario ? e.beneficiario.nomeCurto : "—"}
                       </td>
