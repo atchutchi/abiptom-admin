@@ -4,7 +4,7 @@ import { UserForm } from "@/components/forms/UserForm";
 import { createUser } from "@/lib/users/actions";
 import { getCurrentUser } from "@/lib/auth/actions";
 
-export const metadata = { title: "Novo utilizador — ABIPTOM Admin" };
+export const metadata = { title: "Novo utilizador — ABIPTOM Core" };
 
 export default async function NewUserPage() {
   const { user, dbUser } = await getCurrentUser();

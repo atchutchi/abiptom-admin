@@ -9,7 +9,7 @@ import { getProject } from "@/lib/projects/actions";
 import { getCurrentUser } from "@/lib/auth/actions";
 import { formatCurrency } from "@/lib/utils/format";
 
-export const metadata = { title: "Projecto — ABIPTOM Admin" };
+export const metadata = { title: "Projecto — ABIPTOM Core" };
 
 const ESTADO_LABELS: Record<string, string> = {
   proposta: "Proposta",

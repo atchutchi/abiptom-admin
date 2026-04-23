@@ -16,7 +16,7 @@ import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
-export const metadata = { title: "Despesa — ABIPTOM Admin" };
+export const metadata = { title: "Despesa — ABIPTOM Core" };
 
 export default async function ExpensePage({
   params,

@@ -6,7 +6,7 @@ import { projectAssistants, projects } from "@/lib/db/schema";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { getCurrentUser } from "@/lib/auth/actions";
 
-export const metadata = { title: "Meus projectos — ABIPTOM Admin" };
+export const metadata = { title: "Meus projectos — ABIPTOM Core" };
 
 const STATE_LABELS: Record<string, string> = {
   proposta: "Proposta",

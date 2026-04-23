@@ -6,7 +6,7 @@ import { ChevronLeft, Package, Plus } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/format";
 import { Header } from "@/components/layout/Header";
 
-export const metadata = { title: "Catálogo de Serviços — ABIPTOM Admin" };
+export const metadata = { title: "Catálogo de Serviços — ABIPTOM Core" };
 
 const PERIODICIDADE_LABEL: Record<string, string> = {
   unica: "Única",

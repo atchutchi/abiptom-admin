@@ -7,7 +7,7 @@ import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { ChevronLeft } from "lucide-react";
 
-export const metadata = { title: "Nova Despesa — ABIPTOM Admin" };
+export const metadata = { title: "Nova Despesa — ABIPTOM Core" };
 
 export default async function NewExpensePage() {
   const activeUsers = await dbAdmin.query.users.findMany({

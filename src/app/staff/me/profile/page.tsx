@@ -10,7 +10,7 @@ import {
   uploadMyAvatar,
 } from "@/lib/users/actions";
 
-export const metadata = { title: "Meu perfil — ABIPTOM Admin" };
+export const metadata = { title: "Meu perfil — ABIPTOM Core" };
 
 export default async function StaffProfilePage() {
   const { user, dbUser } = await getCurrentUser();

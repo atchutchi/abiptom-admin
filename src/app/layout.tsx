@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { APP_DESCRIPTION, APP_NAME, APP_SLOGAN } from "@/lib/brand";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ABIPTOM Admin",
-  description: "Backoffice administrativo e financeiro da ABIPTOM SARL",
+  title: APP_NAME,
+  description: `${APP_DESCRIPTION}. ${APP_SLOGAN}`,
 };
 
 export default function RootLayout({

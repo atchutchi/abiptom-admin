@@ -2,8 +2,9 @@ import Link from "next/link";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { UpdatePasswordForm } from "@/components/forms/UpdatePasswordForm";
 import { createClient } from "@/lib/supabase/server";
+import { APP_NAME } from "@/lib/brand";
 
-export const metadata = { title: "Definir palavra-passe — ABIPTOM Admin" };
+export const metadata = { title: `Definir palavra-passe — ${APP_NAME}` };
 
 export default async function UpdatePasswordPage() {
   const supabase = await createClient();

@@ -14,7 +14,7 @@ import { Plus } from "lucide-react";
 import { listProjects } from "@/lib/projects/actions";
 import { getCurrentUser } from "@/lib/auth/actions";
 
-export const metadata = { title: "Projectos — ABIPTOM Admin" };
+export const metadata = { title: "Projectos — ABIPTOM Core" };
 
 const ESTADO_LABELS: Record<string, string> = {
   proposta: "Proposta",

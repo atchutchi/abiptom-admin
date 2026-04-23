@@ -11,7 +11,7 @@ import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { cn } from "@/lib/utils";
 import { Header } from "@/components/layout/Header";
 
-export const metadata = { title: "Despesas — ABIPTOM Admin" };
+export const metadata = { title: "Despesas — ABIPTOM Core" };
 
 export default async function ExpensesPage({
   searchParams,

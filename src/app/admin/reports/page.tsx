@@ -14,6 +14,7 @@ import { getMonthlyProfitLoss, getQuarterlyProfitLoss } from "@/lib/reports/acti
 import { Header } from "@/components/layout/Header";
 import { formatCurrency } from "@/lib/utils/format";
 import { EXPENSE_CATEGORY_LABEL } from "@/lib/expenses/labels";
+import { APP_NAME, APP_SLOGAN } from "@/lib/brand";
 
 export const metadata = { title: "Relatórios" };
 
@@ -92,7 +93,7 @@ export default async function ReportsPage({ searchParams }: PageProps) {
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#9a7300]">
-                ABIPTOM Finance
+                {APP_NAME}
               </p>
               <h1 className="mt-1 text-2xl font-bold text-gray-950">
                 {periodo === "trimestral"
@@ -100,7 +101,7 @@ export default async function ReportsPage({ searchParams }: PageProps) {
                   : "Relatório mensal (P&L)"}
               </h1>
               <p className="mt-1 text-sm text-gray-500">
-                {periodoLabel} · receitas, despesas, salários, dividendos e saldo global.
+                {periodoLabel} · receitas, despesas, salários, dividendos e saldo global. {APP_SLOGAN}
               </p>
             </div>
 

@@ -1,8 +1,10 @@
-# ABIPTOM Admin
+# ABIPTOM Core
+
+> Os Guardiões das Novas Tecnologias
 
 Última actualização: 23 de Abril de 2026.
 
-`abiptom-admin` é o backoffice interno da ABIPTOM SARL para gestão administrativa, financeira e operacional. Centraliza clientes, projectos, facturação, despesas, folha salarial, dividendos, stock, tarefas, relatórios e área pessoal dos colaboradores.
+`ABIPTOM Core` é a plataforma operacional interna da ABIPTOM SARL. O repositório mantém o nome técnico `abiptom-admin`, mas a aplicação exposta aos utilizadores usa a marca Core. Centraliza clientes, projectos, facturação, despesas, folha salarial, dividendos, stock, tarefas, relatórios e área pessoal dos colaboradores.
 
 Ambiente público: [https://abiptom-admin.vercel.app](https://abiptom-admin.vercel.app)
 

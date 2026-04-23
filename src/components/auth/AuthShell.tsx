@@ -1,5 +1,6 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
+import { APP_NAME, APP_SLOGAN } from "@/lib/brand";
 
 type AuthShellProps = {
   title: string;
@@ -23,13 +24,19 @@ export function AuthShell({
           {showLogo ? (
             <Image
               src="/brand/abiptom-logo.png"
-              alt="ABIPTOM"
+              alt={APP_NAME}
               width={180}
               height={48}
               className="mx-auto mb-3 h-11 w-auto"
               priority
             />
           ) : null}
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--brand-gold)]">
+            {APP_NAME}
+          </p>
+          <p className="mt-1 text-[11px] text-[color:var(--brand-muted)]">
+            {APP_SLOGAN}
+          </p>
           <h1 className="text-2xl font-bold tracking-tight text-[color:var(--brand-ink)]">
             {title}
           </h1>

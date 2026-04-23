@@ -13,7 +13,7 @@ import type { InvoiceState } from "@/lib/db/schema";
 import InvoiceExportButton from "@/components/forms/InvoiceExportButton";
 import { Header } from "@/components/layout/Header";
 
-export const metadata = { title: "Facturas — ABIPTOM Admin" };
+export const metadata = { title: "Facturas — ABIPTOM Core" };
 
 const STATES: InvoiceState[] = [
   "rascunho",

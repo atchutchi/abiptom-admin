@@ -22,7 +22,7 @@ const ROLE_LABELS: Record<string, string> = {
   staff: "Staff",
 };
 
-export const metadata = { title: "Utilizadores — ABIPTOM Admin" };
+export const metadata = { title: "Utilizadores — ABIPTOM Core" };
 
 export default async function UsersPage() {
   const { user, dbUser } = await getCurrentUser();

@@ -23,7 +23,7 @@ import {
   INVOICE_STATE_LABELS,
 } from "@/lib/utils/format";
 
-export const metadata = { title: "Painel — ABIPTOM Admin" };
+export const metadata = { title: "Painel — ABIPTOM Core" };
 
 const MES_LABELS = [
   "",

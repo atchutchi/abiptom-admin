@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Building2 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 
-export const metadata = { title: "Clientes — ABIPTOM Admin" };
+export const metadata = { title: "Clientes — ABIPTOM Core" };
 
 export default async function ClientsPage({
   searchParams,

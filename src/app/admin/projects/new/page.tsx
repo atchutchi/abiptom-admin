@@ -6,7 +6,7 @@ import { Header } from "@/components/layout/Header";
 import ProjectForm from "@/components/forms/ProjectForm";
 import { getCurrentUser } from "@/lib/auth/actions";
 
-export const metadata = { title: "Novo Projecto — ABIPTOM Admin" };
+export const metadata = { title: "Novo Projecto — ABIPTOM Core" };
 
 export default async function NewProjectPage() {
   const { user, dbUser } = await getCurrentUser();

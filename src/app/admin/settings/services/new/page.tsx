@@ -4,7 +4,7 @@ import { Header } from "@/components/layout/Header";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
-export const metadata = { title: "Novo Serviço — ABIPTOM Admin" };
+export const metadata = { title: "Novo Serviço — ABIPTOM Core" };
 
 export default function NewServicePage() {
   return (

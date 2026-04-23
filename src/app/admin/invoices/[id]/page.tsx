@@ -16,7 +16,7 @@ import { InvoicePaymentDateEditor } from "@/components/forms/InvoicePaymentDateE
 import { InvoiceProjectLinkForm } from "@/components/forms/InvoiceProjectLinkForm";
 import { Header } from "@/components/layout/Header";
 
-export const metadata = { title: "Factura — ABIPTOM Admin" };
+export const metadata = { title: "Factura — ABIPTOM Core" };
 
 export default async function InvoicePage({
   params,

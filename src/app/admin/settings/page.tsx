@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Package, Users } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 
-export const metadata = { title: "Definições — ABIPTOM Admin" };
+export const metadata = { title: "Definições — ABIPTOM Core" };
 
 const SECTIONS = [
   {

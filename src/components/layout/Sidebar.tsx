@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import type { UserRole } from "@/lib/db/schema";
 import { getDefaultRoute } from "@/lib/auth/rbac";
 import { getUserInitials } from "@/lib/users/avatar";
+import { APP_NAME, APP_SHORT_NAME, APP_SLOGAN } from "@/lib/brand";
 
 interface NavItem {
   label: string;
@@ -200,8 +201,8 @@ export function Sidebar({ role, userName, userAvatarUrl }: SidebarProps) {
       {/* Logo */}
       <div
         className={cn(
-          "flex h-16 items-center border-b border-[rgb(245_184_0_/_20%)]",
-          collapsed ? "px-3" : "px-4"
+          "border-b border-[rgb(245_184_0_/_20%)]",
+          collapsed ? "flex h-16 items-center px-3" : "flex h-20 items-center px-4"
         )}
       >
         <Link
@@ -210,30 +211,37 @@ export function Sidebar({ role, userName, userAvatarUrl }: SidebarProps) {
             "min-w-0 text-[#fff8df]",
             collapsed ? "inline-flex items-center" : "inline-flex items-center px-2"
           )}
-          title="ABIPTOM Admin"
+          title={APP_NAME}
         >
           {!collapsed && (
-            <Image
-              src="/brand/abiptom-logo.png"
-              alt="ABIPTOM"
-              width={112}
-              height={28}
-              className="h-7 w-auto"
-              priority
-            />
+            <div className="flex min-w-0 items-center gap-3">
+              <Image
+                src="/brand/abiptom-logo.png"
+                alt={APP_NAME}
+                width={40}
+                height={40}
+                className="h-10 w-10 rounded-full bg-[#fff8df] object-contain p-0.5 ring-1 ring-[rgb(245_184_0_/_40%)]"
+                priority
+              />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-[#fff8df]">
+                  {APP_NAME}
+                </p>
+                <p className="truncate text-[10px] uppercase tracking-[0.14em] text-[color:var(--brand-gold)]">
+                  {APP_SLOGAN}
+                </p>
+              </div>
+            </div>
           )}
           {collapsed && (
             <Image
               src="/brand/abiptom-logo.png"
-              alt="ABIPTOM"
+              alt={APP_NAME}
               width={32}
               height={32}
               className="h-8 w-8 rounded-full bg-[#fff8df] object-contain p-0.5 ring-1 ring-[rgb(245_184_0_/_40%)]"
               priority
             />
-          )}
-          {!collapsed && (
-            <span className="ml-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--brand-gold)]">Admin</span>
           )}
         </Link>
         <button
@@ -309,7 +317,9 @@ export function Sidebar({ role, userName, userAvatarUrl }: SidebarProps) {
           ) : (
             <div className="min-w-0">
               <p className="truncate font-medium text-[#fff8df]">{userName}</p>
-              <p className="text-xs uppercase tracking-[0.16em] text-[color:var(--brand-gold)]">{role}</p>
+              <p className="text-xs uppercase tracking-[0.16em] text-[color:var(--brand-gold)]">
+                {role} · {APP_SHORT_NAME}
+              </p>
             </div>
           )}
         </Link>

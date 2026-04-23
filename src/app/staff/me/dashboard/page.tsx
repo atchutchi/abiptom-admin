@@ -56,7 +56,7 @@ const PERIOD_STATE_LABELS: Record<string, string> = {
   pago: "Pago",
 };
 
-export const metadata = { title: "O meu painel — ABIPTOM Admin" };
+export const metadata = { title: "O meu painel — ABIPTOM Core" };
 
 export default async function StaffDashboardPage() {
   const { user, dbUser } = await getCurrentUser();

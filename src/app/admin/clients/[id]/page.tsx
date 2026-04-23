@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
 
-export const metadata = { title: "Cliente — ABIPTOM Admin" };
+export const metadata = { title: "Cliente — ABIPTOM Core" };
 
 export default async function ClientPage({
   params,

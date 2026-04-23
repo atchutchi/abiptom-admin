@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getDefaultRoute } from "@/lib/auth/rbac";
 import type { UserRole } from "@/lib/db/schema";
+import { APP_NAME } from "@/lib/brand";
 
 // init   → a verificar factores existentes
 // enroll → novo factor: mostra QR code
@@ -46,7 +47,7 @@ export function SetupMfaForm() {
         // 2. Nenhum factor verificado — inscrever novo
         const { data, error: enrollError } = await supabase.auth.mfa.enroll({
           factorType: "totp",
-          issuer: "ABIPTOM Admin",
+          issuer: APP_NAME,
         });
 
         if (enrollError || !data) {

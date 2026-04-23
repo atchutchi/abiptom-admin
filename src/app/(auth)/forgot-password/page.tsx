@@ -1,8 +1,9 @@
 import { Suspense } from "react";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { ForgotPasswordForm } from "@/components/forms/ForgotPasswordForm";
+import { APP_NAME } from "@/lib/brand";
 
-export const metadata = { title: "Recuperar acesso — ABIPTOM Admin" };
+export const metadata = { title: `Recuperar acesso — ${APP_NAME}` };
 
 export default function ForgotPasswordPage() {
   return (

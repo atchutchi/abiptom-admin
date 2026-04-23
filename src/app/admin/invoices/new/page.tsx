@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 
-export const metadata = { title: "Nova Factura — ABIPTOM Admin" };
+export const metadata = { title: "Nova Factura — ABIPTOM Core" };
 
 export default async function NewInvoicePage() {
   const [clientes, servicos, projectRows] = await Promise.all([

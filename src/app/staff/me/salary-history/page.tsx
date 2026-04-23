@@ -9,7 +9,7 @@ import {
 import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { getCurrentUser } from "@/lib/auth/actions";
 
-export const metadata = { title: "Histórico salarial — ABIPTOM Admin" };
+export const metadata = { title: "Histórico salarial — ABIPTOM Core" };
 
 const PERIOD_STATE_LABELS: Record<string, string> = {
   aberto: "Em aberto",

@@ -9,7 +9,7 @@ import { Header } from "@/components/layout/Header";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
-export const metadata = { title: "Editar Serviço — ABIPTOM Admin" };
+export const metadata = { title: "Editar Serviço — ABIPTOM Core" };
 
 export default async function EditServicePage({
   params,

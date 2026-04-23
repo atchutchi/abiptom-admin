@@ -8,7 +8,7 @@ import { ChevronLeft } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { SalaryNewPeriodForm } from "@/components/forms/SalaryNewPeriodForm";
 
-export const metadata = { title: "Novo Período Salarial — ABIPTOM Admin" };
+export const metadata = { title: "Novo Período Salarial — ABIPTOM Core" };
 
 export default async function NewSalaryPeriodPage() {
   const { user, dbUser } = await getCurrentUser();

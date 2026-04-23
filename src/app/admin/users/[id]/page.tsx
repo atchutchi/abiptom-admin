@@ -13,7 +13,7 @@ import { DeactivateUserButton } from "@/components/forms/DeactivateUserButton";
 import { DeleteUserPermanentlyButton } from "@/components/forms/DeleteUserPermanentlyButton";
 import { getCurrentUser } from "@/lib/auth/actions";
 
-export const metadata = { title: "Editar utilizador — ABIPTOM Admin" };
+export const metadata = { title: "Editar utilizador — ABIPTOM Core" };
 
 interface Props {
   params: Promise<{ id: string }>;

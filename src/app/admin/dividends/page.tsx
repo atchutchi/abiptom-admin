@@ -20,7 +20,7 @@ const STATE_COLORS: Record<string, string> = {
   anulado: "bg-red-100 text-red-700",
 };
 
-export const metadata = { title: "Dividendos — ABIPTOM Admin" };
+export const metadata = { title: "Dividendos — ABIPTOM Core" };
 
 export default async function DividendsPage() {
   const periods = await listDividendPeriods();
