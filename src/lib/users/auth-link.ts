@@ -3,10 +3,11 @@
 import { eq, sql } from "drizzle-orm";
 import { dbAdmin } from "@/lib/db";
 import { users, type User } from "@/lib/db/schema";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type MinimalInternalUser = Pick<
   User,
-  "id" | "authUserId" | "email" | "activo" | "mfaEnabled"
+  "id" | "authUserId" | "email" | "role" | "activo" | "mfaEnabled"
 >;
 
 type AuthLinkSnapshot = {
@@ -81,7 +82,7 @@ export async function repairInternalUserFromAuth(args: {
   });
 
   if (directMatch) {
-    return directMatch;
+    return (await repairAuthLinkForInternalUser(directMatch)) ?? directMatch;
   }
 
   if (!args.email) {
@@ -154,4 +155,21 @@ export async function repairAuthLinkForInternalUser(
     .returning();
 
   return updated;
+}
+
+export async function syncAuthMetadataForDbUser(
+  dbUser: Pick<User, "authUserId" | "role" | "activo" | "mfaEnabled">,
+) {
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.updateUserById(dbUser.authUserId, {
+    user_metadata: {
+      role: dbUser.role,
+      active: dbUser.activo,
+      mfa_enabled: dbUser.mfaEnabled,
+    },
+  });
+
+  if (error) {
+    throw new Error(error.message ?? "Erro ao sincronizar metadata Auth.");
+  }
 }

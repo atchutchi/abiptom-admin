@@ -48,6 +48,24 @@ export function LoginForm() {
     searchParams?.get("error") ?? null
   );
 
+  async function resolvePostLoginRedirect(fallbackRole: UserRole) {
+    const query = nextPath ? `?next=${encodeURIComponent(nextPath)}` : "";
+    const response = await fetch(`/api/auth/post-login${query}`, {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(
+        body?.error ??
+          "Sessão iniciada, mas a conta não está ligada à aplicação."
+      );
+    }
+
+    const body = (await response.json()) as { redirectTo?: string };
+    return body.redirectTo ?? getPostLoginRedirectPath(fallbackRole, nextPath);
+  }
+
   async function handleCredentials(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -87,9 +105,15 @@ export function LoginForm() {
           data: { user },
         } = await supabase.auth.getUser();
         const role = (user?.user_metadata?.role ?? "staff") as UserRole;
-        router.push(getPostLoginRedirectPath(role, nextPath));
+        router.push(await resolvePostLoginRedirect(role));
         router.refresh();
       }
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Não foi possível concluir o início de sessão."
+      );
     } finally {
       setLoading(false);
     }
@@ -116,8 +140,14 @@ export function LoginForm() {
         data: { user },
       } = await supabase.auth.getUser();
       const role = (user?.user_metadata?.role ?? "staff") as UserRole;
-      router.push(getPostLoginRedirectPath(role, nextPath));
+      router.push(await resolvePostLoginRedirect(role));
       router.refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Não foi possível concluir o início de sessão."
+      );
     } finally {
       setLoading(false);
     }

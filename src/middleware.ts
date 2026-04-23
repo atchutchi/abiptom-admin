@@ -20,7 +20,7 @@ export async function middleware(request: NextRequest) {
     return await (await import("@/lib/supabase/middleware")).updateSession(request).then(({ supabaseResponse }) => supabaseResponse);
   }
 
-  const { supabaseResponse, user } = await updateSession(request);
+  const { supabaseResponse, supabase, user } = await updateSession(request);
 
   const isProtected = AUTH_REQUIRED_PREFIXES.some((p) =>
     pathname.startsWith(p)
@@ -35,8 +35,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const role = (user.user_metadata?.role ?? "staff") as UserRole;
-  const isActive = user.user_metadata?.active !== false;
+  const { data: dbUser } = await supabase
+    .from("users")
+    .select("role, activo, mfa_enabled")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+
+  const role = ((dbUser?.role as UserRole | undefined) ??
+    user.user_metadata?.role ??
+    "staff") as UserRole;
+  const isActive = dbUser?.activo ?? (user.user_metadata?.active !== false);
+  const mfaEnabled =
+    dbUser?.mfa_enabled === true || user.user_metadata?.mfa_enabled === true;
 
   // Sem papel → login
   if (!role || !isActive) {
@@ -47,7 +57,7 @@ export async function middleware(request: NextRequest) {
   // Verifica user_metadata.mfa_enabled (marcado após verificação TOTP bem-sucedida)
   if (
     (role === "ca" || role === "dg") &&
-    user.user_metadata?.mfa_enabled !== true &&
+    !mfaEnabled &&
     !pathname.startsWith("/setup-mfa")
   ) {
     return NextResponse.redirect(new URL("/setup-mfa", request.url));

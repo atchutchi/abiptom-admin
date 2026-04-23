@@ -5,7 +5,10 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getDefaultRoute } from "./rbac";
 import type { UserRole } from "@/lib/db/schema";
-import { repairInternalUserFromAuth } from "@/lib/users/auth-link";
+import {
+  repairInternalUserFromAuth,
+  syncAuthMetadataForDbUser,
+} from "@/lib/users/auth-link";
 
 export async function login(formData: FormData) {
   const supabase = await createClient();
@@ -25,7 +28,19 @@ export async function login(formData: FormData) {
 
   if (!user) return { error: "Erro de autenticação." };
 
-  const role = (user.user_metadata?.role ?? "staff") as UserRole;
+  const dbUser = await repairInternalUserFromAuth({
+    authUserId: user.id,
+    email: user.email,
+  });
+  if (!dbUser) return { error: "Utilizador não encontrado na aplicação." };
+
+  try {
+    await syncAuthMetadataForDbUser(dbUser);
+  } catch (syncError) {
+    console.error("Falha ao sincronizar metadata Auth no login", syncError);
+  }
+
+  const role = dbUser.role as UserRole;
 
   revalidatePath("/", "layout");
   redirect(getDefaultRoute(role));
