@@ -262,7 +262,7 @@ export function SalaryNewPeriodForm({
                         type="number"
                         min="0"
                         step="1"
-                        placeholder="Base do projecto XOF"
+                        placeholder="Valor recebido antes despesas"
                         value={entry.valorLiquido}
                         onChange={(event) => setValorLiquido(project.id, event.target.value)}
                         className="text-right"

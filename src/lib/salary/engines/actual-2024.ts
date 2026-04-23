@@ -112,10 +112,12 @@ function calculateActual2024V2(
   const pagamentosProjectosPorUser = new Map<string, number>();
 
   for (const project of projects) {
+    const numAux = project.assistants.length;
     const percentagemPf =
-      project.percentagemPf ?? policyDefaults.percentagem_pf;
+      project.percentagemPf ?? resolvePolicyPfPercent(policyDefaults, numAux);
     const percentagemAuxTotal =
-      project.percentagemAuxTotal ?? policyDefaults.percentagem_aux_total;
+      project.percentagemAuxTotal ??
+      resolvePolicyAuxTotalPercent(policyDefaults, numAux);
     const percentagemRubricaGestao =
       project.percentagemRubricaGestao ??
       policyDefaults.percentagem_rubrica_gestao;
@@ -339,6 +341,35 @@ function resolveAssistantShares(
   }
 
   return shares;
+}
+
+function resolvePolicyPfPercent(
+  policyDefaults: CalculateActual2024Input["policyDefaults"],
+  numAux: number,
+) {
+  if (numAux >= 2) {
+    return policyDefaults.percentagem_pf_2aux ?? policyDefaults.percentagem_pf;
+  }
+  if (numAux === 1) {
+    return policyDefaults.percentagem_pf_1aux ?? policyDefaults.percentagem_pf;
+  }
+  return policyDefaults.percentagem_pf_0aux ?? policyDefaults.percentagem_pf;
+}
+
+function resolvePolicyAuxTotalPercent(
+  policyDefaults: CalculateActual2024Input["policyDefaults"],
+  numAux: number,
+) {
+  if (numAux >= 2 && policyDefaults.percentagem_aux_2aux !== undefined) {
+    return policyDefaults.percentagem_aux_2aux * numAux;
+  }
+  if (numAux === 1) {
+    return (
+      policyDefaults.percentagem_aux_1aux ??
+      policyDefaults.percentagem_aux_total
+    );
+  }
+  return policyDefaults.percentagem_aux_total;
 }
 
 type BuildSalaryLineArgs = {

@@ -114,6 +114,11 @@ export interface Actual2024PolicyDefaults {
   percentagem_aux_total: number;
   percentagem_rubrica_gestao: number;
   percentagem_subsidio: number;
+  percentagem_pf_0aux?: number;
+  percentagem_pf_1aux?: number;
+  percentagem_pf_2aux?: number;
+  percentagem_aux_1aux?: number;
+  percentagem_aux_2aux?: number;
 }
 
 export interface ProjectWithAssignmentsInput {

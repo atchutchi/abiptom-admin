@@ -1413,6 +1413,11 @@ function extractActual2024Defaults(
     percentagem_aux_total: policy.percentagens.aux_1aux ?? 0.15,
     percentagem_rubrica_gestao: policy.percentagens.dg ?? 0.05,
     percentagem_subsidio: policy.subsidio.percentagem ?? 0.22,
+    percentagem_pf_0aux: policy.percentagens.pf_0aux ?? 0.3,
+    percentagem_pf_1aux: policy.percentagens.pf_1aux ?? 0.3,
+    percentagem_pf_2aux: policy.percentagens.pf_2aux ?? 0.25,
+    percentagem_aux_1aux: policy.percentagens.aux_1aux ?? 0.15,
+    percentagem_aux_2aux: policy.percentagens.aux_2aux ?? 0.1,
   };
 }
 

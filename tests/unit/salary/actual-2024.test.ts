@@ -6,6 +6,11 @@ const POLICY_DEFAULTS = {
   percentagem_aux_total: 0.15,
   percentagem_rubrica_gestao: 0.05,
   percentagem_subsidio: 0.22,
+  percentagem_pf_0aux: 0.3,
+  percentagem_pf_1aux: 0.3,
+  percentagem_pf_2aux: 0.25,
+  percentagem_aux_1aux: 0.15,
+  percentagem_aux_2aux: 0.1,
 };
 
 type TestUser = {
@@ -237,16 +242,16 @@ describe("actual_2024 — contrato novo do motor", () => {
       subsidioPorPessoa: 13_347,
       numeroElegiveis: 6,
       totalFolhaBruto: 926_082,
-      totalFolhaLiquido: 805_470,
+      totalFolhaLiquido: 803_970,
     });
 
     expect(lineByUser(result, "alisson")).toMatchObject({
-      pagamentosProjectos: 30_000,
+      pagamentosProjectos: 35_000,
       subsidioDinamico: 13_347,
       descontoPercentagem: 0.3,
-      descontoValor: 37_004,
-      totalBrutoCalculado: 123_347,
-      totalLiquidoCalculado: 86_343,
+      descontoValor: 38_504,
+      totalBrutoCalculado: 128_347,
+      totalLiquidoCalculado: 89_843,
     });
 
     expect(lineByUser(result, "sweline")).toMatchObject({
@@ -369,6 +374,39 @@ describe("actual_2024 — contrato novo do motor", () => {
 
     expect(lineByUser(result, "alisson").pagamentosProjectos).toBe(14_000);
     expect(lineByUser(result, "amelissa").pagamentosProjectos).toBe(6_000);
+  });
+
+  it("6b. dois auxiliares sem override usam PF 25% e 10% por auxiliar", () => {
+    const result = calculate({
+      period: { year: 2026, month: 1 },
+      projects: [
+        makeProject("p1", 100_000, {
+          pontoFocalId: "arianna",
+          assistants: [{ userId: "alisson" }, { userId: "amelissa" }],
+        }),
+      ],
+      participants: [
+        makeParticipant("arianna"),
+        makeParticipant("alisson"),
+        makeParticipant("amelissa"),
+      ],
+      expenses: [],
+      users: [
+        makeUser("arianna", 0),
+        makeUser("alisson", 0),
+        makeUser("amelissa", 0),
+      ],
+      policyDefaults: POLICY_DEFAULTS,
+    });
+
+    expect(result.projectBreakdowns[0]).toMatchObject({
+      pagamentoPf: 25_000,
+      pagamentoAuxTotal: 20_000,
+      percentagemPfAplicada: 0.25,
+      percentagemAuxTotalAplicada: 0.2,
+    });
+    expect(lineByUser(result, "alisson").pagamentosProjectos).toBe(10_000);
+    expect(lineByUser(result, "amelissa").pagamentosProjectos).toBe(10_000);
   });
 
   it("7. auxiliares com overrides que não somam 1.0 lançam erro", () => {
