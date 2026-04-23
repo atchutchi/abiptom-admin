@@ -400,6 +400,12 @@ export async function deleteUserPermanently(id: string) {
 }
 
 export async function listUsers() {
+  const { user, dbUser } = await getCurrentUser();
+  if (!user || !dbUser) throw new Error("Não autenticado");
+  if (dbUser.role !== "ca" && dbUser.role !== "dg") {
+    throw new Error("Sem permissão");
+  }
+
   return dbAdmin.query.users.findMany({
     orderBy: (u, { asc }) => [asc(u.nomeCompleto)],
   });

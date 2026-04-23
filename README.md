@@ -1,254 +1,215 @@
 # ABIPTOM Admin
 
+Última actualização: 23 de Abril de 2026.
+
+`abiptom-admin` é o backoffice interno da ABIPTOM SARL para gestão administrativa, financeira e operacional. Centraliza clientes, projectos, facturação, despesas, folha salarial, dividendos, stock, tarefas, relatórios e área pessoal dos colaboradores.
+
+Ambiente público: [https://abiptom-admin.vercel.app](https://abiptom-admin.vercel.app)
+
 ## Visão Geral
 
-`abiptom-admin` é a plataforma interna de gestão administrativa, financeira e operacional da ABIPTOM SARL. A aplicação centraliza autenticação, utilizadores, clientes, projectos, facturação, folha salarial, despesas, dividendos, tarefas, stock e relatórios mensais num único backoffice.
+A plataforma foi desenhada para fechar o ciclo mensal da ABIPTOM com menos erro manual, mais rastreabilidade e melhor controlo de acesso. O foco actual é suportar a operação real da empresa: emitir facturas, registar recebimentos, relacionar projectos e despesas, calcular folha salarial com base nas facturas pagas e produzir relatórios financeiros úteis.
 
-O produto foi desenhado para profissionalizar o fecho mensal da empresa, reduzir dependência de processos dispersos e dar visibilidade operacional e financeira em tempo real. O foco não é apenas gestão interna. É também consistência, rastreabilidade, controlo de risco e capacidade de escalar operação com disciplina.
+**Objectivos principais**
 
-[Ver versão publicada](https://abiptom-admin.vercel.app)
-
-**Proposta de valor**
-- centraliza fluxos críticos de administração, operação e finanças
-- reduz erro manual em facturação, salários, despesas e reporting
-- reforça governação com MFA, RBAC, RLS e audit log
-- prepara a ABIPTOM para operar com mais previsibilidade e mais maturidade interna
+- centralizar operação administrativa e financeira
+- reduzir folhas paralelas e lançamentos manuais duplicados
+- manter histórico auditável de alterações sensíveis
+- proteger dados por papel, sessão e RLS
+- produzir PDFs profissionais com identidade ABIPTOM
+- preparar a empresa para reporting financeiro mais consistente
 
 **Perfis suportados**
-- `ca` para Conselho de Administração
-- `dg` para Director Geral
-- `coord` para coordenação operacional
-- `staff` para colaboradores com acesso apenas aos seus próprios dados
 
-**Módulos principais**
-- painel administrativo com KPIs mensais
-- gestão de utilizadores com RBAC e MFA
-- clientes, contactos, projectos e facturas
-- processamento salarial, recibos e histórico individual
-- despesas, dividendos, tarefas e stock
-- relatório mensal P&L com exportação
-- cron jobs para relatório automático e backup
+| Papel | Responsabilidade |
+| --- | --- |
+| `ca` | Conselho de Administração, acesso total e configuração crítica |
+| `dg` | Direcção Geral, gestão operacional e financeira avançada |
+| `coord` | Coordenação, operação diária de clientes, projectos, facturas, despesas, stock e tarefas |
+| `staff` | Área pessoal, tarefas, projectos e recibos próprios |
 
-> Screenshots capturados no ambiente local com dados de seed.
+## Screenshots
 
 | Login | Painel administrativo |
 | --- | --- |
 | ![Página de login](./public/readme/login.png) | ![Painel administrativo](./public/readme/dashboard.png) |
 
-| Clientes | Relatório mensal |
+| Clientes | Facturas |
 | --- | --- |
-| ![Módulo de clientes](./public/readme/clients.png) | ![Relatório mensal](./public/readme/reports.png) |
+| ![Módulo de clientes](./public/readme/clients.png) | ![Módulo de facturas](./public/readme/invoices.png) |
 
-## Estratégia
+| Relatórios | Stock |
+| --- | --- |
+| ![Relatório mensal](./public/readme/reports.png) | ![Módulo de stock](./public/readme/stock.png) |
 
-### Objectivos do projecto
+## Funcionalidades Implementadas
 
-- concentrar o fluxo mensal da ABIPTOM numa única aplicação interna
-- reduzir dependência de folhas soltas, ficheiros paralelos e processos manuais
-- aplicar fronteiras fortes de segurança entre CA, DG, coordenação e staff
-- produzir artefactos formais, como PDF de facturas e recibos, com consistência visual
-- disponibilizar relatórios operacionais e financeiros exportáveis
-- manter uma base técnica preparada para evoluir com mais automação e validação
+### Autenticação e segurança
 
-## Histórias de Utilizador
+- login com Supabase Auth
+- recuperação de palavra-passe com `/forgot-password`, `/auth/confirm` e `/update-password`
+- MFA obrigatório para `ca` e `dg`
+- middleware com RBAC por rota
+- sincronização entre `auth.users` e `public.users`
+- reparação automática de ligação Auth quando o email existe nas duas camadas
+- perfil pessoal com edição de dados básicos e avatar
+- audit log para operações sensíveis
 
-### Autenticação e controlo de acesso
+### Utilizadores e equipa
 
-Como **CA ou DG** quero **autenticação com MFA e controlo por papel** para **proteger áreas críticas da plataforma**.
+- criação de utilizadores pela aplicação, com conta Supabase Auth e registo interno
+- edição de papel, cargo, salário base, desconto sobre folha e elegibilidade a subsídios dinâmicos
+- desactivação de utilizadores sem apagar histórico
+- eliminação definitiva apenas quando não existem registos dependentes
+- bloqueio de auto-desactivação e auto-eliminação
+- suporte a fotografia/avatar em perfil
 
-#### Critérios de aceitação
-- o login é validado no servidor através de Supabase Auth
-- CA e DG são redireccionados para configuração de MFA quando necessário
-- o middleware bloqueia acesso a rotas fora do papel do utilizador
-- staff e coordenação não conseguem navegar nem consultar áreas administrativas restritas
+### Clientes, contactos e projectos
 
-### Gestão de utilizadores
+- CRUD de clientes e contactos
+- projectos com cliente, serviço, ponto focal, auxiliares, estado, valor previsto e moeda
+- catálogo de serviços configurável
+- dropdown de serviços ajustado para nomes longos
+- percentagens por projecto para PF, auxiliares e rubrica de gestão
+- relação directa entre projecto, facturas e despesas
 
-Como **CA ou DG** quero **criar, editar e desactivar utilizadores** para **controlar a equipa e as permissões internas**.
+### Facturação
 
-#### Critérios de aceitação
-- a criação de utilizadores é feita com cliente admin server-side
-- a actualização sincroniza a tabela `users` e os metadados de auth
-- a desactivação impede acesso futuro sem apagar histórico operacional
-- mutações sensíveis geram registos em `audit_log`
+- facturas em rascunho, proforma, definitiva, paga parcial, paga e anulada
+- numeração automática ao emitir factura
+- ligação opcional da factura ao projecto
+- itens com quantidade, preço unitário, IGV e moeda
+- pagamentos parciais ou totais com data, método, referência e taxa de câmbio
+- edição da data de pagamento quando houve erro operacional
+- PDF de factura com logotipo e cor dourada ABIPTOM `#F5B800`
+- recibo de pagamento em PDF
+- envio de factura por email com anexo PDF
+- exportação mensal de facturas em Excel
 
-### Clientes, contactos e facturação
+### Despesas
 
-Como **DG ou coordenação** quero **gerir clientes, contactos, projectos e facturas** para **acompanhar a operação comercial de ponta a ponta**.
+- despesas por categoria, estado, data, fornecedor, moeda e taxa de câmbio
+- ligação opcional a projecto para despesas directas do projecto
+- ligação opcional a beneficiário para outros benefícios de colaborador
+- regra de consistência: uma despesa não pode estar ligada a projecto e beneficiário ao mesmo tempo
+- anulação de despesas em vez de eliminação física
+- edição e anulação por `ca`, `dg` e `coord`
+- edição da data de pagamento
+- exclusão de despesas anuladas nos relatórios e cálculos
 
-#### Critérios de aceitação
-- o sistema suporta CRUD de clientes, contactos e projectos
-- facturas podem evoluir entre `rascunho`, `proforma`, `definitiva`, `paga_parcial`, `paga` e `anulada`
-- PDFs são gerados server-side e podem ser descarregados a partir da aplicação
-- existe exportação mensal de facturas em Excel
+### Folha salarial
 
-### Folha salarial e RH
+A política activa é `actual_2024`. A política `guia_2026` fica como esqueleto futuro e não deve ser usada ainda em produção.
 
-Como **CA ou DG** quero **processar períodos salariais e emitir recibos** para **fechar a folha com rastreabilidade**.
+Funcionalidades actuais:
 
-#### Critérios de aceitação
-- o sistema suporta políticas salariais e períodos mensais
-- cada período gera linhas salariais e pagamentos por projecto
-- recibos individuais podem ser consultados em PDF
-- o staff vê apenas o seu histórico e os seus recibos
+- criação de período mensal
+- snapshot de projectos do período em `salary_period_projects`
+- importação de facturas pagas ligadas a projectos
+- cálculo a partir de facturas pagas, projectos, auxiliares, despesas directas e participantes
+- participantes editáveis por período
+- elegibilidade mensal aos subsídios dinâmicos
+- escolha livre do beneficiário da rubrica de gestão
+- descontos percentuais por colaborador
+- outros benefícios vindos de despesas com beneficiário
+- anulação de aprovação para corrigir período confirmado
+- eliminação de períodos enquanto ainda estão em `aberto` ou `calculado`
+- recibos individuais em PDF com branding ABIPTOM
+- valores XOF normalizados como inteiros para evitar diferenças como `19 999,99`
 
-### Área pessoal do colaborador
+Regras operacionais da política `actual_2024`:
 
-Como **staff** quero **consultar os meus projectos, salário e tarefas** para **acompanhar o meu trabalho sem depender da administração**.
+- projecto com 1 auxiliar: PF recebe 30%, auxiliares recebem 15% no total, gestão recebe 5%
+- projecto com 2 ou mais auxiliares: PF recebe 25%, auxiliares recebem 20% no total, gestão recebe 5%
+- sem PF ou sem auxiliares, a parcela não atribuída fica no bolo da empresa
+- despesas ligadas ao projecto reduzem a base antes da distribuição salarial do projecto
+- despesas com beneficiário entram como outros benefícios da pessoa
+- subsídios dinâmicos usam 22% do saldo base e são divididos apenas pelos participantes elegíveis do mês
 
-#### Critérios de aceitação
-- existe dashboard pessoal com visão resumida do colaborador
-- o colaborador vê o histórico salarial e as alocações por projecto
-- o colaborador vê apenas tarefas que lhe pertencem
-- o acesso é protegido por RLS e não depende apenas de checks na UI
+### Dividendos
 
-### Despesas, dividendos, stock e tarefas
+- períodos de dividendos por ano e trimestre
+- linhas individuais por sócio
+- pagamento de dividendos com estado e data
+- integração no relatório P&L
 
-Como **equipa administrativa** quero **registar operação corrente e distribuição financeira** para **ter controlo do negócio num único sítio**.
+### Stock e tarefas
 
-#### Critérios de aceitação
-- despesas podem ser registadas e classificadas por categoria
-- dividendos podem ser processados e acompanhados por período
-- stock suporta itens e movimentos de entrada, saída e ajuste
-- tarefas podem ser atribuídas, acompanhadas e concluídas por estado
+- itens de stock com movimentos de entrada, saída e ajuste
+- tarefas com responsável, estado, prioridade e contexto operacional
+- área staff para tarefas próprias
 
-### Relatórios e operação contínua
+### Relatórios
 
-Como **CA ou DG** quero **relatórios mensais e backups automáticos** para **ter visibilidade financeira e continuidade operacional**.
+- P&L mensal e trimestral
+- acumulado trimestral por mês
+- receitas facturadas e recebidas
+- despesas por categoria
+- folha salarial bruta e líquida
+- dividendos pagos
+- cashflow e margem
+- exportação PDF com cor e identidade ABIPTOM
+- cron mensal para geração automática de relatório
 
-#### Critérios de aceitação
-- o relatório mensal P&L pode ser gerado sob demanda e por cron
-- os cron jobs exigem `CRON_SECRET` em produção
-- os backups são enviados para bucket privado no Supabase Storage
-- a aplicação continua a gerar backup mesmo sem `pg_dump`, usando fallback SQL server-side
+### Backups e operação contínua
 
-## Estrutura da Solução
+- cron diário de backup
+- protecção por `CRON_SECRET`
+- upload para bucket privado Supabase Storage
+- fallback SQL quando `pg_dump` não está disponível no runtime
 
-### Arquitectura da aplicação
+## Fluxo Financeiro Suportado
+
+```mermaid
+flowchart TD
+    A["Cliente"] --> B["Projecto"]
+    B --> C["Factura"]
+    C --> D["Pagamento recebido"]
+    B --> E["Despesas directas do projecto"]
+    D --> F["Folha salarial"]
+    E --> F
+    F --> G["Pagamentos PF, auxiliares e gestão"]
+    F --> H["Subsídios dinâmicos"]
+    F --> I["Outros benefícios"]
+    F --> J["Lucro operacional"]
+    J --> K["Dividendos"]
+```
+
+A folha salarial deve usar o valor bruto pago pelo cliente como base do projecto. Se a despesa directa já foi registada e ligada ao projecto, não se deve introduzir manualmente o valor líquido. O motor subtrai essas despesas automaticamente no cálculo.
+
+## Arquitectura
 
 ```mermaid
 flowchart LR
     U["Utilizadores internos"] --> N["Next.js 15 App Router"]
     N --> A["Supabase Auth"]
-    N --> D["Postgres 15 + Drizzle ORM"]
+    N --> D["Supabase Postgres + Drizzle"]
     N --> S["Supabase Storage"]
-    N --> R["Resend"]
-    C["Vercel Cron"] --> N
-    D --> X["RLS + Audit Log"]
-    S --> Y["PDFs, comprovativos e backups"]
+    N --> E["Resend ou SMTP do Supabase Auth"]
+    V["Vercel Cron"] --> N
+    D --> R["RLS + Audit Log"]
+    S --> P["Avatares, comprovativos e backups"]
 ```
-
-### Esquema de dados
-
-```mermaid
-erDiagram
-    USERS ||--o{ PROJECTS : "ponto_focal"
-    USERS ||--o{ PROJECT_ASSISTANTS : "participa"
-    USERS ||--o{ SALARY_LINES : "recebe"
-    USERS ||--o{ TASKS : "executa"
-    USERS ||--o{ REPORTS : "gera"
-
-    CLIENTS ||--o{ CONTACTS : "tem"
-    CLIENTS ||--o{ PROJECTS : "contrata"
-    CLIENTS ||--o{ INVOICES : "factura"
-
-    PROJECTS ||--o{ PROJECT_ASSISTANTS : "inclui"
-    PROJECTS ||--o{ INVOICES : "origina"
-    PROJECTS ||--o{ PROJECT_PAYMENTS : "distribui"
-    PROJECTS ||--o{ TASKS : "contextualiza"
-
-    INVOICES ||--o{ INVOICE_ITEMS : "contém"
-    INVOICES ||--o{ INVOICE_PAYMENTS : "recebe"
-
-    SALARY_POLICIES ||--o{ SALARY_PERIODS : "rege"
-    SALARY_PERIODS ||--o{ SALARY_LINES : "gera"
-    SALARY_PERIODS ||--o{ PROJECT_PAYMENTS : "aloca"
-
-    STOCK_ITEMS ||--o{ STOCK_MOVEMENTS : "movimenta"
-```
-
-### Domínios principais
-
-<details>
-<summary>Identidade e acessos</summary>
-
-- `users` liga o utilizador aplicacional a `auth.users`
-- o papel é usado no middleware para navegação e na base de dados para RLS
-- `audit_log` regista mutações sensíveis e permite rastreabilidade
-- `setup-mfa` cobre o fluxo de MFA para perfis críticos
-
-</details>
-
-<details>
-<summary>Clientes, projectos e facturação</summary>
-
-- `clients` e `contacts` mantêm a base comercial
-- `projects` e `project_assistants` modelam responsabilidade e equipa operacional
-- `invoices`, `invoice_items` e `invoice_payments` cobrem emissão, detalhe e recebimentos
-- PDFs de factura e exportação Excel são gerados no servidor
-
-</details>
-
-<details>
-<summary>Folha salarial e RH</summary>
-
-- `salary_policies` define a política em vigor por período
-- `salary_periods`, `salary_lines` e `project_payments` suportam cálculo, validação e pagamento
-- recibos em PDF podem ser consultados pela administração e pelo próprio colaborador
-- há páginas staff para dashboard, projectos, tarefas e histórico salarial
-
-</details>
-
-<details>
-<summary>Operação e reporting</summary>
-
-- `expenses`, `dividend_periods` e `dividend_lines` suportam controlo financeiro complementar
-- `tasks` permite organização operacional simples por estado, prioridade e responsável
-- `stock_items` e `stock_movements` suportam controlo básico de inventário
-- `reports` guarda relatórios consolidados e metadados de geração
-
-</details>
-
-## Funcionalidades implementadas
-
-- autenticação com Supabase e controlo de acesso por papel
-- MFA obrigatório para CA e DG
-- CRUD de utilizadores, clientes, projectos, despesas, tarefas e stock
-- facturas com PDF, pagamentos e exportação mensal
-- folha salarial com políticas, períodos e recibos PDF
-- dividendos por período e linhas individuais
-- área pessoal para staff com dashboard, tarefas, projectos e histórico salarial
-- relatório mensal P&L com exportação PDF
-- cron mensal para geração de relatório e cron diário para backup
-
-## Segurança
-
-- autenticação verificada server-side em rotas e server actions
-- Row Level Security activa nas áreas sensíveis, incluindo `tasks`, `reports`, `stock_items` e `stock_movements`
-- uso de `SUPABASE_SERVICE_ROLE_KEY` apenas em contexto server-side estritamente necessário
-- `CRON_SECRET` para proteger invocações de cron em produção
-- bucket de backups privado no Supabase Storage
-- MFA obrigatório para perfis de risco mais elevado
-- isolamento de dados do staff validado por testes E2E
 
 ## Stack Tecnológica
 
 | Camada | Tecnologia |
 | --- | --- |
 | Frontend | Next.js 15, App Router, React 19, TypeScript |
-| UI | Tailwind CSS, componentes utilitários locais, Lucide |
-| Base de dados | Supabase Postgres 15 |
-| ORM | Drizzle ORM + migrations versionadas |
+| UI | Tailwind CSS, componentes locais, Lucide |
+| Base de dados | Supabase Postgres |
+| ORM | Drizzle ORM |
 | Auth | Supabase Auth |
 | Storage | Supabase Storage |
-| Email | Resend |
+| Email aplicacional | Resend |
+| Email Auth | SMTP configurado no Supabase Auth, por exemplo cPanel ou Resend SMTP |
 | PDF | `@react-pdf/renderer` |
 | Exportação | `xlsx` |
 | Testes unitários | Vitest |
 | Testes E2E | Playwright |
 | Deploy | Vercel |
 
-## Estrutura do projecto
+## Estrutura do Projecto
 
 ```text
 abiptom-admin/
@@ -267,241 +228,145 @@ abiptom-admin/
 │       ├── backup/
 │       ├── cron/
 │       ├── db/
+│       ├── email/
 │       ├── pdf/
 │       ├── reports/
 │       ├── salary/
 │       ├── stock/
 │       └── tasks/
 ├── tests/
-│   └── e2e/
 ├── drizzle.config.ts
 ├── playwright.config.ts
 ├── vercel.json
 └── README.md
 ```
 
-## Configuração local
+## Configuração Local
 
 ### Pré-requisitos
 
 - Node.js 20+
 - npm 10+
 - projecto Supabase configurado
-- bucket privado de backups criado no Supabase Storage, por exemplo `backups`
+- bucket privado para backups, por exemplo `backups`
+- SMTP configurado no Supabase Auth para recuperação de palavra-passe
 
 ### Instalação
 
 ```bash
 npm install
+npm run dev
 ```
+
+A aplicação local fica disponível em `http://localhost:3000` ou noutra porta livre escolhida pelo Next.js.
 
 ### Variáveis de ambiente
 
-Cria um ficheiro `.env.local` com as variáveis necessárias para o teu ambiente.
+Criar `.env.local` com as variáveis do ambiente.
 
 | Variável | Obrigatória | Descrição |
 | --- | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Sim | URL pública do projecto Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Sim | Chave anónima usada pelo cliente web |
 | `SUPABASE_SERVICE_ROLE_KEY` | Sim | Chave administrativa usada apenas server-side |
-| `DATABASE_URL` | Sim | Ligação Postgres de runtime. Em Vercel deve ser a string Supavisor transaction mode `*.pooler.supabase.com:6543` |
-| `DATABASE_DIRECT_URL` | Opcional | Ligação directa IPv6 da Supabase, útil para scripts locais, migrations e acessos directos |
-| `RESEND_API_KEY` | Sim | Chave da API Resend para envio de email |
-| `RESEND_FROM` | Sim | Endereço remetente usado nos emails |
-| `CRON_SECRET` | Sim em produção | Segredo usado para autenticar cron jobs |
-| `BACKUP_SUPABASE_BUCKET` | Sim para backup remoto | Nome do bucket privado de backup, por exemplo `backups` |
-| `E2E_CA_EMAIL` | Opcional | Conta CA usada pela suite E2E |
-| `E2E_CA_PASSWORD` | Opcional | Password da conta CA E2E |
-| `E2E_DG_EMAIL` | Opcional | Conta DG usada pela suite E2E |
-| `E2E_DG_PASSWORD` | Opcional | Password da conta DG E2E |
-| `E2E_STAFF_EMAIL` | Opcional | Conta staff usada pela suite E2E |
-| `E2E_STAFF_PASSWORD` | Opcional | Password da conta staff E2E |
+| `DATABASE_URL` | Sim | Ligação Postgres de runtime. Em Vercel deve ser Supavisor transaction mode `*.pooler.supabase.com:6543` |
+| `DATABASE_DIRECT_URL` | Opcional | Ligação directa para scripts, migrations e ferramentas locais |
+| `NEXT_PUBLIC_SITE_URL` | Recomendado | URL canónico da app, por exemplo `https://abiptom-admin.vercel.app` |
+| `RESEND_API_KEY` | Sim para email de facturas | Chave da API Resend |
+| `RESEND_FROM` | Sim para email de facturas | Remetente, por exemplo `ABIPTOM SARL <info@abiptom.gw>` |
+| `CRON_SECRET` | Sim em produção | Segredo para cron jobs |
+| `BACKUP_SUPABASE_BUCKET` | Sim para backup remoto | Bucket privado para backups |
+| `E2E_CA_EMAIL` | Opcional | Conta CA para Playwright |
+| `E2E_CA_PASSWORD` | Opcional | Password da conta CA |
+| `E2E_DG_EMAIL` | Opcional | Conta DG para Playwright |
+| `E2E_DG_PASSWORD` | Opcional | Password da conta DG |
+| `E2E_STAFF_EMAIL` | Opcional | Conta staff para Playwright |
+| `E2E_STAFF_PASSWORD` | Opcional | Password da conta staff |
 | `PLAYWRIGHT_BASE_URL` | Opcional | URL base alternativa para Playwright |
 
-### Base de dados
+## Base de Dados
 
-Aplicar migrations:
+As migrations estão em `src/lib/db/migrations/`.
+
+Migrations relevantes recentes:
+
+| Migration | Objectivo |
+| --- | --- |
+| `0006_salary_engine_fixes.sql` | descontos na folha, participantes do período, outros benefícios, rubrica de gestão e novos campos salariais |
+| `0007_add_salary_period_projects.sql` | snapshot dos projectos seleccionados no período salarial |
+| `0008_add_expense_project_link.sql` | relação directa entre despesas e projectos |
+| `0009_round_xof_monetary_values.sql` | normalização de valores XOF para inteiros |
+
+Comandos úteis:
 
 ```bash
 npm run db:migrate
-```
-
-Seed opcional para ambiente de desenvolvimento:
-
-```bash
 npm run db:seed
 ```
 
-### Desenvolvimento
+Em produção, quando uma migration SQL é aplicada manualmente no Supabase SQL Editor, confirmar depois com build local e redeploy.
 
-```bash
-npm run dev
-```
-
-Aplicação disponível em `http://localhost:3000`.
-
-### Nota importante para Vercel e Supabase
-
-Se estiveres a usar Supabase, não coloques em produção a connection string directa `db.<project-ref>.supabase.co:5432` como `DATABASE_URL` no Vercel. Essa ligação depende de IPv6 e a própria documentação da Supabase lista a Vercel como ambiente IPv4-only.
-
-Configuração recomendada:
-- `DATABASE_URL` no Vercel: Supavisor transaction mode `*.pooler.supabase.com:6543`
-- `DATABASE_DIRECT_URL` local ou opcional: ligação directa `db.<project-ref>.supabase.co:5432`
-
-Passos:
-1. abrir o projecto na Supabase
-2. clicar em `Connect`
-3. copiar a connection string `Supavisor transaction mode`
-4. substituir `DATABASE_URL` no Vercel por essa string
-5. fazer redeploy
-
-## Scripts úteis
+## Scripts Úteis
 
 | Script | Descrição |
 | --- | --- |
-| `npm run dev` | arranca o servidor de desenvolvimento |
+| `npm run dev` | arranca o ambiente local |
 | `npm run build` | gera build de produção |
-| `npm run start` | serve a build de produção |
+| `npm run start` | serve a build |
 | `npm run lint` | executa ESLint |
+| `npm run test` | corre Vitest |
+| `npm run test:e2e` | corre Playwright |
 | `npm run db:generate` | gera migrations Drizzle |
 | `npm run db:migrate` | aplica migrations |
-| `npm run db:push` | sincroniza schema directamente com a base de dados |
-| `npm run db:seed` | corre seed inicial |
-| `npm run test` | corre Vitest |
-| `npm run test:e2e` | corre a suite Playwright |
+| `npm run db:push` | sincroniza schema directamente |
+| `npm run db:seed` | corre seed de desenvolvimento |
 
-## Testes e qualidade
+## Qualidade e Validação
 
-### Verificações recomendadas
+Antes de deploy:
 
 ```bash
 npm run lint
 npx tsc --noEmit
 npm run test
+npm run build
+```
+
+Playwright:
+
+```bash
 npm run test:e2e
 ```
 
-### Suite E2E
+A suite E2E usa contas configuráveis por variáveis `E2E_*`. Deve ser executada contra ambiente controlado, porque pode criar dados de teste.
 
-A suite Playwright faz bootstrap automático de utilizadores de teste no Supabase antes de arrancar. O `globalSetup` sincroniza as contas E2E em `auth.users` e na tabela `public.users`, para que os fluxos críticos sejam reproduzíveis.
+## Deploy em Vercel
 
-Fluxos actualmente cobertos:
-- login e erro de autenticação
-- login de staff sem MFA
-- RBAC entre staff e área admin
-- logout
-- acesso DG à gestão de utilizadores
-- criação de utilizador staff
-- isolamento de dados via API
+Checklist mínimo:
 
-## Cron jobs e operação
+- configurar variáveis de ambiente no Vercel
+- usar `DATABASE_URL` com Supavisor transaction mode
+- não usar a ligação directa `db.<project-ref>.supabase.co:5432` como runtime em Vercel
+- manter `SUPABASE_SERVICE_ROLE_KEY` apenas no servidor
+- aplicar migrations no Supabase antes do redeploy
+- configurar Supabase Auth Site URL e Redirect URLs
+- configurar SMTP do Supabase Auth
+- criar bucket privado de backups
+- definir `CRON_SECRET`
+- correr `npm run build` localmente antes do push quando houver alteração estrutural
 
-### Relatório mensal
-- rota: `/api/cron/monthly-report`
-- autenticação: `Authorization: Bearer <CRON_SECRET>` em produção
-- agendamento actual: dia 5 de cada mês às 06:00, definido em `vercel.json`
+## Supabase Auth
 
-### Backup diário
-- rota: `/api/cron/backup`
-- autenticação: `Authorization: Bearer <CRON_SECRET>` em produção
-- agendamento actual: diariamente às 03:00, definido em `vercel.json`
-- destino: bucket privado configurado em `BACKUP_SUPABASE_BUCKET`
-- fallback: se o runtime não tiver `pg_dump`, a aplicação gera um dump SQL server-side para manter o backup operacional
+Configuração recomendada:
 
-## Deploy
+- `Site URL`: `https://abiptom-admin.vercel.app`
+- Redirect URLs:
+  - `https://abiptom-admin.vercel.app/**`
+  - `https://*-abiptom-6351s-projects.vercel.app/**`
+  - `http://localhost:3000/**`
+  - `http://localhost:3001/**`
 
-O projecto está preparado para deploy em Vercel com Supabase remoto.
-
-Ambiente público actual:
-- [https://abiptom-admin.vercel.app](https://abiptom-admin.vercel.app)
-
-### Checklist mínimo de produção
-
-- configurar todas as variáveis de ambiente no Vercel
-- garantir que `SUPABASE_SERVICE_ROLE_KEY` existe apenas no servidor
-- configurar `DATABASE_URL` com a string Supavisor transaction mode da Supabase
-- manter `DATABASE_DIRECT_URL` apenas para uso local ou ferramentas que suportem IPv6
-- criar bucket privado de backups no Supabase Storage
-- definir `BACKUP_SUPABASE_BUCKET` com o nome exacto do bucket
-- definir `CRON_SECRET` com um segredo forte e único
-- validar rotas de cron após o deploy
-- confirmar que RLS está activa nas tabelas sensíveis
-
-### Troubleshooting de produção
-
-#### Erro `getaddrinfo ENOTFOUND db.<project-ref>.supabase.co`
-
-Isto indica quase sempre que a aplicação em produção está a tentar usar a ligação directa IPv6 da Supabase a partir de um ambiente que não suporta esse caminho de rede.
-
-Correcção:
-- trocar `DATABASE_URL` no Vercel para a connection string Supavisor transaction mode
-- voltar a fazer deploy
-
-Referência oficial da Supabase:
-- a ligação directa da base de dados usa IPv6
-- a Vercel é listada como ambiente IPv4-only
-- para estes casos deve usar-se o pooler `*.pooler.supabase.com`
-
-#### Utilizador existe no Supabase Auth mas não aparece em `/admin/users`
-
-Sintoma típico:
-- o email já existe no painel Auth
-- a app mostra `A user with this email address has already been registered`
-- o login aceita a password mas o utilizador não entra correctamente na app
-
-Causa:
-- a aplicação depende de duas camadas sincronizadas:
-  - `auth.users` no Supabase Auth
-  - `public.users` na base de dados da aplicação
-- criar o utilizador manualmente apenas no painel Auth deixa a conta incompleta
-
-Forma correcta de operar:
-- criar utilizadores em `/admin/users/new`
-- deixar a app criar a conta Auth e a linha correspondente em `public.users`
-- no primeiro acesso, o utilizador define a password via `/forgot-password`
-
-Se já foi criado manualmente no Auth:
-- apagar a conta manual em `Authentication > Users`
-- verificar se não ficou linha órfã em `public.users`
-- recriar o utilizador a partir da app
-
-#### `/forgot-password` envia erro ao pedir link de recuperação
-
-Sintoma típico:
-- a conta existe e consegue gerar link de recovery via admin API
-- o ecrã de recuperação mostra erro de envio
-
-Causa mais comum:
-- o SMTP do `Supabase Auth` não está configurado
-- ou o `redirectTo` usado pela app não está incluído nos `Redirect URLs`
-
-Checklist de correcção:
-- em `Authentication > URL Configuration`
-  - `Site URL = https://abiptom-admin.vercel.app`
-  - adicionar:
-    - `https://abiptom-admin.vercel.app/**`
-    - `https://*-abiptom-6351s-projects.vercel.app/**`
-    - `http://localhost:3000/**`
-    - `http://localhost:3001/**`
-- em `Authentication > SMTP Settings`
-  - activar `Custom SMTP`
-  - configurar o servidor real de envio, por exemplo cPanel SMTP ou Resend SMTP
-
-Nota:
-- `RESEND_FROM` na app não resolve este fluxo
-- recuperação de password usa o SMTP configurado dentro do `Supabase Auth`
-
-#### O email chega mas o link acaba em `/login?error=auth-confirm`
-
-Sintoma típico:
-- o email é entregue correctamente
-- ao clicar no botão, a app volta para login com erro `auth-confirm`
-
-Causa:
-- o template `Reset Password` não está a enviar o utilizador para o callback correcto da app
-- a página `/auth/confirm` precisa de receber `token_hash` e `type=recovery`
-
-Template recomendado para o botão de reset:
+Template recomendado para reset de palavra-passe:
 
 ```html
 <a href="https://abiptom-admin.vercel.app/auth/confirm?next=/update-password&token_hash={{ .TokenHash }}&type=recovery">
@@ -509,21 +374,279 @@ Template recomendado para o botão de reset:
 </a>
 ```
 
-Resultado esperado:
-- o email abre `/auth/confirm`
-- a app valida o token
-- o utilizador é redireccionado para `/update-password`
-- os campos `Nova palavra-passe` e `Confirmar palavra-passe` aparecem na app, não no email
+## Troubleshooting
 
-## Estado do produto
+### Build falha na Vercel com `getaddrinfo ENOTFOUND db.<project-ref>.supabase.co`
 
-O núcleo administrativo da aplicação já cobre os fluxos principais de operação interna da ABIPTOM:
-- segurança base com MFA, RBAC e RLS
-- facturação e clientes
-- projectos e RH
-- despesas, dividendos, stock e tarefas
-- relatórios mensais e backups
-- portal staff para auto-serviço
+**Problema**
+
+A aplicação em produção estava a usar a connection string directa da Supabase como `DATABASE_URL`. Esse host depende de IPv6 e a Vercel é um ambiente IPv4-only neste cenário.
+
+**Solução**
+
+- abrir Supabase Dashboard
+- ir a `Connect`
+- copiar a string `Supavisor transaction mode`
+- configurar essa string como `DATABASE_URL` no Vercel
+- fazer redeploy
+
+A aplicação também valida isto em runtime e devolve erro claro quando detecta ligação directa da Supabase dentro da Vercel.
+
+### README pode subir para o repositório
+
+**Problema**
+
+O README estava desactualizado face ao estado real da aplicação.
+
+**Solução**
+
+Actualizar este ficheiro com funcionalidades, deploy, migrations, troubleshooting e estado actual do produto.
+
+### Utilizador criado no Supabase Auth não aparece em `/admin/users`
+
+**Problema**
+
+Criar a conta manualmente em Supabase Auth cria apenas `auth.users`. A app também precisa de uma linha em `public.users` com role, estado, salário, elegibilidade e ligação `auth_user_id`.
+
+**Solução**
+
+Criar utilizadores sempre em `/admin/users/new`. A app cria a conta Auth e o registo interno de forma sincronizada.
+
+Se a conta já foi criada manualmente:
+
+- apagar a conta manual em Supabase Auth, se for teste
+- ou usar o mecanismo de reparação por email quando a linha interna já existe
+- confirmar que `public.users.auth_user_id` aponta para o ID correcto de `auth.users`
+
+### Erro `A user with this email address has already been registered`
+
+**Problema**
+
+O email ainda existia em Supabase Auth, mesmo que a app não mostrasse o utilizador.
+
+**Solução**
+
+Eliminar a conta órfã no Auth ou reparar a ligação entre `auth.users` e `public.users`. Depois recriar ou editar pela app.
+
+### Login aceita password mas volta ao login ou fica bloqueado
+
+**Problema**
+
+Conta Auth e `public.users` estavam dessincronizadas, ou os metadados `role`, `active` e `mfa_enabled` não reflectiam a linha interna.
+
+**Solução**
+
+- confirmar que o email existe em `public.users`
+- confirmar `auth_user_id`
+- usar a reparação automática da app ao abrir o utilizador
+- garantir que `user_metadata.role`, `user_metadata.active` e `user_metadata.mfa_enabled` estão coerentes
+
+### Caso Emerson: `User not found` ao editar desconto ou desactivar
+
+**Problema**
+
+O registo interno existia, mas a conta Supabase Auth associada estava ausente ou ligada a outro `auth_user_id`.
+
+**Solução**
+
+A app passou a tentar reparar a ligação por email. Se a conta Auth não existir, recriar o utilizador pelo fluxo correcto ou criar a conta Auth correspondente e voltar a abrir a ficha do utilizador.
+
+### Reset de password enviava link para `localhost:3000`
+
+**Problema**
+
+O Supabase Auth usava `Site URL` ou redirect antigo de desenvolvimento.
+
+**Solução**
+
+Configurar `Site URL` e Redirect URLs no Supabase Auth para produção e localhost. Ver secção `Supabase Auth` deste README.
+
+### Email real funciona, mas não aparece formulário de nova password
+
+**Problema**
+
+O template de recovery não apontava para `/auth/confirm` com `token_hash`, `type=recovery` e `next=/update-password`.
+
+**Solução**
+
+Usar o template recomendado neste README. O formulário de nova password aparece na app em `/update-password`.
+
+### `/login?error=auth-confirm` depois de clicar no email
+
+**Problema**
+
+Token de recovery ou redirect inválido.
+
+**Solução**
+
+Confirmar template do Supabase Auth, Redirect URLs e Site URL. Regenerar o link depois da alteração, porque links antigos continuam com configuração antiga.
+
+### SMTP do cPanel versus Resend
+
+**Problema**
+
+Havia dúvida se o email de recuperação devia usar Resend ou cPanel.
+
+**Solução**
+
+São fluxos diferentes:
+
+- recuperação de password usa SMTP configurado dentro do Supabase Auth
+- envio de facturas pela app usa `RESEND_API_KEY` e `RESEND_FROM`
+
+Se já existe mailbox real no cPanel, pode ser usada no SMTP do Supabase Auth. Resend continua útil para emails aplicacionais com anexos.
+
+### `ReferenceError: eq is not defined` em `/admin/salary/new`
+
+**Problema**
+
+Faltava importar `eq` numa página da folha salarial.
+
+**Solução**
+
+Adicionar o import correcto e validar a página com build local.
+
+### Página de folha salarial colada à navegação
+
+**Problema**
+
+Algumas páginas tinham espaçamento inconsistente em relação ao layout principal.
+
+**Solução**
+
+Padronizar containers, padding e largura máxima nas páginas administrativas.
+
+### Sidebar colapsada escondia o logotipo
+
+**Problema**
+
+O estado colapsado mostrava apenas texto parcial e escondia o logo.
+
+**Solução**
+
+Ajustar o comportamento da sidebar para manter uma marca compacta legível.
+
+### Dropdown de serviços cortava nomes longos
+
+**Problema**
+
+O `SelectContent` ficava preso à largura do trigger e os itens longos ficavam ilegíveis.
+
+**Solução**
+
+Ajustar o componente select para usar largura mínima baseada no trigger e permitir expansão quando o conteúdo é maior.
+
+### Facturas PDF estavam verdes em vez de ABIPTOM
+
+**Problema**
+
+A identidade visual dos PDFs não estava alinhada com a marca.
+
+**Solução**
+
+Trocar a cor principal para dourado `#F5B800` e adicionar o logotipo no cabeçalho.
+
+### Valores XOF como `20 000` ficavam `19 999,99`
+
+**Problema**
+
+Alguns cálculos guardavam números decimais para valores XOF, gerando diferenças por arredondamento.
+
+**Solução**
+
+Criar utilitários de normalização XOF e aplicar a migration `0009_round_xof_monetary_values.sql`. XOF deve ser tratado como inteiro.
+
+### Base do projecto na folha salarial gera dúvida
+
+**Problema**
+
+Havia dúvida se a base do projecto deve ser valor bruto recebido ou valor líquido depois de despesas.
+
+**Solução**
+
+Introduzir o valor bruto pago pelo cliente. As despesas directas devem ser registadas em Despesas e ligadas ao projecto. O motor subtrai automaticamente essas despesas.
+
+### Despesas directas e outros benefícios estavam conceptualmente misturados
+
+**Problema**
+
+Nem toda despesa tem o mesmo efeito salarial.
+
+**Solução**
+
+- despesa ligada ao projecto: reduz a base de cálculo do projecto
+- despesa ligada a beneficiário: aparece como outros benefícios do colaborador
+- despesa sem projecto e sem beneficiário: despesa operacional geral
+
+### Período salarial confirmado precisava de correcção
+
+**Problema**
+
+Foi possível aprovar uma folha antes de corrigir percentagens ou dados.
+
+**Solução**
+
+Adicionar acção de anular aprovação, regressando o período para estado editável de revisão. As linhas ficam não pagas para revisão manual quando se recalcula.
+
+### Relatório trimestral não acumulava como esperado
+
+**Problema**
+
+A leitura trimestral estava pouco clara e os filtros não reflectiam bem o período acumulado.
+
+**Solução**
+
+Adicionar P&L trimestral com breakdown mensal, totais acumulados e PDF com branding ABIPTOM.
+
+### `/admin/profile` devolvia 404
+
+**Problema**
+
+O rodapé/sidebar apontava para perfil, mas a rota não existia ou não estava ligada correctamente.
+
+**Solução**
+
+Adicionar rota de perfil para administração e staff, com edição de dados e avatar.
+
+## Auditoria Técnica de 23 de Abril de 2026
+
+### Correcção aplicada nesta auditoria
+
+- `listUsers()` agora valida sessão e papel `ca` ou `dg` dentro da própria server action. Antes dependia principalmente da protecção da página e do middleware. A defesa passou a existir também na fronteira da função.
+
+### Pontos revistos
+
+- rotas de PDF de facturas exigem sessão e papel autorizado
+- exportação mensal de facturas exige `ca` ou `dg`
+- rota de seed bloqueia produção e exige `ca` ou `dg` em desenvolvimento
+- cron jobs exigem `CRON_SECRET` em produção
+- API de utilizadores devolve apenas campos essenciais e exige `ca` ou `dg`
+- páginas staff usam `withAuthenticatedDb` para respeitar claims e RLS
+
+### Riscos residuais e próximos hardenings
+
+- ainda existem server actions com `dbAdmin` directo e RBAC aplicacional. Isto é aceitável no estado actual, mas os fluxos financeiros críticos devem continuar a migrar para helpers explícitos de autorização por função.
+- `listServices(includeInactive)` não valida sessão. O catálogo não é crítico, mas se serviços inactivos forem considerados sensíveis deve receber RBAC.
+- a acção server-side legacy `verifyMfaCode` tem `factorId` vazio e deve ser removida ou corrigida se voltar a ser usada. O fluxo activo de MFA usa componentes cliente.
+- a suite E2E ainda não cobre todos os fluxos novos da folha salarial, especialmente anulação de aprovação, descontos percentuais, relação factura-projecto-despesa e recalculo de períodos antigos.
+- backups devem ser testados com restore real, não apenas geração de ficheiro.
+- qualquer nova API que use `dbAdmin` deve ter teste de acesso negativo por `staff` e `coord` quando aplicável.
+
+## Estado Actual
+
+O produto já cobre o núcleo operacional da ABIPTOM:
+
+- autenticação e perfis
+- clientes e contactos
+- projectos e serviços
+- facturação e pagamentos
+- despesas relacionais
+- folha salarial `actual_2024`
+- recibos e PDFs com marca ABIPTOM
+- relatórios P&L mensal e trimestral
+- dividendos, stock e tarefas
+- portal staff
+- cron jobs e backups
 
 ## Licença
 
