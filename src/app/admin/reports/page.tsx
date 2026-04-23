@@ -100,7 +100,7 @@ export default async function ReportsPage({ searchParams }: PageProps) {
                   : "Relatório mensal (P&L)"}
               </h1>
               <p className="mt-1 text-sm text-gray-500">
-                {periodoLabel} · receitas, despesas, salários, dividendos e cash-flow.
+                {periodoLabel} · receitas, despesas, salários, dividendos e saldo global.
               </p>
             </div>
 
@@ -235,9 +235,13 @@ export default async function ReportsPage({ searchParams }: PageProps) {
             />
             <ResultCard
               icon={Banknote}
-              label="Cash-flow"
-              value={report.resultado.cashflow}
-              hint={`Recebido - Despesas - Líquido - Divid. ${periodo === "trimestral" ? "pagos no período" : "pagos"}`}
+              label={
+                periodo === "trimestral"
+                  ? "Saldo acumulado trimestral"
+                  : "Saldo global do mês"
+              }
+              value={report.resultado.saldoGlobal}
+              hint={`Recebido - Despesas - Folha líquida - Divid. ${periodo === "trimestral" ? "pagos no período" : "pagos"}`}
             />
           </div>
 
@@ -250,7 +254,7 @@ export default async function ReportsPage({ searchParams }: PageProps) {
                 </span>
               </div>
               <div className="overflow-x-auto">
-                <table className="min-w-[820px] w-full text-sm">
+                <table className="min-w-[980px] w-full text-sm">
                   <thead className="bg-gray-950 text-white">
                     <tr>
                       <th className="px-4 py-2 text-left font-medium">Mês</th>
@@ -260,7 +264,8 @@ export default async function ReportsPage({ searchParams }: PageProps) {
                       <th className="px-4 py-2 text-right font-medium">Folha bruta</th>
                       <th className="px-4 py-2 text-right font-medium">Folha líquida</th>
                       <th className="px-4 py-2 text-right font-medium">Dividendos pagos</th>
-                      <th className="px-4 py-2 text-right font-medium">Cash-flow</th>
+                      <th className="px-4 py-2 text-right font-medium">Saldo do mês</th>
+                      <th className="px-4 py-2 text-right font-medium">Saldo acumulado</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -289,10 +294,17 @@ export default async function ReportsPage({ searchParams }: PageProps) {
                         </td>
                         <td
                           className={`px-4 py-3 text-right font-semibold tabular-nums ${
-                            month.cashflow >= 0 ? "text-gray-950" : "text-red-700"
+                            month.saldoGlobal >= 0 ? "text-gray-950" : "text-red-700"
                           }`}
                         >
-                          {formatCurrency(month.cashflow)}
+                          {formatCurrency(month.saldoGlobal)}
+                        </td>
+                        <td
+                          className={`px-4 py-3 text-right font-semibold tabular-nums ${
+                            month.saldoAcumulado >= 0 ? "text-gray-950" : "text-red-700"
+                          }`}
+                        >
+                          {formatCurrency(month.saldoAcumulado)}
                         </td>
                       </tr>
                     ))}
@@ -358,11 +370,20 @@ export default async function ReportsPage({ searchParams }: PageProps) {
               label={`Dividendos pagos ${periodo === "trimestral" ? "no período" : "no mês"}`}
               value={report.dividendos.pagoNoMes}
             />
+            <Row
+              label={
+                periodo === "trimestral"
+                  ? "Saldo acumulado trimestral"
+                  : "Saldo global do mês"
+              }
+              value={report.resultado.saldoGlobal}
+              strong
+            />
           </dl>
           <div className="px-4 py-3 text-xs text-gray-500 border-t bg-gray-50">
             {periodo === "trimestral"
-              ? "Consolidação trimestral agregada por três meses consecutivos."
-              : "Dividendos distribuídos correspondem ao trimestre do mês seleccionado (T1=Mar, T2=Jun, T3=Set, T4=Dez)."}
+              ? "O saldo acumulado soma os saldos globais dos três meses do trimestre."
+              : "Saldo global = recebido - despesas - folha líquida - dividendos pagos. Dividendos distribuídos correspondem ao trimestre do mês seleccionado (T1=Mar, T2=Jun, T3=Set, T4=Dez)."}
           </div>
         </section>
           </div>
@@ -452,13 +473,20 @@ function ResultCard({ icon: Icon, label, value, hint }: ResultCardProps) {
 interface RowProps {
   label: string;
   value: number;
+  strong?: boolean;
 }
 
-function Row({ label, value }: RowProps) {
+function Row({ label, value, strong = false }: RowProps) {
   return (
     <div className="flex items-center justify-between px-4 py-3">
       <dt className="text-gray-600">{label}</dt>
-      <dd className="font-medium tabular-nums">{formatCurrency(value)}</dd>
+      <dd
+        className={`tabular-nums ${
+          strong ? "font-semibold text-gray-950" : "font-medium"
+        }`}
+      >
+        {formatCurrency(value)}
+      </dd>
     </div>
   );
 }

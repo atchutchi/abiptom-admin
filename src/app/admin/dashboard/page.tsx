@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   AlertTriangle,
+  Banknote,
   Briefcase,
   FileText,
   Receipt,
@@ -52,7 +53,8 @@ export default async function DashboardPage() {
   if (!user || !dbUser) redirect("/login");
 
   const stats = await getDashboardStats();
-  const saldoMes = stats.recebidoMes - stats.despesasMes;
+  const saldoMes = stats.saldoGlobalMes;
+  const saldoTrimestre = stats.saldoAcumuladoTrimestre;
 
   return (
     <>
@@ -133,7 +135,7 @@ export default async function DashboardPage() {
             />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             <MiniStat
               icon={TrendingUp}
               label="Facturado no mês"
@@ -149,33 +151,28 @@ export default async function DashboardPage() {
               label="Despesas no mês"
               value={stats.despesasMes}
             />
+            <MiniStat
+              icon={Banknote}
+              label="Dividendos pagos"
+              value={stats.dividendosPagosMes}
+            />
           </div>
 
-          <div
-            className={`rounded-lg border px-5 py-4 flex items-center justify-between ${
-              saldoMes >= 0
-                ? "bg-emerald-50 border-emerald-100"
-                : "bg-red-50 border-red-100"
-            }`}
-          >
-            <div>
-              <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">
-                Saldo do mês (recebido − despesas)
-              </p>
-              <p
-                className={`text-2xl font-bold tabular-nums mt-1 ${
-                  saldoMes >= 0 ? "text-emerald-700" : "text-red-700"
-                }`}
-              >
-                {formatCurrency(saldoMes)}
-              </p>
-            </div>
-            <Link
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <BalanceCard
+              label="Saldo global do mês"
+              value={saldoMes}
+              description="Recebido - despesas - folha líquida - dividendos pagos."
               href="/admin/reports"
-              className="text-sm font-medium text-gray-700 hover:underline"
-            >
-              Ver P&L completo →
-            </Link>
+              linkLabel="Ver P&L mensal"
+            />
+            <BalanceCard
+              label={`Saldo acumulado T${stats.trimestreActual}`}
+              value={saldoTrimestre}
+              description="Acumulado do trimestre actual com a mesma fórmula de caixa."
+              href={`/admin/reports?periodo=trimestral&trimestre=${stats.trimestreActual}&ano=${stats.folhaMes.ano}`}
+              linkLabel="Ver relatório trimestral"
+            />
           </div>
 
           <section className="rounded-lg border bg-white overflow-hidden">
@@ -336,6 +333,54 @@ function MiniStat({ icon: Icon, label, value }: MiniStatProps) {
         <p className="text-lg font-semibold tabular-nums">
           {formatCurrency(value)}
         </p>
+      </div>
+    </div>
+  );
+}
+
+interface BalanceCardProps {
+  label: string;
+  value: number;
+  description: string;
+  href: string;
+  linkLabel: string;
+}
+
+function BalanceCard({
+  label,
+  value,
+  description,
+  href,
+  linkLabel,
+}: BalanceCardProps) {
+  const positive = value >= 0;
+
+  return (
+    <div
+      className={`rounded-lg border px-5 py-4 ${
+        positive ? "bg-[#fff8df] border-[#F5B800]" : "bg-red-50 border-red-100"
+      }`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+            {label}
+          </p>
+          <p
+            className={`text-2xl font-bold tabular-nums mt-1 ${
+              positive ? "text-gray-950" : "text-red-700"
+            }`}
+          >
+            {formatCurrency(value)}
+          </p>
+          <p className="mt-1 text-xs text-gray-600">{description}</p>
+        </div>
+        <Link
+          href={href}
+          className="text-sm font-medium text-gray-800 hover:underline"
+        >
+          {linkLabel} →
+        </Link>
       </div>
     </div>
   );

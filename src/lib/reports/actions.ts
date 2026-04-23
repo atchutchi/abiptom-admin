@@ -58,6 +58,7 @@ export interface ProfitLossReport {
     margemBruta: number;
     margemLiquida: number;
     cashflow: number;
+    saldoGlobal: number;
   };
 }
 
@@ -72,6 +73,8 @@ export interface ProfitLossMonthSummary {
   folhaLiquida: number;
   dividendosPagos: number;
   cashflow: number;
+  saldoGlobal: number;
+  saldoAcumulado: number;
 }
 
 const MES_LABELS = [
@@ -234,6 +237,7 @@ async function computeMonthlyProfitLoss(
   const margemBruta = facturado - totalDespesas;
   const margemLiquida = margemBruta - totalFolha;
   const cashflow = recebido - totalDespesas - totalLiquido - pagoNoMes;
+  const saldoGlobal = cashflow;
 
   return {
     ano,
@@ -265,6 +269,7 @@ async function computeMonthlyProfitLoss(
       margemBruta,
       margemLiquida,
       cashflow,
+      saldoGlobal,
     },
   };
 }
@@ -327,22 +332,30 @@ async function getQuarterlyProfitLossForDb(
     0
   );
   const pagoNoMes = monthlyReports.reduce((s, r) => s + r.dividendos.pagoNoMes, 0);
-  const monthlyBreakdown: ProfitLossMonthSummary[] = monthlyReports.map((report) => ({
-    ano: report.ano,
-    mes: report.mes,
-    label: MES_LABELS[report.mes],
-    facturado: report.receitas.facturado,
-    recebido: report.receitas.recebido,
-    despesas: report.despesas.total,
-    folha: report.salarios.totalFolha,
-    folhaLiquida: report.salarios.totalLiquido,
-    dividendosPagos: report.dividendos.pagoNoMes,
-    cashflow: report.resultado.cashflow,
-  }));
+  let saldoAcumulado = 0;
+  const monthlyBreakdown: ProfitLossMonthSummary[] = monthlyReports.map((report) => {
+    saldoAcumulado += report.resultado.saldoGlobal;
+
+    return {
+      ano: report.ano,
+      mes: report.mes,
+      label: MES_LABELS[report.mes],
+      facturado: report.receitas.facturado,
+      recebido: report.receitas.recebido,
+      despesas: report.despesas.total,
+      folha: report.salarios.totalFolha,
+      folhaLiquida: report.salarios.totalLiquido,
+      dividendosPagos: report.dividendos.pagoNoMes,
+      cashflow: report.resultado.cashflow,
+      saldoGlobal: report.resultado.saldoGlobal,
+      saldoAcumulado,
+    };
+  });
 
   const margemBruta = facturado - totalDespesas;
   const margemLiquida = margemBruta - totalFolha;
   const cashflow = recebido - totalDespesas - totalLiquido - pagoNoMes;
+  const saldoGlobal = cashflow;
 
   return {
     ano,
@@ -379,6 +392,7 @@ async function getQuarterlyProfitLossForDb(
       margemBruta,
       margemLiquida,
       cashflow,
+      saldoGlobal,
     },
   };
 }

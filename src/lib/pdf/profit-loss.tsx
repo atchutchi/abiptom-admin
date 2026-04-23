@@ -174,8 +174,9 @@ const styles = StyleSheet.create({
   colDesc: { flex: 1 },
   colValue: { width: 100, textAlign: "right" },
   colPct: { width: 50, textAlign: "right" },
-  colMonth: { width: 70 },
+  colMonth: { width: 62 },
   colSmallValue: { width: 68, textAlign: "right" },
+  colTinyValue: { width: 58, textAlign: "right" },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -328,11 +329,13 @@ export function ProfitLossPDF({
             <Text style={styles.kpiSub}>{despesas.count} movimento(s)</Text>
           </View>
           <View style={styles.kpiBox}>
-            <Text style={styles.kpiLabel}>Folha Bruta</Text>
+            <Text style={styles.kpiLabel}>Saldo global</Text>
             <Text style={styles.kpiValue}>
-              {formatNum(salarios.totalFolha)}
+              {formatNum(resultado.saldoGlobal)}
             </Text>
-            <Text style={styles.kpiSub}>{salarios.estado ?? "—"}</Text>
+            <Text style={styles.kpiSub}>
+              {report.periodoTipo === "trimestral" ? "Acumulado trimestral" : "Mês"}
+            </Text>
           </View>
         </View>
 
@@ -378,23 +381,26 @@ export function ProfitLossPDF({
             <Text style={styles.sectionTitle}>Resumo por mês</Text>
             <View style={styles.tableHeader}>
               <Text style={[styles.tableHeaderCell, styles.colMonth]}>Mês</Text>
-              <Text style={[styles.tableHeaderCell, styles.colSmallValue]}>
+              <Text style={[styles.tableHeaderCell, styles.colTinyValue]}>
                 Facturado
               </Text>
-              <Text style={[styles.tableHeaderCell, styles.colSmallValue]}>
+              <Text style={[styles.tableHeaderCell, styles.colTinyValue]}>
                 Recebido
               </Text>
-              <Text style={[styles.tableHeaderCell, styles.colSmallValue]}>
+              <Text style={[styles.tableHeaderCell, styles.colTinyValue]}>
                 Despesas
               </Text>
-              <Text style={[styles.tableHeaderCell, styles.colSmallValue]}>
-                Folha
+              <Text style={[styles.tableHeaderCell, styles.colTinyValue]}>
+                Folha líq.
               </Text>
-              <Text style={[styles.tableHeaderCell, styles.colSmallValue]}>
+              <Text style={[styles.tableHeaderCell, styles.colTinyValue]}>
                 Divid.
               </Text>
-              <Text style={[styles.tableHeaderCell, styles.colSmallValue]}>
-                Cash-flow
+              <Text style={[styles.tableHeaderCell, styles.colTinyValue]}>
+                Saldo
+              </Text>
+              <Text style={[styles.tableHeaderCell, styles.colTinyValue]}>
+                Acumulado
               </Text>
             </View>
             {report.monthlyBreakdown.map((month, i) => (
@@ -408,29 +414,38 @@ export function ProfitLossPDF({
                 <Text style={[styles.tableCell, styles.colMonth]}>
                   {month.label}
                 </Text>
-                <Text style={[styles.tableCell, styles.colSmallValue]}>
+                <Text style={[styles.tableCell, styles.colTinyValue]}>
                   {formatNum(month.facturado)}
                 </Text>
-                <Text style={[styles.tableCell, styles.colSmallValue]}>
+                <Text style={[styles.tableCell, styles.colTinyValue]}>
                   {formatNum(month.recebido)}
                 </Text>
-                <Text style={[styles.tableCell, styles.colSmallValue]}>
+                <Text style={[styles.tableCell, styles.colTinyValue]}>
                   {formatNum(month.despesas)}
                 </Text>
-                <Text style={[styles.tableCell, styles.colSmallValue]}>
-                  {formatNum(month.folha)}
+                <Text style={[styles.tableCell, styles.colTinyValue]}>
+                  {formatNum(month.folhaLiquida)}
                 </Text>
-                <Text style={[styles.tableCell, styles.colSmallValue]}>
+                <Text style={[styles.tableCell, styles.colTinyValue]}>
                   {formatNum(month.dividendosPagos)}
                 </Text>
                 <Text
                   style={[
                     styles.tableCell,
-                    styles.colSmallValue,
-                    month.cashflow < 0 ? { color: RED } : {},
+                    styles.colTinyValue,
+                    month.saldoGlobal < 0 ? { color: RED } : {},
                   ]}
                 >
-                  {formatNum(month.cashflow)}
+                  {formatNum(month.saldoGlobal)}
+                </Text>
+                <Text
+                  style={[
+                    styles.tableCell,
+                    styles.colTinyValue,
+                    month.saldoAcumulado < 0 ? { color: RED } : {},
+                  ]}
+                >
+                  {formatNum(month.saldoAcumulado)}
                 </Text>
               </View>
             ))}
@@ -490,14 +505,19 @@ export function ProfitLossPDF({
           </View>
           <View
             style={
-              resultado.cashflow >= 0 ? styles.resultFinal : styles.resultFinalNeg
+              resultado.saldoGlobal >= 0
+                ? styles.resultFinal
+                : styles.resultFinalNeg
             }
           >
             <Text style={styles.resultFinalLabel}>
-              Cash-flow (recebido − despesas − líquido − divid. pagos)
+              {report.periodoTipo === "trimestral"
+                ? "Saldo acumulado trimestral"
+                : "Saldo global do mês"}{" "}
+              (recebido − despesas − folha líquida − dividendos pagos)
             </Text>
             <Text style={styles.resultFinalValue}>
-              {formatNum(resultado.cashflow)} XOF
+              {formatNum(resultado.saldoGlobal)} XOF
             </Text>
           </View>
         </View>

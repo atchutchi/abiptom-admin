@@ -3,15 +3,16 @@
 import { dbAdmin } from "@/lib/db";
 import {
   invoices,
-  invoicePayments,
   projects,
-  expenses,
-  salaryPeriods,
   clients,
 } from "@/lib/db/schema";
-import { and, count, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, count, eq, inArray, lte, sql } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth/actions";
 import { toXofInteger } from "@/lib/utils/money";
+import {
+  getMonthlyProfitLossSystem,
+  getQuarterlyProfitLossSystem,
+} from "@/lib/reports/actions";
 
 export interface DashboardStats {
   facturasAbertas: {
@@ -33,6 +34,10 @@ export interface DashboardStats {
   recebidoMes: number;
   despesasMes: number;
   facturadoMes: number;
+  dividendosPagosMes: number;
+  saldoGlobalMes: number;
+  saldoAcumuladoTrimestre: number;
+  trimestreActual: number;
   ultimasFacturas: Array<{
     id: string;
     numero: number | null;
@@ -50,9 +55,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const now = new Date();
   const ano = now.getFullYear();
   const mes = now.getMonth() + 1;
-  const start = `${ano}-${String(mes).padStart(2, "0")}-01`;
-  const lastDay = new Date(ano, mes, 0).getDate();
-  const end = `${ano}-${String(mes).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  const trimestreActual = Math.ceil(mes / 3);
   const hoje = now.toISOString().split("T")[0];
 
   const [abertasRow] = await dbAdmin
@@ -86,48 +89,10 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     .from(clients)
     .where(eq(clients.activo, true));
 
-  const folha = await dbAdmin.query.salaryPeriods.findFirst({
-    where: and(eq(salaryPeriods.ano, ano), eq(salaryPeriods.mes, mes)),
-  });
-
-  const pagamentos = await dbAdmin
-    .select({
-      valor: invoicePayments.valor,
-      taxaCambio: invoicePayments.taxaCambio,
-    })
-    .from(invoicePayments)
-    .where(
-      and(gte(invoicePayments.data, start), lte(invoicePayments.data, end))
-    );
-
-  const recebidoMes = pagamentos.reduce(
-    (s, p) => s + toXofInteger(Number(p.valor) * Number(p.taxaCambio ?? "1")),
-    0
-  );
-
-  const despesasDoMes = await dbAdmin
-    .select({
-      valorXof: expenses.valorXof,
-      estado: expenses.estado,
-    })
-    .from(expenses)
-    .where(and(gte(expenses.data, start), lte(expenses.data, end)));
-
-  const despesasMes = despesasDoMes
-    .filter((d) => d.estado !== "anulada")
-    .reduce((s, d) => s + toXofInteger(d.valorXof), 0);
-
-  const facturasMes = await dbAdmin
-    .select({ total: invoices.total })
-    .from(invoices)
-    .where(
-      and(
-        gte(invoices.dataEmissao, start),
-        lte(invoices.dataEmissao, end),
-        inArray(invoices.estado, ["definitiva", "paga_parcial", "paga"])
-      )
-    );
-  const facturadoMes = facturasMes.reduce((s, f) => s + toXofInteger(f.total), 0);
+  const [relatorioMes, relatorioTrimestre] = await Promise.all([
+    getMonthlyProfitLossSystem(ano, mes),
+    getQuarterlyProfitLossSystem(ano, trimestreActual),
+  ]);
 
   const ultimas = await dbAdmin
     .select({
@@ -157,12 +122,16 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     folhaMes: {
       ano,
       mes,
-      totalLiquido: toXofInteger(folha?.totalLiquido ?? 0),
-      estado: folha?.estado ?? null,
+      totalLiquido: relatorioMes.salarios.totalLiquido,
+      estado: relatorioMes.salarios.estado,
     },
-    recebidoMes,
-    despesasMes,
-    facturadoMes,
+    recebidoMes: relatorioMes.receitas.recebido,
+    despesasMes: relatorioMes.despesas.total,
+    facturadoMes: relatorioMes.receitas.facturado,
+    dividendosPagosMes: relatorioMes.dividendos.pagoNoMes,
+    saldoGlobalMes: relatorioMes.resultado.saldoGlobal,
+    saldoAcumuladoTrimestre: relatorioTrimestre.resultado.saldoGlobal,
+    trimestreActual,
     ultimasFacturas: ultimas,
   };
 }
