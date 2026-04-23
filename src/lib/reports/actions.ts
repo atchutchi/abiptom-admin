@@ -32,6 +32,7 @@ export interface ProfitLossReport {
   periodoTipo?: "mensal" | "trimestral";
   trimestre?: number;
   periodoLabel?: string;
+  monthlyBreakdown?: ProfitLossMonthSummary[];
   receitas: {
     facturado: number;
     recebido: number;
@@ -60,6 +61,35 @@ export interface ProfitLossReport {
   };
 }
 
+export interface ProfitLossMonthSummary {
+  ano: number;
+  mes: number;
+  label: string;
+  facturado: number;
+  recebido: number;
+  despesas: number;
+  folha: number;
+  folhaLiquida: number;
+  dividendosPagos: number;
+  cashflow: number;
+}
+
+const MES_LABELS = [
+  "",
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
+];
+
 async function assertReportsAccess() {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
@@ -79,6 +109,7 @@ async function computeMonthlyProfitLoss(
     .select({
       id: invoices.id,
       total: invoices.total,
+      taxaCambio: invoices.taxaCambio,
       estado: invoices.estado,
     })
     .from(invoices)
@@ -90,7 +121,10 @@ async function computeMonthlyProfitLoss(
       )
     );
 
-  const facturado = facturasDoMes.reduce((s, f) => s + toXofInteger(f.total), 0);
+  const facturado = facturasDoMes.reduce(
+    (s, f) => s + toXofInteger(Number(f.total) * Number(f.taxaCambio ?? "1")),
+    0,
+  );
 
   const pagamentosDoMes = await db
     .select({
@@ -293,6 +327,18 @@ async function getQuarterlyProfitLossForDb(
     0
   );
   const pagoNoMes = monthlyReports.reduce((s, r) => s + r.dividendos.pagoNoMes, 0);
+  const monthlyBreakdown: ProfitLossMonthSummary[] = monthlyReports.map((report) => ({
+    ano: report.ano,
+    mes: report.mes,
+    label: MES_LABELS[report.mes],
+    facturado: report.receitas.facturado,
+    recebido: report.receitas.recebido,
+    despesas: report.despesas.total,
+    folha: report.salarios.totalFolha,
+    folhaLiquida: report.salarios.totalLiquido,
+    dividendosPagos: report.dividendos.pagoNoMes,
+    cashflow: report.resultado.cashflow,
+  }));
 
   const margemBruta = facturado - totalDespesas;
   const margemLiquida = margemBruta - totalFolha;
@@ -304,6 +350,7 @@ async function getQuarterlyProfitLossForDb(
     trimestre,
     periodoTipo: "trimestral",
     periodoLabel: `T${trimestre} ${ano}`,
+    monthlyBreakdown,
     receitas: {
       facturado,
       recebido,

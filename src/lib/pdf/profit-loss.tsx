@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import {
   Document,
   Page,
@@ -8,12 +10,31 @@ import {
 } from "@react-pdf/renderer";
 import type { ProfitLossReport } from "@/lib/reports/actions";
 
-const BRAND_GREEN = "#2D6A4F";
+const BRAND_GOLD = "#F5B800";
 const DARK = "#1A1A1A";
 const GRAY = "#666666";
 const LIGHT_GRAY = "#F5F5F5";
 const BORDER = "#DDDDDD";
 const RED = "#B91C1C";
+
+function getPdfAssetDataUri(relativePath: string) {
+  const absolutePath = path.join(
+    process.cwd(),
+    "public",
+    relativePath.replace(/^\/+/, ""),
+  );
+  const extension = path.extname(absolutePath).toLowerCase();
+  const mimeType =
+    extension === ".jpg" || extension === ".jpeg"
+      ? "image/jpeg"
+      : extension === ".svg"
+        ? "image/svg+xml"
+        : "image/png";
+
+  return `data:${mimeType};base64,${readFileSync(absolutePath).toString("base64")}`;
+}
+
+const LOGO_SRC = getPdfAssetDataUri("brand/abiptom-logo.png");
 
 const MES_LABELS = [
   "",
@@ -63,7 +84,7 @@ const styles = StyleSheet.create({
   titleLabel: {
     fontSize: 13,
     fontFamily: "Helvetica-Bold",
-    color: BRAND_GREEN,
+    color: BRAND_GOLD,
     textTransform: "uppercase",
     letterSpacing: 1,
   },
@@ -76,7 +97,7 @@ const styles = StyleSheet.create({
   policyLabel: { fontSize: 8.5, color: GRAY, marginTop: 4 },
   separator: {
     borderBottomWidth: 1.5,
-    borderBottomColor: BRAND_GREEN,
+    borderBottomColor: BRAND_GOLD,
     marginBottom: 14,
   },
   companyBlock: { marginBottom: 14 },
@@ -131,7 +152,7 @@ const styles = StyleSheet.create({
   },
   tableHeader: {
     flexDirection: "row",
-    backgroundColor: BRAND_GREEN,
+    backgroundColor: BRAND_GOLD,
     paddingVertical: 5,
     paddingHorizontal: 8,
     borderRadius: 3,
@@ -139,7 +160,7 @@ const styles = StyleSheet.create({
   tableHeaderCell: {
     fontSize: 8,
     fontFamily: "Helvetica-Bold",
-    color: "#FFFFFF",
+    color: DARK,
   },
   tableRow: {
     flexDirection: "row",
@@ -153,6 +174,8 @@ const styles = StyleSheet.create({
   colDesc: { flex: 1 },
   colValue: { width: 100, textAlign: "right" },
   colPct: { width: 50, textAlign: "right" },
+  colMonth: { width: 70 },
+  colSmallValue: { width: 68, textAlign: "right" },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -184,7 +207,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 8,
     paddingHorizontal: 10,
-    backgroundColor: BRAND_GREEN,
+    backgroundColor: BRAND_GOLD,
   },
   resultFinalNeg: {
     flexDirection: "row",
@@ -206,12 +229,12 @@ const styles = StyleSheet.create({
   resultFinalLabel: {
     fontSize: 10,
     fontFamily: "Helvetica-Bold",
-    color: "#FFFFFF",
+    color: DARK,
   },
   resultFinalValue: {
     fontSize: 10,
     fontFamily: "Helvetica-Bold",
-    color: "#FFFFFF",
+    color: DARK,
   },
   footer: {
     position: "absolute",
@@ -264,7 +287,7 @@ export function ProfitLossPDF({
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <Image src="/brand/abiptom-logo.png" style={styles.logo} />
+          <Image src={LOGO_SRC} style={styles.logo} />
           <View style={styles.titleBox}>
             <Text style={styles.titleLabel}>{title}</Text>
             <Text style={styles.periodLabel}>{periodLabel}</Text>
@@ -350,6 +373,70 @@ export function ProfitLossPDF({
           </>
         )}
 
+        {report.periodoTipo === "trimestral" && report.monthlyBreakdown?.length ? (
+          <>
+            <Text style={styles.sectionTitle}>Resumo por mês</Text>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableHeaderCell, styles.colMonth]}>Mês</Text>
+              <Text style={[styles.tableHeaderCell, styles.colSmallValue]}>
+                Facturado
+              </Text>
+              <Text style={[styles.tableHeaderCell, styles.colSmallValue]}>
+                Recebido
+              </Text>
+              <Text style={[styles.tableHeaderCell, styles.colSmallValue]}>
+                Despesas
+              </Text>
+              <Text style={[styles.tableHeaderCell, styles.colSmallValue]}>
+                Folha
+              </Text>
+              <Text style={[styles.tableHeaderCell, styles.colSmallValue]}>
+                Divid.
+              </Text>
+              <Text style={[styles.tableHeaderCell, styles.colSmallValue]}>
+                Cash-flow
+              </Text>
+            </View>
+            {report.monthlyBreakdown.map((month, i) => (
+              <View
+                key={`${month.ano}-${month.mes}`}
+                style={[
+                  styles.tableRow,
+                  i % 2 === 1 ? styles.tableRowAlt : {},
+                ]}
+              >
+                <Text style={[styles.tableCell, styles.colMonth]}>
+                  {month.label}
+                </Text>
+                <Text style={[styles.tableCell, styles.colSmallValue]}>
+                  {formatNum(month.facturado)}
+                </Text>
+                <Text style={[styles.tableCell, styles.colSmallValue]}>
+                  {formatNum(month.recebido)}
+                </Text>
+                <Text style={[styles.tableCell, styles.colSmallValue]}>
+                  {formatNum(month.despesas)}
+                </Text>
+                <Text style={[styles.tableCell, styles.colSmallValue]}>
+                  {formatNum(month.folha)}
+                </Text>
+                <Text style={[styles.tableCell, styles.colSmallValue]}>
+                  {formatNum(month.dividendosPagos)}
+                </Text>
+                <Text
+                  style={[
+                    styles.tableCell,
+                    styles.colSmallValue,
+                    month.cashflow < 0 ? { color: RED } : {},
+                  ]}
+                >
+                  {formatNum(month.cashflow)}
+                </Text>
+              </View>
+            ))}
+          </>
+        ) : null}
+
         <Text style={styles.sectionTitle}>Salários e dividendos</Text>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Total bruto da folha</Text>
@@ -370,7 +457,9 @@ export function ProfitLossPDF({
           </Text>
         </View>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Dividendos pagos no mês</Text>
+          <Text style={styles.summaryLabel}>
+            Dividendos pagos {report.periodoTipo === "trimestral" ? "no período" : "no mês"}
+          </Text>
           <Text style={styles.summaryValue}>
             {formatNum(dividendos.pagoNoMes)} XOF
           </Text>

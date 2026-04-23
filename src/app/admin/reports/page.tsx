@@ -38,6 +38,7 @@ const SALARY_STATE_LABELS: Record<string, string> = {
   calculado: "Calculado",
   confirmado: "Confirmado",
   pago: "Pago",
+  "Consolidado trimestral": "Consolidado trimestral",
 };
 
 interface PageProps {
@@ -77,6 +78,10 @@ export default async function ReportsPage({ searchParams }: PageProps) {
     (s, [, v]) => s + v,
     0
   );
+  const periodoLabel =
+    periodo === "trimestral"
+      ? `T${trimestre} ${ano}`
+      : `${MES_LABELS[mes]} ${ano}`;
 
   return (
     <>
@@ -86,14 +91,16 @@ export default async function ReportsPage({ searchParams }: PageProps) {
         <div className="mx-auto max-w-6xl space-y-6">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#9a7300]">
+                ABIPTOM Finance
+              </p>
+              <h1 className="mt-1 text-2xl font-bold text-gray-950">
                 {periodo === "trimestral"
                   ? "Relatório trimestral (P&L)"
                   : "Relatório mensal (P&L)"}
               </h1>
               <p className="mt-1 text-sm text-gray-500">
-                Receitas, despesas, salários e dividendos do{" "}
-                {periodo === "trimestral" ? "trimestre" : "mês"} seleccionado
+                {periodoLabel} · receitas, despesas, salários, dividendos e cash-flow.
               </p>
             </div>
 
@@ -119,7 +126,6 @@ export default async function ReportsPage({ searchParams }: PageProps) {
                   <select
                     name="mes"
                     defaultValue={mes}
-                    disabled={periodo === "trimestral"}
                     className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
                   >
                     {meses.map((m) => (
@@ -136,7 +142,6 @@ export default async function ReportsPage({ searchParams }: PageProps) {
                   <select
                     name="trimestre"
                     defaultValue={trimestre}
-                    disabled={periodo === "mensal"}
                     className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
                   >
                     {trimestres.map((t) => (
@@ -164,14 +169,14 @@ export default async function ReportsPage({ searchParams }: PageProps) {
                 </div>
                 <button
                   type="submit"
-                  className="h-9 rounded-md bg-gray-900 px-4 text-sm font-medium text-white hover:bg-gray-800"
+                  className="h-9 rounded-md bg-[#F5B800] px-4 text-sm font-semibold text-gray-950 hover:bg-[#dca600]"
                 >
                   Filtrar
                 </button>
               </form>
               <a
                 href={`/api/reports/pl?periodo=${periodo}&ano=${ano}&mes=${mes}&trimestre=${trimestre}`}
-                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[#F5B800] bg-white px-3 text-sm font-semibold text-gray-900 hover:bg-[#fff8df]"
               >
                 <Download className="h-4 w-4" />
                 Exportar PDF
@@ -185,14 +190,14 @@ export default async function ReportsPage({ searchParams }: PageProps) {
               label="Facturado"
               value={report.receitas.facturado}
               sub={`${report.receitas.facturasCount} factura(s)`}
-              tone="green"
+              tone="gold"
             />
             <KpiCard
               icon={Wallet}
               label="Recebido"
               value={report.receitas.recebido}
               sub={`${report.receitas.pagamentosCount} pagamento(s)`}
-              tone="emerald"
+              tone="gold"
             />
             <KpiCard
               icon={ArrowDownRight}
@@ -211,7 +216,7 @@ export default async function ReportsPage({ searchParams }: PageProps) {
                     report.salarios.estado
                   : "Sem período"
               }
-              tone="orange"
+              tone="gold"
             />
           </div>
 
@@ -232,9 +237,70 @@ export default async function ReportsPage({ searchParams }: PageProps) {
               icon={Banknote}
               label="Cash-flow"
               value={report.resultado.cashflow}
-              hint="Recebido - Despesas - Líquido - Divid. pagos"
+              hint={`Recebido - Despesas - Líquido - Divid. ${periodo === "trimestral" ? "pagos no período" : "pagos"}`}
             />
           </div>
+
+          {periodo === "trimestral" && report.monthlyBreakdown?.length ? (
+            <section className="overflow-hidden rounded-lg border bg-white">
+              <div className="flex items-center justify-between border-b bg-[#fff8df] px-5 py-3">
+                <h2 className="font-semibold text-gray-900">Resumo por mês</h2>
+                <span className="text-xs text-gray-600">
+                  Consolidação de {report.monthlyBreakdown.length} meses
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-[820px] w-full text-sm">
+                  <thead className="bg-gray-950 text-white">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-medium">Mês</th>
+                      <th className="px-4 py-2 text-right font-medium">Facturado</th>
+                      <th className="px-4 py-2 text-right font-medium">Recebido</th>
+                      <th className="px-4 py-2 text-right font-medium">Despesas</th>
+                      <th className="px-4 py-2 text-right font-medium">Folha bruta</th>
+                      <th className="px-4 py-2 text-right font-medium">Folha líquida</th>
+                      <th className="px-4 py-2 text-right font-medium">Dividendos pagos</th>
+                      <th className="px-4 py-2 text-right font-medium">Cash-flow</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {report.monthlyBreakdown.map((month) => (
+                      <tr key={`${month.ano}-${month.mes}`} className="hover:bg-[#fffdf4]">
+                        <td className="px-4 py-3 font-medium text-gray-900">
+                          {month.label}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {formatCurrency(month.facturado)}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {formatCurrency(month.recebido)}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {formatCurrency(month.despesas)}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {formatCurrency(month.folha)}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {formatCurrency(month.folhaLiquida)}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {formatCurrency(month.dividendosPagos)}
+                        </td>
+                        <td
+                          className={`px-4 py-3 text-right font-semibold tabular-nums ${
+                            month.cashflow >= 0 ? "text-gray-950" : "text-red-700"
+                          }`}
+                        >
+                          {formatCurrency(month.cashflow)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section className="rounded-lg border bg-white overflow-hidden">
@@ -249,7 +315,7 @@ export default async function ReportsPage({ searchParams }: PageProps) {
               {categoriasOrdenadas.length === 0 && (
                 <tr>
                   <td colSpan={3} className="text-center text-gray-400 py-8">
-                    Sem despesas no mês.
+                    Sem despesas no {periodo === "trimestral" ? "trimestre" : "mês"}.
                   </td>
                 </tr>
               )}
@@ -289,7 +355,7 @@ export default async function ReportsPage({ searchParams }: PageProps) {
               value={report.dividendos.totalDistribuido}
             />
             <Row
-              label="Dividendos pagos no mês"
+              label={`Dividendos pagos ${periodo === "trimestral" ? "no período" : "no mês"}`}
               value={report.dividendos.pagoNoMes}
             />
           </dl>
@@ -323,10 +389,8 @@ export default async function ReportsPage({ searchParams }: PageProps) {
 }
 
 const TONE_CLASSES: Record<string, string> = {
-  green: "bg-green-50 text-green-700 border-green-100",
-  emerald: "bg-emerald-50 text-emerald-700 border-emerald-100",
+  gold: "bg-[#fff8df] text-gray-950 border-[#F5B800]",
   red: "bg-red-50 text-red-700 border-red-100",
-  orange: "bg-orange-50 text-orange-700 border-orange-100",
 };
 
 interface KpiCardProps {
@@ -334,7 +398,7 @@ interface KpiCardProps {
   label: string;
   value: number;
   sub: string;
-  tone: "green" | "emerald" | "red" | "orange";
+  tone: "gold" | "red";
 }
 
 function KpiCard({ icon: Icon, label, value, sub, tone }: KpiCardProps) {
