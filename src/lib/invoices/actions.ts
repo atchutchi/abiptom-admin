@@ -6,6 +6,7 @@ import {
   invoices,
   invoiceItems,
   invoicePayments,
+  projects,
   type InvoiceState,
 } from "@/lib/db/schema";
 import { eq, and, desc, gte, lte, inArray, type SQL } from "drizzle-orm";
@@ -28,6 +29,7 @@ const itemSchema = z.object({
 
 const invoiceSchema = z.object({
   clientId: z.string().uuid("Cliente obrigatório"),
+  projectId: z.string().uuid().optional(),
   dataEmissao: z.string().min(1, "Data de emissão obrigatória"),
   dataVencimento: z.string().optional(),
   moeda: z.enum(["XOF", "EUR", "USD"]).default("XOF"),
@@ -51,6 +53,10 @@ const paymentSchema = z.object({
 
 const paymentUpdateSchema = z.object({
   data: z.string().min(1, "Data obrigatória"),
+});
+
+const invoiceProjectUpdateSchema = z.object({
+  projectId: z.string().uuid().nullable(),
 });
 
 function canManageInvoices(role: string) {
@@ -122,6 +128,7 @@ export async function getInvoice(id: string) {
       where: eq(invoices.id, id),
       with: {
         client: { with: { contacts: true } },
+        project: { columns: { id: true, titulo: true } },
         items: { orderBy: (i, { asc }) => [asc(i.ordem)] },
         payments: { orderBy: (p, { desc }) => [desc(p.data)] },
         createdBy: { columns: { nomeCurto: true, nomeCompleto: true } },
@@ -143,6 +150,17 @@ export async function createInvoice(data: z.infer<typeof invoiceSchema>) {
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
 
   const { items, igvPercentagem, ...invoiceData } = parsed.data;
+  if (invoiceData.projectId) {
+    const project = await dbAdmin.query.projects.findFirst({
+      where: eq(projects.id, invoiceData.projectId),
+      columns: { id: true, clientId: true },
+    });
+    if (!project) return { error: "Projecto não encontrado" };
+    if (project.clientId !== invoiceData.clientId) {
+      return { error: "O projecto seleccionado não pertence a este cliente" };
+    }
+  }
+
   const { subtotal, igvValor, total } = calcTotals(items, igvPercentagem);
 
   const [created] = await dbAdmin
@@ -384,6 +402,62 @@ export async function updateInvoicePayment(
   });
 
   revalidatePath(`/admin/invoices/${payment.invoiceId}`);
+  revalidatePath("/admin/invoices");
+  return { success: true };
+}
+
+export async function updateInvoiceProject(
+  invoiceId: string,
+  data: z.infer<typeof invoiceProjectUpdateSchema>,
+) {
+  const { user, dbUser } = await getCurrentUser();
+  if (!user || !dbUser) throw new Error("Não autenticado");
+  if (!canManageInvoices(dbUser.role)) {
+    return { error: "Sem permissão" };
+  }
+
+  const parsed = invoiceProjectUpdateSchema.safeParse(data);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
+  }
+
+  const invoice = await dbAdmin.query.invoices.findFirst({
+    where: eq(invoices.id, invoiceId),
+  });
+  if (!invoice) return { error: "Factura não encontrada" };
+  if (invoice.estado === "anulada") {
+    return { error: "Não é possível alterar projecto de factura anulada" };
+  }
+
+  if (parsed.data.projectId) {
+    const project = await dbAdmin.query.projects.findFirst({
+      where: eq(projects.id, parsed.data.projectId),
+      columns: { id: true, clientId: true },
+    });
+    if (!project) return { error: "Projecto não encontrado" };
+    if (project.clientId !== invoice.clientId) {
+      return { error: "O projecto seleccionado não pertence a este cliente" };
+    }
+  }
+
+  await dbAdmin
+    .update(invoices)
+    .set({ projectId: parsed.data.projectId })
+    .where(eq(invoices.id, invoiceId));
+
+  const hdrs = await headers();
+  await insertAuditLog({
+    userId: dbUser.id,
+    acao: "update_project",
+    entidade: "invoices",
+    entidadeId: invoiceId,
+    dadosAntes: { projectId: invoice.projectId },
+    dadosDepois: { projectId: parsed.data.projectId },
+    ip: hdrs.get("x-forwarded-for") ?? undefined,
+    userAgent: hdrs.get("user-agent") ?? undefined,
+  });
+
+  revalidatePath(`/admin/invoices/${invoiceId}`);
   revalidatePath("/admin/invoices");
   return { success: true };
 }

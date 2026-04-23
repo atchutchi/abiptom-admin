@@ -1,4 +1,5 @@
 import { getInvoice } from "@/lib/invoices/actions";
+import { dbAdmin } from "@/lib/db";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
@@ -12,6 +13,7 @@ import {
 import InvoiceActions from "@/components/forms/InvoiceActions";
 import PaymentForm from "@/components/forms/PaymentForm";
 import { InvoicePaymentDateEditor } from "@/components/forms/InvoicePaymentDateEditor";
+import { InvoiceProjectLinkForm } from "@/components/forms/InvoiceProjectLinkForm";
 import { Header } from "@/components/layout/Header";
 
 export const metadata = { title: "Factura — ABIPTOM Admin" };
@@ -24,6 +26,17 @@ export default async function InvoicePage({
   const { id } = await params;
   const invoice = await getInvoice(id);
   if (!invoice) notFound();
+  const projectRows = await dbAdmin.query.projects.findMany({
+    where: (table, { and, eq, inArray }) =>
+      and(
+        eq(table.clientId, invoice.clientId),
+        inArray(table.estado, ["proposta", "activo", "pausado", "concluido"]),
+      ),
+    with: {
+      client: { columns: { id: true, nome: true } },
+    },
+    orderBy: (table, { desc }) => [desc(table.createdAt)],
+  });
 
   const canProforma =
     invoice.estado === "rascunho";
@@ -102,6 +115,17 @@ export default async function InvoicePage({
               </p>
             </div>
           </div>
+
+          <InvoiceProjectLinkForm
+            invoiceId={id}
+            initialProjectId={invoice.projectId}
+            disabled={invoice.estado === "anulada"}
+            projects={projectRows.map((project) => ({
+              id: project.id,
+              titulo: project.titulo,
+              clienteNome: project.client.nome,
+            }))}
+          />
 
           {/* Items table */}
           <div className="rounded-lg border border-border overflow-hidden">

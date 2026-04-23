@@ -12,8 +12,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createPeriod } from "@/lib/salary/actions";
-import type { CreatePeriodInput } from "@/lib/salary/actions";
+import { createPeriod, loadPaidInvoiceProjectEntries } from "@/lib/salary/actions";
+import type {
+  CreatePeriodInput,
+  PaidInvoiceProjectEntry,
+} from "@/lib/salary/actions";
 
 interface PolicyOption {
   id: string;
@@ -70,6 +73,11 @@ export function SalaryNewPeriodForm({
   const [ano, setAno] = useState(String(CURRENT_YEAR));
   const [mes, setMes] = useState(String(new Date().getMonth() + 1));
   const [policyId, setPolicyId] = useState(policies[0]?.id ?? "");
+  const [isLoadingInvoices, startInvoiceLoadTransition] = useTransition();
+  const [invoiceWarnings, setInvoiceWarnings] = useState<string[]>([]);
+  const [invoiceEntries, setInvoiceEntries] = useState<
+    Record<string, PaidInvoiceProjectEntry>
+  >({});
   const [entries, setEntries] = useState<ProjectEntry[]>(
     projects.map((project) => ({
       projectId: project.id,
@@ -81,6 +89,10 @@ export function SalaryNewPeriodForm({
   const selectedPolicy = policies.find((policy) => policy.id === policyId);
   const selectedMonth = MES_OPTIONS.find((option) => option.value === mes);
   const includedEntries = entries.filter((entry) => entry.included);
+  const totalImported = Object.values(invoiceEntries).reduce(
+    (sum, entry) => sum + entry.valorRecebido,
+    0,
+  );
 
   function toggleProject(projectId: string) {
     setEntries((previous) =>
@@ -98,6 +110,69 @@ export function SalaryNewPeriodForm({
         entry.projectId === projectId ? { ...entry, valorLiquido: value } : entry,
       ),
     );
+  }
+
+  function handleLoadPaidInvoices() {
+    setError("");
+    setInvoiceWarnings([]);
+
+    if (
+      includedEntries.length > 0 &&
+      !confirm(
+        "Carregar facturas pagas vai substituir a selecção actual de projectos. Continuar?",
+      )
+    ) {
+      return;
+    }
+
+    startInvoiceLoadTransition(async () => {
+      const result = await loadPaidInvoiceProjectEntries({
+        ano: Number(ano),
+        mes: Number(mes),
+      });
+
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+
+      const importedByProject = new Map(
+        result.entries.map((entry) => [entry.projectId, entry]),
+      );
+      const knownProjectIds = new Set(projects.map((project) => project.id));
+      const missingProjectWarnings = result.entries
+        .filter((entry) => !knownProjectIds.has(entry.projectId))
+        .map(
+          (entry) =>
+            `Projecto ${entry.projectId} tem pagamentos no mês, mas nao esta disponivel na lista de projectos.`,
+        );
+
+      setInvoiceEntries(
+        Object.fromEntries(
+          result.entries
+            .filter((entry) => knownProjectIds.has(entry.projectId))
+            .map((entry) => [entry.projectId, entry]),
+        ),
+      );
+      setInvoiceWarnings([...result.warnings, ...missingProjectWarnings]);
+      setEntries((previous) =>
+        previous.map((entry) => {
+          const imported = importedByProject.get(entry.projectId);
+          return {
+            ...entry,
+            included: Boolean(imported),
+            valorLiquido: imported ? String(imported.valorRecebido) : "",
+          };
+        }),
+      );
+
+      if (result.entries.length === 0) {
+        setInvoiceWarnings((previous) => [
+          ...previous,
+          "Nao foram encontrados pagamentos de facturas ligadas a projectos neste mês.",
+        ]);
+      }
+    });
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -217,11 +292,45 @@ export function SalaryNewPeriodForm({
 
       <section className="space-y-4 rounded-lg border bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="font-semibold text-gray-800">2. Projectos do periodo</h2>
-          <span className="text-sm text-gray-500">
-            {includedEntries.length} seleccionado(s)
-          </span>
+          <div>
+            <h2 className="font-semibold text-gray-800">2. Projectos do periodo</h2>
+            <p className="text-xs text-gray-500">
+              Podes carregar automaticamente projectos a partir dos pagamentos de facturas do mês.
+            </p>
+          </div>
+          <div className="flex flex-col items-start gap-2 sm:items-end">
+            <span className="text-sm text-gray-500">
+              {includedEntries.length} seleccionado(s)
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleLoadPaidInvoices}
+              disabled={isLoadingInvoices}
+            >
+              {isLoadingInvoices ? "A carregar..." : "Carregar facturas pagas"}
+            </Button>
+          </div>
         </div>
+
+        {totalImported > 0 && (
+          <div className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            Importado de facturas pagas:{" "}
+            <strong>{totalImported.toLocaleString("pt-PT")} XOF</strong>.
+            Confirma os projectos antes de criar o período.
+          </div>
+        )}
+
+        {invoiceWarnings.length > 0 && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <p className="font-medium">Avisos da importação</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {invoiceWarnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {projects.length === 0 ? (
           <p className="text-sm text-gray-400">Nenhum projecto activo encontrado.</p>
@@ -253,6 +362,13 @@ export function SalaryNewPeriodForm({
                               .join(", ")}`
                           : ""}
                       </p>
+                      {invoiceEntries[project.id] && (
+                        <p className="mt-1 text-xs text-green-700">
+                          {invoiceEntries[project.id].paymentCount} pagamento(s)
+                          importado(s):{" "}
+                          {invoiceEntries[project.id].valorRecebido.toLocaleString("pt-PT")} XOF
+                        </p>
+                      )}
                     </label>
                   </div>
 

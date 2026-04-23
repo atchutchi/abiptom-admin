@@ -23,7 +23,8 @@ export default async function NewSalaryPeriodPage() {
 
   // Load active projects with PF + assistants
   const projectRows = await dbAdmin.query.projects.findMany({
-    where: (p, { inArray }) => inArray(p.estado, ["activo", "proposta"]),
+    where: (p, { inArray }) =>
+      inArray(p.estado, ["activo", "proposta", "pausado", "concluido"]),
     with: {
       client: { columns: { id: true, nome: true } },
       pontoFocal: { columns: { id: true, nomeCurto: true } },
@@ -53,7 +54,8 @@ export default async function NewSalaryPeriodPage() {
               Novo Período Salarial
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Selecciona o mês, a política e os projectos a incluir no cálculo.
+              Selecciona o mês e importa automaticamente os projectos a partir
+              das facturas pagas.
             </p>
           </div>
 

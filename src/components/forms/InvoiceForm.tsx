@@ -17,14 +17,21 @@ interface Item {
 interface Props {
   clientes: Client[];
   servicos: ServiceCatalog[];
+  projects: Array<{
+    id: string;
+    titulo: string;
+    clientId: string;
+    clienteNome: string;
+  }>;
 }
 
-export default function InvoiceForm({ clientes, servicos }: Props) {
+export default function InvoiceForm({ clientes, servicos, projects }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   const [clientId, setClientId] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [dataEmissao, setDataEmissao] = useState(
     new Date().toISOString().slice(0, 10)
   );
@@ -61,6 +68,9 @@ export default function InvoiceForm({ clientes, servicos }: Props) {
   const subtotal = items.reduce((s, it) => s + it.quantidade * it.precoUnitario, 0);
   const igvValor = Math.round(subtotal * (igvPercentagem / 100) * 100) / 100;
   const total = subtotal + igvValor;
+  const clientProjects = clientId
+    ? projects.filter((project) => project.clientId === clientId)
+    : projects;
 
   function submit() {
     setError(null);
@@ -71,6 +81,7 @@ export default function InvoiceForm({ clientes, servicos }: Props) {
     startTransition(async () => {
       const res = await createInvoice({
         clientId,
+        projectId: projectId || undefined,
         dataEmissao,
         dataVencimento: dataVencimento || undefined,
         moeda,
@@ -102,7 +113,16 @@ export default function InvoiceForm({ clientes, servicos }: Props) {
           <label className="text-sm font-medium">Cliente *</label>
           <select
             value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
+            onChange={(e) => {
+              const nextClientId = e.target.value;
+              setClientId(nextClientId);
+              const selectedProject = projects.find(
+                (project) => project.id === projectId,
+              );
+              if (selectedProject && selectedProject.clientId !== nextClientId) {
+                setProjectId("");
+              }
+            }}
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
           >
             <option value="">Seleccionar cliente…</option>
@@ -114,6 +134,26 @@ export default function InvoiceForm({ clientes, servicos }: Props) {
                 </option>
               ))}
           </select>
+        </div>
+
+        <div className="col-span-2 space-y-1.5">
+          <label className="text-sm font-medium">Projecto relacionado</label>
+          <select
+            value={projectId}
+            onChange={(e) => setProjectId(e.target.value)}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
+          >
+            <option value="">Sem projecto ligado</option>
+            {clientProjects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.titulo} · {project.clienteNome}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            Usa esta ligação para a folha salarial importar automaticamente os
+            valores pagos desta factura para o projecto.
+          </p>
         </div>
 
         <div className="space-y-1.5">

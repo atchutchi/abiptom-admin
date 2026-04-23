@@ -1,5 +1,6 @@
 import { listClients } from "@/lib/clients/actions";
 import { listServices } from "@/lib/services/actions";
+import { dbAdmin } from "@/lib/db";
 import InvoiceForm from "@/components/forms/InvoiceForm";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
@@ -8,9 +9,17 @@ import { Header } from "@/components/layout/Header";
 export const metadata = { title: "Nova Factura — ABIPTOM Admin" };
 
 export default async function NewInvoicePage() {
-  const [clientes, servicos] = await Promise.all([
+  const [clientes, servicos, projectRows] = await Promise.all([
     listClients(),
     listServices(),
+    dbAdmin.query.projects.findMany({
+      where: (table, { inArray }) =>
+        inArray(table.estado, ["proposta", "activo", "pausado", "concluido"]),
+      with: {
+        client: { columns: { id: true, nome: true } },
+      },
+      orderBy: (table, { desc }) => [desc(table.createdAt)],
+    }),
   ]);
 
   return (
@@ -28,7 +37,16 @@ export default async function NewInvoicePage() {
             </Link>
             <h1 className="mt-2 text-2xl font-semibold">Nova Factura</h1>
           </div>
-          <InvoiceForm clientes={clientes} servicos={servicos} />
+          <InvoiceForm
+            clientes={clientes}
+            servicos={servicos}
+            projects={projectRows.map((project) => ({
+              id: project.id,
+              titulo: project.titulo,
+              clientId: project.clientId,
+              clienteNome: project.client.nome,
+            }))}
+          />
         </div>
       </main>
     </>

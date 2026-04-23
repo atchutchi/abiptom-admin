@@ -201,7 +201,7 @@ export default async function SalaryPeriodPage({ params }: PageProps) {
                     <th className="px-4 py-3 text-left font-medium text-gray-600">PF</th>
                     <th className="px-4 py-3 text-left font-medium text-gray-600">Auxiliares</th>
                     <th className="px-4 py-3 text-left font-medium text-gray-600">Coord</th>
-                    <th className="px-4 py-3 text-right font-medium text-gray-600">Valor liquido</th>
+                    <th className="px-4 py-3 text-right font-medium text-gray-600">Valor recebido</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">

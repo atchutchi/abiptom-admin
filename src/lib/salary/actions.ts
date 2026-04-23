@@ -6,6 +6,7 @@ import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { dbAdmin } from "@/lib/db";
 import {
   expenses,
+  invoicePayments,
   projectPayments as projectPaymentsTable,
   salaryLines,
   salaryPeriodParticipants,
@@ -59,10 +60,34 @@ const updateSalaryLineSchema = z.object({
   overrideMotivo: z.string().trim().optional(),
 });
 
+const paidInvoiceProjectEntriesSchema = z.object({
+  ano: z.number().int().min(2020).max(2100),
+  mes: z.number().int().min(1).max(12),
+});
+
 export type CreatePeriodInput = z.infer<typeof createPeriodSchema>;
 export type CreatePeriodResult = { success: true; periodId: string } | { error: string };
 export type CalculatePeriodResult =
   | { success: true; periodId: string; warnings: string[] }
+  | { error: string };
+export type PaidInvoiceProjectEntry = {
+  projectId: string;
+  valorRecebido: number;
+  paymentCount: number;
+  invoices: Array<{
+    invoiceId: string;
+    numero: number | null;
+    paymentId: string;
+    dataPagamento: string;
+    valorRecebido: number;
+  }>;
+};
+export type LoadPaidInvoiceProjectEntriesResult =
+  | {
+      success: true;
+      entries: PaidInvoiceProjectEntry[];
+      warnings: string[];
+    }
   | { error: string };
 export type RecalculateHistoricalPeriodsResult =
   | {
@@ -140,6 +165,90 @@ export async function listSalaryPeriods() {
       orderDesc(table.mes),
     ],
   });
+}
+
+export async function loadPaidInvoiceProjectEntries(input: {
+  ano: number;
+  mes: number;
+}): Promise<LoadPaidInvoiceProjectEntriesResult> {
+  const actor = await requirePayrollAdmin();
+  if ("error" in actor) return { error: actor.error };
+
+  const parsed = paidInvoiceProjectEntriesSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados invalidos" };
+  }
+
+  const { start, end } = getMonthBounds(parsed.data.ano, parsed.data.mes);
+  const payments = await dbAdmin.query.invoicePayments.findMany({
+    where: and(gte(invoicePayments.data, start), lte(invoicePayments.data, end)),
+    with: {
+      invoice: {
+        columns: {
+          id: true,
+          numero: true,
+          estado: true,
+          projectId: true,
+        },
+        with: {
+          project: {
+            columns: {
+              id: true,
+              titulo: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: [desc(invoicePayments.data)],
+  });
+
+  const warnings: string[] = [];
+  const entriesByProject = new Map<string, PaidInvoiceProjectEntry>();
+
+  for (const payment of payments) {
+    const invoice = payment.invoice;
+    if (!invoice || invoice.estado === "anulada") {
+      continue;
+    }
+
+    const invoiceLabel = invoice.numero ? `Factura ${invoice.numero}` : invoice.id;
+    if (!invoice.projectId || !invoice.project) {
+      warnings.push(
+        `${invoiceLabel} tem pagamento em ${payment.data}, mas nao esta ligada a projecto.`,
+      );
+      continue;
+    }
+
+    const valorRecebido = Math.round(
+      Number(payment.valor) * Number(payment.taxaCambio ?? 1),
+    );
+    const current = entriesByProject.get(invoice.projectId) ?? {
+      projectId: invoice.projectId,
+      valorRecebido: 0,
+      paymentCount: 0,
+      invoices: [],
+    };
+
+    current.valorRecebido += valorRecebido;
+    current.paymentCount += 1;
+    current.invoices.push({
+      invoiceId: invoice.id,
+      numero: invoice.numero,
+      paymentId: payment.id,
+      dataPagamento: payment.data,
+      valorRecebido,
+    });
+    entriesByProject.set(invoice.projectId, current);
+  }
+
+  return {
+    success: true,
+    entries: Array.from(entriesByProject.values()).sort(
+      (left, right) => right.valorRecebido - left.valorRecebido,
+    ),
+    warnings,
+  };
 }
 
 export async function getSalaryPeriod(id: string) {
