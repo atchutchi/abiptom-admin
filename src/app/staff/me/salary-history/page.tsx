@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { Header } from "@/components/layout/Header";
-import { withAuthenticatedDb } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import {
   projectPayments,
   salaryLines,
@@ -39,53 +39,60 @@ export default async function SalaryHistoryPage() {
   if (!user) redirect("/login");
   if (!dbUser) redirect("/login");
 
-  const { visibleLines, projectBonuses } = await withAuthenticatedDb(user, async (db) => {
-    const lines = await db.query.salaryLines.findMany({
-      where: eq(salaryLines.userId, dbUser.id),
-      with: {
-        period: {
-          columns: {
-            id: true,
-            ano: true,
-            mes: true,
-            estado: true,
-          },
+  const lines = await dbAdmin.query.salaryLines.findMany({
+    where: eq(salaryLines.userId, dbUser.id),
+    with: {
+      period: {
+        columns: {
+          id: true,
+          ano: true,
+          mes: true,
+          estado: true,
         },
       },
-    });
+    },
+  });
 
-    const visibleLines = lines
-      .filter((line) => line.period.estado !== "aberto")
-      .sort((a, b) => {
-        if (a.period.ano !== b.period.ano) return b.period.ano - a.period.ano;
-        return b.period.mes - a.period.mes;
-    });
-
-    const bonuses = await db.query.projectPayments.findMany({
-      where: eq(projectPayments.userId, dbUser.id),
-      with: {
-        project: {
-          columns: {
-            titulo: true,
-          },
-        },
-        period: {
-          columns: {
-            id: true,
-            ano: true,
-            mes: true,
-          },
-        },
-      },
-    });
-
-    const projectBonuses = bonuses.sort((a, b) => {
+  const visibleLines = lines
+    .flatMap((line) => {
+      const { period } = line;
+      if (!period || period.estado === "aberto") return [];
+      return [{ ...line, period }];
+    })
+    .sort((a, b) => {
       if (a.period.ano !== b.period.ano) return b.period.ano - a.period.ano;
       return b.period.mes - a.period.mes;
     });
 
-    return { visibleLines, projectBonuses };
+  const bonuses = await dbAdmin.query.projectPayments.findMany({
+    where: eq(projectPayments.userId, dbUser.id),
+    with: {
+      project: {
+        columns: {
+          titulo: true,
+        },
+      },
+      period: {
+        columns: {
+          id: true,
+          ano: true,
+          mes: true,
+        },
+      },
+    },
   });
+
+  const projectBonuses = bonuses
+    .flatMap((payment) => {
+      const { period } = payment;
+      if (!period) return [];
+      return [{ ...payment, period }];
+    })
+    .sort((a, b) => {
+      if (a.period.ano !== b.period.ano) return b.period.ano - a.period.ano;
+      return b.period.mes - a.period.mes;
+    });
+
   if (dbUser.role !== "staff" && dbUser.role !== "coord") {
     redirect("/staff/me/dashboard");
   }
@@ -259,7 +266,7 @@ export default async function SalaryHistoryPage() {
                       {MONTH_LABELS[payment.period.mes]} {payment.period.ano}
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-900">
-                      {payment.project.titulo}
+                      {payment.project?.titulo ?? "Projecto removido"}
                     </td>
                     <td className="px-4 py-3 text-gray-700">{payment.papel}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-gray-700">

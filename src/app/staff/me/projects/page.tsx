@@ -123,7 +123,9 @@ export default async function StaffProjectsPage() {
                 )}
                 {ownProjects.map((project) => {
                   const isPf = project.pontoFocalId === dbUser.id;
-                  const assistants = project.assistants.map((assistant) => assistant.user.nomeCurto);
+                  const assistants = project.assistants
+                    .map((assistant) => assistant.user?.nomeCurto)
+                    .filter(Boolean);
 
                   return (
                     <tr key={project.id} className="hover:bg-gray-50">
@@ -135,7 +137,9 @@ export default async function StaffProjectsPage() {
                           </p>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-700">{project.client.nome}</td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {project.client?.nome ?? "Cliente removido"}
+                      </td>
                       <td className="px-4 py-3 text-gray-700">{project.servico?.nome ?? "—"}</td>
                       <td className="px-4 py-3 text-gray-700">
                         {isPf ? "Ponto focal" : "Auxiliar"}

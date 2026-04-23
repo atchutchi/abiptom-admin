@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
-import { withAuthenticatedDb } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import {
   salaryLines,
   projectPayments,
   dividendLines,
 } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Header } from "@/components/layout/Header";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
@@ -63,30 +63,31 @@ export default async function StaffDashboardPage() {
   if (!user) redirect("/login");
   if (!dbUser) redirect("/login");
 
-  const { myLines, myDividends } = await withAuthenticatedDb(user, async (db) => {
-    const salaryHistory = await db.query.salaryLines.findMany({
+  const [myLines, myDividends] = await Promise.all([
+    dbAdmin.query.salaryLines.findMany({
       where: eq(salaryLines.userId, dbUser.id),
       with: {
         period: {
           columns: { ano: true, mes: true, estado: true },
         },
       },
-    });
-
-    const dividends = await db.query.dividendLines.findMany({
+    }),
+    dbAdmin.query.dividendLines.findMany({
       where: eq(dividendLines.userId, dbUser.id),
       with: {
         period: {
           columns: { ano: true, trimestre: true, estado: true },
         },
       },
-    });
-
-    return { myLines: salaryHistory, myDividends: dividends };
-  });
+    }),
+  ]);
 
   const visibleLines = myLines
-    .filter((l) => l.period.estado !== "aberto")
+    .flatMap((line) => {
+      const { period } = line;
+      if (!period || period.estado === "aberto") return [];
+      return [{ ...line, period }];
+    })
     .sort((a, b) => {
       if (a.period.ano !== b.period.ano) return b.period.ano - a.period.ano;
       return b.period.mes - a.period.mes;
@@ -125,27 +126,30 @@ export default async function StaffDashboardPage() {
   }> = [];
 
   if (latestLine) {
-    const pp = await withAuthenticatedDb(user, async (db) =>
-      db.query.projectPayments.findMany({
-        where: eq(projectPayments.periodId, latestLine.periodId),
-        with: {
-          project: { columns: { titulo: true } },
-        },
-      })
-    );
-    latestProjectPayments = pp
-      .filter((p) => p.userId === dbUser.id)
-      .map((p) => ({
-        id: p.id,
-        projectTitulo: p.project.titulo,
-        papel: p.papel,
-        percentagemAplicada: Number(p.percentagemAplicada),
-        valorRecebido: Number(p.valorRecebido),
-      }));
+    const pp = await dbAdmin.query.projectPayments.findMany({
+      where: and(
+        eq(projectPayments.periodId, latestLine.periodId),
+        eq(projectPayments.userId, dbUser.id)
+      ),
+      with: {
+        project: { columns: { titulo: true } },
+      },
+    });
+    latestProjectPayments = pp.map((p) => ({
+      id: p.id,
+      projectTitulo: p.project?.titulo ?? "Projecto removido",
+      papel: p.papel,
+      percentagemAplicada: Number(p.percentagemAplicada),
+      valorRecebido: Number(p.valorRecebido),
+    }));
   }
 
   const visibleDividends = myDividends
-    .filter((d) => d.period.estado === "aprovado" || d.period.estado === "pago")
+    .flatMap((dividend) => {
+      const { period } = dividend;
+      if (!period || !["aprovado", "pago"].includes(period.estado)) return [];
+      return [{ ...dividend, period }];
+    })
     .sort((a, b) => {
       if (a.period.ano !== b.period.ano) return b.period.ano - a.period.ano;
       return (b.period.trimestre ?? 0) - (a.period.trimestre ?? 0);
