@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle2, FileDown, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/layout/Header";
+import { AnnulPeriodApprovalButton } from "@/components/forms/AnnulPeriodApprovalButton";
 import { CalculatePeriodButton } from "@/components/forms/CalculatePeriodButton";
 import { ConfirmPeriodButton } from "@/components/forms/ConfirmPeriodButton";
 import { DeletePeriodButton } from "@/components/forms/DeletePeriodButton";
@@ -84,6 +85,7 @@ export default async function SalaryPeriodPage({ params }: PageProps) {
   const canEditPeriod = canManagePeriod && ["aberto", "calculado"].includes(period.estado);
   const canDeletePeriod = canManagePeriod && ["aberto", "calculado"].includes(period.estado);
   const canConfirm = canManagePeriod && period.estado === "calculado";
+  const canAnnulApproval = canManagePeriod && period.estado === "confirmado";
   const canAdjustLines = canManagePeriod && period.estado === "calculado";
   const canMarkPaid = canManagePeriod && period.estado === "confirmado";
 
@@ -148,6 +150,7 @@ export default async function SalaryPeriodPage({ params }: PageProps) {
                 )}
                 {canDeletePeriod && <DeletePeriodButton periodId={period.id} />}
                 {canConfirm && <ConfirmPeriodButton periodId={period.id} />}
+                {canAnnulApproval && <AnnulPeriodApprovalButton periodId={period.id} />}
               </div>
             </div>
           </div>

@@ -769,6 +769,58 @@ export async function confirmPeriod(periodId: string) {
   return { success: true };
 }
 
+export async function annulPeriodApproval(periodId: string) {
+  const actor = await requirePayrollAdmin();
+  if ("error" in actor) return { error: actor.error };
+
+  const period = await dbAdmin.query.salaryPeriods.findFirst({
+    where: eq(salaryPeriods.id, periodId),
+    with: {
+      lines: true,
+      projectPayments: true,
+    },
+  });
+
+  if (!period) return { error: "Periodo nao encontrado" };
+  if (period.estado !== "confirmado") {
+    return {
+      error: "So e permitido anular a aprovacao de periodos confirmados",
+    };
+  }
+
+  await dbAdmin
+    .update(salaryPeriods)
+    .set({
+      estado: "calculado",
+      confirmadoEm: null,
+      confirmadoPor: null,
+    })
+    .where(eq(salaryPeriods.id, periodId));
+
+  await insertAuditLog({
+    userId: actor.dbUser.id,
+    acao: "annul_approval",
+    entidade: "salary_periods",
+    entidadeId: periodId,
+    dadosAntes: {
+      estado: period.estado,
+      confirmadoEm: period.confirmadoEm,
+      confirmadoPor: period.confirmadoPor,
+      lineCount: period.lines.length,
+      paymentCount: period.projectPayments.length,
+    },
+    dadosDepois: {
+      estado: "calculado",
+      confirmadoEm: null,
+      confirmadoPor: null,
+    },
+  });
+
+  revalidatePath(`/admin/salary/${periodId}`);
+  revalidatePath("/admin/salary");
+  return { success: true };
+}
+
 export async function markLinePaid(
   lineId: string,
   data: { dataPagamento: string; referenciaPagamento?: string },
