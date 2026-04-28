@@ -158,7 +158,7 @@ export async function getTask(id: string) {
 
   if (!task) return null;
 
-  if (dbUser.role === "staff" && task.atribuidaA !== dbUser.id) {
+  if (dbUser.role === "staff" && task.atribuidaA.id !== dbUser.id) {
     throw new Error("Sem permissão");
   }
 
@@ -333,6 +333,7 @@ export async function updateTask(id: string, _: unknown, formData: FormData) {
   revalidatePath("/admin/tasks");
   revalidatePath(`/admin/tasks/${id}`);
   revalidatePath("/staff/me/tasks");
+  revalidatePath(`/staff/me/tasks/${id}`);
   revalidatePath("/staff/me/dashboard");
 
   return { success: true };
@@ -390,6 +391,7 @@ export async function setTaskState(id: string, _: unknown, formData: FormData) {
   revalidatePath("/admin/tasks");
   revalidatePath(`/admin/tasks/${id}`);
   revalidatePath("/staff/me/tasks");
+  revalidatePath(`/staff/me/tasks/${id}`);
   revalidatePath("/staff/me/dashboard");
 
   return { success: true };

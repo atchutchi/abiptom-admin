@@ -62,7 +62,7 @@ export default async function StaffTasksPage() {
                     Prazo: {formatDate(t.prazo)} · {t.projecto?.titulo ?? t.cliente?.nome ?? "Sem contexto"}
                   </div>
                   <div className="mt-2">
-                    <Link href={`/admin/tasks/${t.id}`} className="text-xs text-blue-600 hover:underline">
+                    <Link href={`/staff/me/tasks/${t.id}`} className="text-xs text-blue-600 hover:underline">
                       Ver detalhe completo
                     </Link>
                   </div>
