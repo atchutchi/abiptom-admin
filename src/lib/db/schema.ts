@@ -116,6 +116,17 @@ export const reportTypeEnum = pgEnum("report_type", [
   "anual",
 ]);
 
+export const chatConversationTypeEnum = pgEnum("chat_conversation_type", [
+  "direct",
+  "group",
+  "project",
+]);
+
+export const chatEmailNotificationStateEnum = pgEnum(
+  "chat_email_notification_state",
+  ["pending", "sent", "skipped", "error"]
+);
+
 // ─── Sequences ───────────────────────────────────────────────────────────────
 
 export const invoiceNumberSeq = pgSequence("invoice_number_seq", {
@@ -670,6 +681,156 @@ export const reports = pgTable("reports", {
     .defaultNow(),
 });
 
+// ─── chat_conversations ──────────────────────────────────────────────────────
+
+export const chatConversations = pgTable(
+  "chat_conversations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    type: chatConversationTypeEnum("type").notNull(),
+    title: text("title"),
+    directKey: varchar("direct_key", { length: 80 }),
+    projectId: uuid("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+    createdBy: uuid("created_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("chat_conversations_direct_key_uq")
+      .on(t.directKey)
+      .where(sql`${t.type} = 'direct' AND ${t.directKey} IS NOT NULL`),
+    uniqueIndex("chat_conversations_project_uq")
+      .on(t.projectId)
+      .where(sql`${t.type} = 'project' AND ${t.projectId} IS NOT NULL`),
+  ]
+);
+
+// ─── chat_participants ───────────────────────────────────────────────────────
+
+export const chatParticipants = pgTable(
+  "chat_participants",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => chatConversations.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    joinedAt: timestamp("joined_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lastReadAt: timestamp("last_read_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("chat_participants_conversation_user_uq").on(
+      t.conversationId,
+      t.userId
+    ),
+  ]
+);
+
+// ─── chat_messages ───────────────────────────────────────────────────────────
+
+export const chatMessages = pgTable("chat_messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  conversationId: uuid("conversation_id")
+    .notNull()
+    .references(() => chatConversations.id, { onDelete: "cascade" }),
+  senderId: uuid("sender_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "restrict" }),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  editedAt: timestamp("edited_at", { withTimezone: true }),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+});
+
+// ─── chat_message_reads ──────────────────────────────────────────────────────
+
+export const chatMessageReads = pgTable(
+  "chat_message_reads",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => chatMessages.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    readAt: timestamp("read_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("chat_message_reads_message_user_uq").on(
+      t.messageId,
+      t.userId
+    ),
+  ]
+);
+
+// ─── user_presence ───────────────────────────────────────────────────────────
+
+export const userPresence = pgTable("user_presence", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  isOnline: boolean("is_online").notNull().default(false),
+  currentConversationId: uuid("current_conversation_id").references(
+    () => chatConversations.id,
+    { onDelete: "set null" }
+  ),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ─── chat_email_notifications ────────────────────────────────────────────────
+
+export const chatEmailNotifications = pgTable(
+  "chat_email_notifications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => chatMessages.id, { onDelete: "cascade" }),
+    recipientId: uuid("recipient_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    state: chatEmailNotificationStateEnum("state")
+      .notNull()
+      .default("pending"),
+    availableAt: timestamp("available_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("chat_email_notifications_message_recipient_uq").on(
+      t.messageId,
+      t.recipientId
+    ),
+  ]
+);
+
 // ─── dividend_periods ─────────────────────────────────────────────────────────
 
 export const dividendPeriods = pgTable("dividend_periods", {
@@ -766,6 +927,10 @@ export const usersRelations = relations(users, ({ many }) => ({
     relationName: "task_assigned_by",
   }),
   reportsGenerated: many(reports),
+  chatParticipants: many(chatParticipants),
+  chatMessagesSent: many(chatMessages, { relationName: "chat_message_sender" }),
+  chatMessageReads: many(chatMessageReads),
+  chatEmailNotifications: many(chatEmailNotifications),
 }));
 
 export const partnerSharesRelations = relations(partnerShares, ({ one }) => ({
@@ -1007,6 +1172,92 @@ export const reportsRelations = relations(reports, ({ one }) => ({
   }),
 }));
 
+export const chatConversationsRelations = relations(
+  chatConversations,
+  ({ one, many }) => ({
+    project: one(projects, {
+      fields: [chatConversations.projectId],
+      references: [projects.id],
+    }),
+    creator: one(users, {
+      fields: [chatConversations.createdBy],
+      references: [users.id],
+    }),
+    participants: many(chatParticipants),
+    messages: many(chatMessages),
+  })
+);
+
+export const chatParticipantsRelations = relations(
+  chatParticipants,
+  ({ one }) => ({
+    conversation: one(chatConversations, {
+      fields: [chatParticipants.conversationId],
+      references: [chatConversations.id],
+    }),
+    user: one(users, {
+      fields: [chatParticipants.userId],
+      references: [users.id],
+    }),
+  })
+);
+
+export const chatMessagesRelations = relations(
+  chatMessages,
+  ({ one, many }) => ({
+    conversation: one(chatConversations, {
+      fields: [chatMessages.conversationId],
+      references: [chatConversations.id],
+    }),
+    sender: one(users, {
+      fields: [chatMessages.senderId],
+      references: [users.id],
+      relationName: "chat_message_sender",
+    }),
+    reads: many(chatMessageReads),
+    emailNotifications: many(chatEmailNotifications),
+  })
+);
+
+export const chatMessageReadsRelations = relations(
+  chatMessageReads,
+  ({ one }) => ({
+    message: one(chatMessages, {
+      fields: [chatMessageReads.messageId],
+      references: [chatMessages.id],
+    }),
+    user: one(users, {
+      fields: [chatMessageReads.userId],
+      references: [users.id],
+    }),
+  })
+);
+
+export const userPresenceRelations = relations(userPresence, ({ one }) => ({
+  user: one(users, {
+    fields: [userPresence.userId],
+    references: [users.id],
+  }),
+  currentConversation: one(chatConversations, {
+    fields: [userPresence.currentConversationId],
+    references: [chatConversations.id],
+  }),
+}));
+
+export const chatEmailNotificationsRelations = relations(
+  chatEmailNotifications,
+  ({ one }) => ({
+    message: one(chatMessages, {
+      fields: [chatEmailNotifications.messageId],
+      references: [chatMessages.id],
+    }),
+    recipient: one(users, {
+      fields: [chatEmailNotifications.recipientId],
+      references: [users.id],
+    }),
+  })
+);
+
 export const dividendPeriodsRelations = relations(
   dividendPeriods,
   ({ one, many }) => ({
@@ -1065,6 +1316,20 @@ export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
 export type Report = typeof reports.$inferSelect;
 export type NewReport = typeof reports.$inferInsert;
+export type ChatConversation = typeof chatConversations.$inferSelect;
+export type NewChatConversation = typeof chatConversations.$inferInsert;
+export type ChatParticipant = typeof chatParticipants.$inferSelect;
+export type NewChatParticipant = typeof chatParticipants.$inferInsert;
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type NewChatMessage = typeof chatMessages.$inferInsert;
+export type ChatMessageRead = typeof chatMessageReads.$inferSelect;
+export type NewChatMessageRead = typeof chatMessageReads.$inferInsert;
+export type UserPresence = typeof userPresence.$inferSelect;
+export type NewUserPresence = typeof userPresence.$inferInsert;
+export type ChatEmailNotification =
+  typeof chatEmailNotifications.$inferSelect;
+export type NewChatEmailNotification =
+  typeof chatEmailNotifications.$inferInsert;
 export type UserRole = (typeof roleEnum.enumValues)[number];
 export type InvoiceState = (typeof invoiceStateEnum.enumValues)[number];
 export type InvoiceType = (typeof invoiceTypeEnum.enumValues)[number];
@@ -1093,6 +1358,10 @@ export type StockMovementType = (typeof stockMovementTypeEnum.enumValues)[number
 export type TaskState = (typeof taskStateEnum.enumValues)[number];
 export type TaskPriority = (typeof taskPriorityEnum.enumValues)[number];
 export type ReportType = (typeof reportTypeEnum.enumValues)[number];
+export type ChatConversationType =
+  (typeof chatConversationTypeEnum.enumValues)[number];
+export type ChatEmailNotificationState =
+  (typeof chatEmailNotificationStateEnum.enumValues)[number];
 export type DividendPeriod = typeof dividendPeriods.$inferSelect;
 export type NewDividendPeriod = typeof dividendPeriods.$inferInsert;
 export type DividendLine = typeof dividendLines.$inferSelect;

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { PresenceHeartbeat } from "@/components/messages/PresenceHeartbeat";
 import type { UserRole } from "@/lib/db/schema";
 import { getAvatarUrl } from "@/lib/users/avatar";
 import { getCurrentUser } from "@/lib/auth/actions";
@@ -21,6 +22,7 @@ export default async function StaffLayout({
     <div className="flex min-h-screen">
       <Sidebar role={role} userName={dbUser.nomeCurto} userAvatarUrl={avatarUrl} />
       <div className="flex-1 flex flex-col min-w-0">
+        <PresenceHeartbeat />
         {children}
       </div>
     </div>

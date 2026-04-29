@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/backup",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/messages-email",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

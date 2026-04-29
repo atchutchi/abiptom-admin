@@ -18,6 +18,7 @@ import {
   Package,
   CheckSquare,
   Wallet,
+  MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -101,6 +102,12 @@ const NAV_ITEMS: NavItem[] = [
     roles: ["ca", "dg", "coord"],
   },
   {
+    label: "Mensagens",
+    href: "/admin/messages",
+    icon: MessageSquare,
+    roles: ["ca", "dg", "coord"],
+  },
+  {
     label: "Dividendos",
     href: "/admin/dividends",
     icon: DollarSign,
@@ -143,6 +150,12 @@ const STAFF_NAV_ITEMS: NavItem[] = [
     label: "Minhas tarefas",
     href: "/staff/me/tasks",
     icon: CheckSquare,
+    roles: ["staff", "coord"],
+  },
+  {
+    label: "Mensagens",
+    href: "/staff/me/messages",
+    icon: MessageSquare,
     roles: ["staff", "coord"],
   },
 ];

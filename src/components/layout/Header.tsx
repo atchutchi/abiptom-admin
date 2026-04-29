@@ -7,6 +7,7 @@ import { LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { APP_NAME, APP_SLOGAN } from "@/lib/brand";
+import { MessagesHeaderButton } from "@/components/messages/MessagesHeaderButton";
 
 interface HeaderProps {
   title?: string;
@@ -52,7 +53,8 @@ export function Header({ title }: HeaderProps) {
           <h1 className="truncate text-lg font-semibold tracking-tight text-[color:var(--brand-ink)]">{title}</h1>
         )}
       </div>
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-2">
+        <MessagesHeaderButton />
         <Button
           variant="ghost"
           size="sm"

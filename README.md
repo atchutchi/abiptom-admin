@@ -2,9 +2,9 @@
 
 > Os Guardiões das Novas Tecnologias
 
-Última actualização: 23 de Abril de 2026.
+Última actualização: 29 de Abril de 2026.
 
-`ABIPTOM Core` é a plataforma operacional interna da ABIPTOM SARL. O repositório mantém o nome técnico `abiptom-admin`, mas a aplicação exposta aos utilizadores usa a marca Core. Centraliza clientes, projectos, facturação, despesas, folha salarial, dividendos, stock, tarefas, relatórios e área pessoal dos colaboradores.
+`ABIPTOM Core` é a plataforma operacional interna da ABIPTOM SARL. O repositório mantém o nome técnico `abiptom-admin`, mas a aplicação exposta aos utilizadores usa a marca Core. Centraliza clientes, projectos, facturação, despesas, folha salarial, dividendos, stock, tarefas, mensagens internas, relatórios e área pessoal dos colaboradores.
 
 Ambiente público: [https://abiptom-admin.vercel.app](https://abiptom-admin.vercel.app)
 
@@ -141,6 +141,21 @@ Regras operacionais da política `actual_2024`:
 - tarefas com responsável, estado, prioridade e contexto operacional
 - área staff para tarefas próprias
 
+### Mensagens internas
+
+- conversas directas entre colegas
+- grupos com múltiplos colaboradores
+- conversas ligadas a projectos, com participantes derivados do ponto focal e auxiliares
+- contador de mensagens não lidas no cabeçalho
+- página de mensagens para administração em `/admin/messages`
+- página de mensagens para colaboradores em `/staff/me/messages`
+- presença online com heartbeat em `user_presence`
+- actualização em tempo real via Supabase Realtime para novas mensagens e presença
+- fila de email para destinatários offline em `chat_email_notifications`
+- cron `/api/cron/messages-email` a cada 5 minutos para enviar notificações pendentes
+- deduplicação de emails pendentes por conversa e destinatário
+- RLS por participante: só membros da conversa podem ler mensagens e participantes
+
 ### Relatórios
 
 - P&L mensal e trimestral
@@ -186,10 +201,12 @@ flowchart LR
     U["Utilizadores internos"] --> N["Next.js 15 App Router"]
     N --> A["Supabase Auth"]
     N --> D["Supabase Postgres + Drizzle"]
+    N --> RT["Supabase Realtime"]
     N --> S["Supabase Storage"]
     N --> E["Resend ou SMTP do Supabase Auth"]
     V["Vercel Cron"] --> N
     D --> R["RLS + Audit Log"]
+    RT --> M["Mensagens e presença online"]
     S --> P["Avatares, comprovativos e backups"]
 ```
 
@@ -202,8 +219,9 @@ flowchart LR
 | Base de dados | Supabase Postgres |
 | ORM | Drizzle ORM |
 | Auth | Supabase Auth |
+| Tempo real | Supabase Realtime |
 | Storage | Supabase Storage |
-| Email aplicacional | Resend |
+| Email aplicacional | Resend para facturas e notificações de mensagens offline |
 | Email Auth | SMTP configurado no Supabase Auth, por exemplo cPanel ou Resend SMTP |
 | PDF | `@react-pdf/renderer` |
 | Exportação | `xlsx` |
@@ -231,6 +249,7 @@ abiptom-admin/
 │       ├── cron/
 │       ├── db/
 │       ├── email/
+│       ├── messages/
 │       ├── pdf/
 │       ├── reports/
 │       ├── salary/
@@ -275,7 +294,7 @@ Criar `.env.local` com as variáveis do ambiente.
 | `DATABASE_DIRECT_URL` | Opcional | Ligação directa para scripts, migrations e ferramentas locais |
 | `NEXT_PUBLIC_SITE_URL` | Recomendado | URL canónico da app, por exemplo `https://abiptom-admin.vercel.app` |
 | `RESEND_API_KEY` | Sim para email de facturas | Chave da API Resend |
-| `RESEND_FROM` | Sim para email de facturas | Remetente, por exemplo `ABIPTOM SARL <info@abiptom.gw>` |
+| `RESEND_FROM` | Sim para email de facturas e mensagens offline | Remetente, por exemplo `ABIPTOM SARL <info@abiptom.gw>` |
 | `CRON_SECRET` | Sim em produção | Segredo para cron jobs |
 | `BACKUP_SUPABASE_BUCKET` | Sim para backup remoto | Bucket privado para backups |
 | `E2E_CA_EMAIL` | Opcional | Conta CA para Playwright |
@@ -298,6 +317,7 @@ Migrations relevantes recentes:
 | `0007_add_salary_period_projects.sql` | snapshot dos projectos seleccionados no período salarial |
 | `0008_add_expense_project_link.sql` | relação directa entre despesas e projectos |
 | `0009_round_xof_monetary_values.sql` | normalização de valores XOF para inteiros |
+| `0010_add_chat_messaging.sql` | mensagens internas, grupos, conversas por projecto, presença online, fila de emails offline, RLS e Realtime |
 
 Comandos úteis:
 
@@ -355,6 +375,7 @@ Checklist mínimo:
 - configurar SMTP do Supabase Auth
 - criar bucket privado de backups
 - definir `CRON_SECRET`
+- confirmar que a migration `0010_add_chat_messaging.sql` foi aplicada antes de activar mensagens
 - correr `npm run build` localmente antes do push quando houver alteração estrutural
 
 ## Supabase Auth
