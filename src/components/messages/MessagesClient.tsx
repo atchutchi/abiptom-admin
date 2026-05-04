@@ -272,8 +272,8 @@ export function MessagesClient({
   }
 
   return (
-    <main className="flex min-h-0 flex-1 p-4 md:p-6">
-      <div className="grid min-h-[calc(100vh-6.5rem)] w-full grid-cols-1 overflow-hidden rounded-lg border border-[color:var(--brand-line)] bg-[color:var(--brand-card)] shadow-sm lg:grid-cols-[20rem_1fr]">
+    <main className="flex h-[calc(100vh-4rem)] min-h-0 flex-1 overflow-hidden p-3 md:p-4">
+      <div className="grid h-full min-h-0 w-full grid-cols-1 overflow-hidden rounded-lg border border-[color:var(--brand-line)] bg-[color:var(--brand-card)] shadow-sm lg:grid-cols-[20rem_1fr]">
         <aside className="flex min-h-0 flex-col border-b border-[color:var(--brand-line)] lg:border-b-0 lg:border-r">
           <div className="flex items-center justify-between gap-3 border-b border-[color:var(--brand-line)] p-3">
             <div>
@@ -465,7 +465,7 @@ export function MessagesClient({
           </div>
         </aside>
 
-        <section className="flex min-h-0 flex-col">
+        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden">
           {selectedConversation ? (
             <>
               <div className="flex min-h-16 items-center justify-between gap-3 border-b border-[color:var(--brand-line)] px-4 py-3">
@@ -547,7 +547,7 @@ export function MessagesClient({
 
               <form
                 onSubmit={handleSend}
-                className="border-t border-[color:var(--brand-line)] bg-[color:var(--brand-card)] p-3"
+                className="shrink-0 border-t border-[color:var(--brand-line)] bg-[color:var(--brand-card)] p-3"
               >
                 {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
                 <div className="flex items-end gap-2">
