@@ -318,6 +318,7 @@ Migrations relevantes recentes:
 | `0008_add_expense_project_link.sql` | relação directa entre despesas e projectos |
 | `0009_round_xof_monetary_values.sql` | normalização de valores XOF para inteiros |
 | `0010_add_chat_messaging.sql` | mensagens internas, grupos, conversas por projecto, presença online, fila de emails offline, RLS e Realtime |
+| `0011_chat_messaging_recovery_safe.sql` | recuperação idempotente do chat quando a migration 10 já existe ou ficou parcialmente aplicada |
 
 Comandos úteis:
 
@@ -424,6 +425,16 @@ O README estava desactualizado face ao estado real da aplicação.
 **Solução**
 
 Actualizar este ficheiro com funcionalidades, deploy, migrations, troubleshooting e estado actual do produto.
+
+### Migration de chat acusa `type "chat_conversation_type" already exists`
+
+**Problema**
+
+A migration `0010_add_chat_messaging.sql` já foi executada total ou parcialmente. Ao repetir o SQL, o Postgres pára na criação do enum `chat_conversation_type`.
+
+**Solução**
+
+Não repetir a migration 10 directamente. Executar `0011_chat_messaging_recovery_safe.sql`, que é idempotente e cria apenas o que estiver em falta: enums, tabelas, constraints, índices, funções, RLS e publicação Realtime.
 
 ### Utilizador criado no Supabase Auth não aparece em `/admin/users`
 
