@@ -4,9 +4,9 @@ import { z } from "zod";
 import { and, desc, eq, gte, ilike, lte, type SQL } from "drizzle-orm";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { withAuthenticatedDb } from "@/lib/db";
+import { dbAdmin, withAuthenticatedDb } from "@/lib/db";
 import { insertAuditLog } from "@/lib/db/audit";
-import { clients, tasks, users } from "@/lib/db/schema";
+import { clients, projectDeliverables, tasks, users, type TaskState } from "@/lib/db/schema";
 import { getCurrentUser } from "@/lib/auth/actions";
 
 export interface TaskFilters {
@@ -25,17 +25,50 @@ const taskSchema = z.object({
   atribuidaA: z.string().uuid("Colaborador inválido"),
   projectoId: z.string().uuid().optional(),
   clienteId: z.string().uuid().optional(),
+  deliverableId: z.string().uuid().optional(),
+  executionWeight: z.coerce.number().min(0.01, "Peso deve ser maior que zero").max(1000),
   prazo: z
     .string()
     .optional()
     .refine((v) => !v || /^\d{4}-\d{2}-\d{2}$/.test(v), "Prazo inválido"),
   prioridade: z.enum(["baixa", "media", "alta"]).default("media"),
-  estado: z.enum(["pendente", "em_curso", "concluida", "cancelada"]).default("pendente"),
+  estado: z
+    .enum([
+      "pendente",
+      "em_curso",
+      "submetida",
+      "aprovada",
+      "precisa_correcao",
+      "rejeitada",
+      "concluida",
+      "cancelada",
+    ])
+    .default("pendente"),
 });
 
 const taskStateSchema = z.object({
-  estado: z.enum(["pendente", "em_curso", "concluida", "cancelada"]),
+  estado: z.enum([
+    "pendente",
+    "em_curso",
+    "submetida",
+    "aprovada",
+    "precisa_correcao",
+    "rejeitada",
+    "concluida",
+    "cancelada",
+  ]),
 });
+
+const TASK_STATES = [
+  "pendente",
+  "em_curso",
+  "submetida",
+  "aprovada",
+  "precisa_correcao",
+  "rejeitada",
+  "concluida",
+  "cancelada",
+] as const;
 
 async function requireTaskAccess() {
   const { user, dbUser } = await getCurrentUser();
@@ -60,8 +93,8 @@ export async function listTasks(filters: TaskFilters = {}) {
     conditions.push(eq(tasks.atribuidaA, dbUser.id));
   }
 
-  if (filters.estado && ["pendente", "em_curso", "concluida", "cancelada"].includes(filters.estado)) {
-    conditions.push(eq(tasks.estado, filters.estado as "pendente" | "em_curso" | "concluida" | "cancelada"));
+  if (filters.estado && TASK_STATES.includes(filters.estado as TaskState)) {
+    conditions.push(eq(tasks.estado, filters.estado as TaskState));
   }
 
   if (filters.prioridade && ["baixa", "media", "alta"].includes(filters.prioridade)) {
@@ -114,6 +147,13 @@ export async function listTasks(filters: TaskFilters = {}) {
             nome: true,
           },
         },
+        deliverable: {
+          columns: {
+            id: true,
+            titulo: true,
+            peso: true,
+          },
+        },
       },
     })
   );
@@ -150,6 +190,41 @@ export async function getTask(id: string) {
           columns: {
             id: true,
             nome: true,
+          },
+        },
+        deliverable: {
+          columns: {
+            id: true,
+            titulo: true,
+            peso: true,
+          },
+        },
+        validatedByUser: {
+          columns: {
+            id: true,
+            nomeCurto: true,
+          },
+        },
+        submissions: {
+          orderBy: (table, { desc: orderDesc }) => [orderDesc(table.createdAt)],
+          with: {
+            submittedByUser: {
+              columns: {
+                id: true,
+                nomeCurto: true,
+              },
+            },
+          },
+        },
+        validations: {
+          orderBy: (table, { desc: orderDesc }) => [orderDesc(table.createdAt)],
+          with: {
+            validatedByUser: {
+              columns: {
+                id: true,
+                nomeCurto: true,
+              },
+            },
           },
         },
       },
@@ -223,6 +298,8 @@ export async function createTask(_: unknown, formData: FormData) {
     atribuidaA: formData.get("atribuidaA"),
     projectoId: (formData.get("projectoId") as string) || undefined,
     clienteId: (formData.get("clienteId") as string) || undefined,
+    deliverableId: (formData.get("deliverableId") as string) || undefined,
+    executionWeight: formData.get("executionWeight") || 1,
     prazo: (formData.get("prazo") as string) || undefined,
     prioridade: (formData.get("prioridade") as string) || "media",
     estado: (formData.get("estado") as string) || "pendente",
@@ -233,6 +310,11 @@ export async function createTask(_: unknown, formData: FormData) {
   }
 
   const data = parsed.data;
+  const deliverableError = await validateDeliverableProject(
+    data.deliverableId,
+    data.projectoId
+  );
+  if (deliverableError) return { error: deliverableError };
 
   const [created] = await withAuthenticatedDb(user, async (db) =>
     db
@@ -244,6 +326,8 @@ export async function createTask(_: unknown, formData: FormData) {
         atribuidaPor: dbUser.id,
         projectoId: data.projectoId || null,
         clienteId: data.clienteId || null,
+        deliverableId: data.deliverableId || null,
+        executionWeight: data.executionWeight.toFixed(2),
         prazo: data.prazo || null,
         prioridade: data.prioridade,
         estado: data.estado,
@@ -285,6 +369,8 @@ export async function updateTask(id: string, _: unknown, formData: FormData) {
     atribuidaA: formData.get("atribuidaA"),
     projectoId: (formData.get("projectoId") as string) || undefined,
     clienteId: (formData.get("clienteId") as string) || undefined,
+    deliverableId: (formData.get("deliverableId") as string) || undefined,
+    executionWeight: formData.get("executionWeight") || existing.executionWeight || 1,
     prazo: (formData.get("prazo") as string) || undefined,
     prioridade: (formData.get("prioridade") as string) || existing.prioridade,
     estado: (formData.get("estado") as string) || existing.estado,
@@ -295,6 +381,11 @@ export async function updateTask(id: string, _: unknown, formData: FormData) {
   }
 
   const data = parsed.data;
+  const deliverableError = await validateDeliverableProject(
+    data.deliverableId,
+    data.projectoId
+  );
+  if (deliverableError) return { error: deliverableError };
 
   const [updated] = await withAuthenticatedDb(user, async (db) =>
     db
@@ -305,6 +396,8 @@ export async function updateTask(id: string, _: unknown, formData: FormData) {
         atribuidaA: data.atribuidaA,
         projectoId: data.projectoId || null,
         clienteId: data.clienteId || null,
+        deliverableId: data.deliverableId || null,
+        executionWeight: data.executionWeight.toFixed(2),
         prazo: data.prazo || null,
         prioridade: data.prioridade,
         estado: data.estado,
@@ -363,13 +456,17 @@ export async function setTaskState(id: string, _: unknown, formData: FormData) {
   }
 
   const estado = parsed.data.estado;
+  if (!canManage && !["pendente", "em_curso", "cancelada"].includes(estado)) {
+    return { error: "Submete a tarefa pelo formulário de conclusão" };
+  }
 
   const [updated] = await withAuthenticatedDb(user, async (db) =>
     db
       .update(tasks)
       .set({
         estado,
-        concluidaEm: estado === "concluida" ? new Date() : null,
+        concluidaEm:
+          estado === "concluida" || estado === "aprovada" ? new Date() : null,
         updatedAt: new Date(),
       })
       .where(eq(tasks.id, id))
@@ -395,4 +492,24 @@ export async function setTaskState(id: string, _: unknown, formData: FormData) {
   revalidatePath("/staff/me/dashboard");
 
   return { success: true };
+}
+
+async function validateDeliverableProject(
+  deliverableId: string | undefined,
+  projectId: string | undefined
+) {
+  if (!deliverableId) return null;
+  if (!projectId) return "Escolhe o projecto antes de associar um entregável";
+
+  const deliverable = await dbAdmin.query.projectDeliverables.findFirst({
+    where: eq(projectDeliverables.id, deliverableId),
+    columns: { id: true, projectId: true },
+  });
+
+  if (!deliverable) return "Entregável não encontrado";
+  if (deliverable.projectId !== projectId) {
+    return "O entregável escolhido pertence a outro projecto";
+  }
+
+  return null;
 }

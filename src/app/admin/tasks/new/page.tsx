@@ -10,6 +10,7 @@ import {
   listTaskClientOptions,
   listTaskProjectOptions,
 } from "@/lib/tasks/actions";
+import { listProjectDeliverablesForTaskOptions } from "@/lib/execution/actions";
 
 export const metadata = { title: "Nova tarefa" };
 
@@ -20,10 +21,11 @@ export default async function NewTaskPage() {
     redirect("/admin/dashboard");
   }
 
-  const [users, projects, clients] = await Promise.all([
+  const [users, projects, clients, deliverables] = await Promise.all([
     listAssignableUsers(),
     listTaskProjectOptions(),
     listTaskClientOptions(),
+    listProjectDeliverablesForTaskOptions(),
   ]);
 
   return (
@@ -47,6 +49,7 @@ export default async function NewTaskPage() {
               users={users}
               projects={projects}
               clients={clients}
+              deliverables={deliverables}
             />
           </div>
         </div>

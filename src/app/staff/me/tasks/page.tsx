@@ -11,6 +11,10 @@ export const metadata = { title: "Minhas tarefas" };
 const STATE_LABEL: Record<string, string> = {
   pendente: "Pendente",
   em_curso: "Em curso",
+  submetida: "Submetida",
+  aprovada: "Aprovada",
+  precisa_correcao: "Precisa correcção",
+  rejeitada: "Rejeitada",
   concluida: "Concluída",
   cancelada: "Cancelada",
 };
@@ -18,6 +22,10 @@ const STATE_LABEL: Record<string, string> = {
 const STATE_COLOR: Record<string, string> = {
   pendente: "bg-gray-100 text-gray-700",
   em_curso: "bg-blue-100 text-blue-700",
+  submetida: "bg-amber-100 text-amber-800",
+  aprovada: "bg-green-100 text-green-700",
+  precisa_correcao: "bg-orange-100 text-orange-800",
+  rejeitada: "bg-red-100 text-red-700",
   concluida: "bg-green-100 text-green-700",
   cancelada: "bg-red-100 text-red-700",
 };
@@ -67,7 +75,11 @@ export default async function StaffTasksPage() {
                     </Link>
                   </div>
                 </div>
-                <TaskStateForm action={action} currentState={t.estado} />
+                <TaskStateForm
+                  action={action}
+                  currentState={t.estado}
+                  allowedStates={["pendente", "em_curso", "cancelada"]}
+                />
               </div>
             );
           })}

@@ -48,6 +48,10 @@ A plataforma foi desenhada para fechar o ciclo mensal da ABIPTOM com menos erro 
 | --- | --- |
 | ![Chat interno](./public/readme/chat.png) | ![Módulo de tarefas](./public/readme/tasks.png) |
 
+| Execução validada | Folha com execução |
+| --- | --- |
+| ![Execução validada de projecto](./public/readme/project-execution.png) | ![Folha salarial com execução validada](./public/readme/salary-execution.png) |
+
 ## Funcionalidades Implementadas
 
 ### Autenticação e segurança
@@ -122,6 +126,10 @@ Funcionalidades actuais:
 - eliminação de períodos enquanto ainda estão em `aberto` ou `calculado`
 - recibos individuais em PDF com branding ABIPTOM
 - valores XOF normalizados como inteiros para evitar diferenças como `19 999,99`
+- secção informativa de execução validada por projecto
+- snapshots mensais de execução em `project_execution_snapshots`
+- snapshots mensais de performance por colaborador em `staff_performance_snapshots`
+- impacto salarial da execução mantido como informativo nesta fase, sem alterar o cálculo financeiro
 
 Regras operacionais da política `actual_2024`:
 
@@ -139,11 +147,18 @@ Regras operacionais da política `actual_2024`:
 - pagamento de dividendos com estado e data
 - integração no relatório P&L
 
-### Stock e tarefas
+### Stock, tarefas e execução validada
 
 - itens de stock com movimentos de entrada, saída e ajuste
 - tarefas com responsável, estado, prioridade e contexto operacional
 - área staff para tarefas próprias
+- entregáveis ponderados por projecto em `/admin/projects/[id]/execution`
+- tarefas associadas a entregáveis e peso de execução
+- submissão de conclusão pelo colaborador, com comentário e link de evidência opcional
+- validação por `ca`, `dg` ou `coord` como `aprovada`, `precisa_correcao` ou `rejeitada`
+- pontuação de qualidade de 1 a 5 por validação
+- taxa de execução calculada por peso aprovado, não por quantidade simples de tarefas
+- tarefas aprovadas continuam compatíveis com o estado legado `concluida`
 
 ### Chat interno
 
@@ -209,13 +224,13 @@ flowchart TD
 
 A folha salarial deve usar o valor bruto pago pelo cliente como base do projecto. Se a despesa directa já foi registada e ligada ao projecto, não se deve introduzir manualmente o valor líquido. O motor subtrai essas despesas automaticamente no cálculo.
 
-## Proposta: Execução e Validação de Tarefas
+## Execução e Validação de Tarefas
 
-Esta proposta ainda não está implementada. Deve ser aprovada antes de criar migrations e alterar a folha salarial.
+Funcionalidade implementada na migration `0012_task_execution_validation.sql`.
 
-Objectivo: ligar tarefas, execução operacional, validação da coordenação, taxa de execução do projecto, controlo de RH e impacto salarial.
+Objectivo: ligar tarefas, execução operacional, validação da coordenação, taxa de execução do projecto, controlo de RH e impacto salarial. O impacto salarial fica primeiro informativo e só passa a financeiro quando a regra de negócio for aprovada.
 
-### Modelo funcional recomendado
+### Modelo funcional
 
 - cada projecto passa a ter entregáveis/marcos com peso percentual, por exemplo estratégia 20%, design 30%, campanha 50%
 - cada tarefa pertence a um projecto e, opcionalmente, a um entregável
@@ -257,6 +272,43 @@ stateDiagram-v2
 - pagamento fixo continua independente da execução, salvo decisão administrativa
 - pagamento variável, prémio ou subsídio pode depender de execução aprovada e qualidade mínima
 - alterações retroactivas devem gerar snapshot novo, sem apagar o histórico usado numa folha já aprovada
+
+### Fluxo implementado
+
+```mermaid
+flowchart TD
+    A["Coordenação cria entregáveis ponderados no projecto"] --> B["Coordenação cria tarefas com peso e responsável"]
+    B --> C["Colaborador executa a tarefa"]
+    C --> D["Colaborador submete conclusão com evidência opcional"]
+    D --> E["Coordenação valida"]
+    E --> F["Aprovada conta para execução"]
+    E --> G["Precisa correcção volta para trabalho"]
+    E --> H["Rejeitada fica registada para RH"]
+    F --> I["Taxa de execução do projecto"]
+    I --> J["Snapshot mensal da folha"]
+    J --> K["Impacto salarial informativo"]
+```
+
+### Onde testar
+
+- `/admin/projects/[id]/execution`: cria e edita entregáveis, acompanha pesos e abre tarefas para validação.
+- `/admin/tasks/new`: cria tarefa com projecto, entregável e peso de execução.
+- `/staff/me/tasks/[id]`: colaborador submete a conclusão.
+- `/admin/tasks/[id]`: coordenação valida a submissão.
+- `/admin/salary/[periodId]`: mostra execução live e snapshot mensal por projecto.
+
+### Migration aplicada
+
+Foi adicionada e aplicada a migration `0012_task_execution_validation.sql`.
+
+Cria ou actualiza:
+
+- novos estados em `task_state`: `submetida`, `aprovada`, `precisa_correcao`, `rejeitada`
+- enum `project_deliverable_state`
+- enum `task_validation_decision`
+- colunas em `tasks`: `deliverable_id`, `execution_weight`, `submission_note`, `submitted_at`, `validated_at`, `validated_by`, `quality_score`, `validation_note`
+- tabelas `project_deliverables`, `task_submissions`, `task_validations`, `project_execution_snapshots`, `staff_performance_snapshots`
+- índices, constraints, RLS e políticas de acesso para equipa, coordenação e snapshots
 
 ### Fluxo operacional
 
@@ -520,6 +572,26 @@ A migration `0010_add_chat_messaging.sql` já foi executada total ou parcialment
 **Solução**
 
 Não repetir a migration 10 directamente. Executar `0011_chat_messaging_recovery_safe.sql`, que é idempotente e cria apenas o que estiver em falta: enums, tabelas, constraints, índices, funções, RLS e publicação Realtime.
+
+### Página de execução ou tarefas falha com coluna em falta
+
+**Problema**
+
+O código novo espera a migration `0012_task_execution_validation.sql`. Se a base ainda não tiver essa migration, páginas como `/admin/projects/[id]/execution`, `/admin/tasks/new` ou `/admin/salary/[periodId]` podem falhar com erro de coluna/tabela inexistente.
+
+**Solução**
+
+Aplicar `src/lib/db/migrations/0012_task_execution_validation.sql` na base Supabase do ambiente. A migration é idempotente para enums, tabelas, constraints, índices e políticas principais.
+
+### Snapshot de execução não muda o salário
+
+**Problema**
+
+O botão `Gerar snapshot execução` grava métricas mensais, mas o total bruto/líquido da folha não muda.
+
+**Solução**
+
+Este comportamento é intencional. A execução validada está primeiro em modo informativo para auditoria e teste operacional. Só deve afectar pagamento variável, bónus ou bloqueios depois de a regra financeira ser aprovada.
 
 ### Chat abre mas a zona de escrever ou enviar não aparece
 

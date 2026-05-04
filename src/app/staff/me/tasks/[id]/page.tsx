@@ -3,7 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import TaskStateForm from "@/components/forms/TaskStateForm";
+import { TaskSubmissionForm } from "@/components/forms/TaskSubmissionForm";
 import { getCurrentUser } from "@/lib/auth/actions";
+import { submitTaskCompletion } from "@/lib/execution/actions";
 import { getTask, setTaskState } from "@/lib/tasks/actions";
 import { formatDate } from "@/lib/utils/format";
 
@@ -12,6 +14,10 @@ export const metadata = { title: "Detalhe da tarefa" };
 const STATE_LABEL: Record<string, string> = {
   pendente: "Pendente",
   em_curso: "Em curso",
+  submetida: "Submetida",
+  aprovada: "Aprovada",
+  precisa_correcao: "Precisa correcção",
+  rejeitada: "Rejeitada",
   concluida: "Concluída",
   cancelada: "Cancelada",
 };
@@ -19,6 +25,10 @@ const STATE_LABEL: Record<string, string> = {
 const STATE_COLOR: Record<string, string> = {
   pendente: "bg-gray-100 text-gray-700",
   em_curso: "bg-blue-100 text-blue-700",
+  submetida: "bg-amber-100 text-amber-800",
+  aprovada: "bg-green-100 text-green-700",
+  precisa_correcao: "bg-orange-100 text-orange-800",
+  rejeitada: "bg-red-100 text-red-700",
   concluida: "bg-green-100 text-green-700",
   cancelada: "bg-red-100 text-red-700",
 };
@@ -59,6 +69,8 @@ export default async function StaffTaskDetailPage({ params }: PageProps) {
   if (task.atribuidaA.id !== dbUser.id) notFound();
 
   const stateAction = setTaskState.bind(null, task.id);
+  const submissionAction = submitTaskCompletion.bind(null, task.id);
+  const canSubmit = !["submetida", "aprovada", "concluida", "cancelada"].includes(task.estado);
 
   return (
     <>
@@ -110,7 +122,12 @@ export default async function StaffTaskDetailPage({ params }: PageProps) {
             </section>
 
             <aside className="space-y-4">
-              <TaskStateForm action={stateAction} currentState={task.estado} />
+              <TaskStateForm
+                action={stateAction}
+                currentState={task.estado}
+                allowedStates={["pendente", "em_curso", "cancelada"]}
+              />
+              <TaskSubmissionForm action={submissionAction} disabled={!canSubmit} />
 
               <section className="rounded-lg border bg-white p-4 text-sm shadow-sm">
                 <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
@@ -119,6 +136,9 @@ export default async function StaffTaskDetailPage({ params }: PageProps) {
                 <dl className="mt-3 space-y-3">
                   <CompactItem label="Projecto" value={task.projecto?.titulo ?? "Sem projecto"} />
                   <CompactItem label="Cliente" value={task.cliente?.nome ?? "Sem cliente"} />
+                  <CompactItem label="Entregável" value={task.deliverable?.titulo ?? "Sem entregável"} />
+                  <CompactItem label="Peso" value={Number(task.executionWeight).toFixed(2)} />
+                  <CompactItem label="Qualidade" value={task.qualityScore ? `${task.qualityScore}/5` : "—"} />
                 </dl>
               </section>
             </aside>

@@ -8,10 +8,12 @@ import { AnnulPeriodApprovalButton } from "@/components/forms/AnnulPeriodApprova
 import { CalculatePeriodButton } from "@/components/forms/CalculatePeriodButton";
 import { ConfirmPeriodButton } from "@/components/forms/ConfirmPeriodButton";
 import { DeletePeriodButton } from "@/components/forms/DeletePeriodButton";
+import { GenerateExecutionSnapshotsButton } from "@/components/forms/GenerateExecutionSnapshotsButton";
 import { MarkLinePaidButton } from "@/components/forms/MarkLinePaidButton";
 import { SalaryLineOverrideForm } from "@/components/forms/SalaryLineOverrideForm";
 import { SalaryParticipantsEditor } from "@/components/forms/SalaryParticipantsEditor";
 import { getCurrentUser } from "@/lib/auth/actions";
+import { getSalaryExecutionOverview } from "@/lib/execution/actions";
 import { getSalaryPeriod } from "@/lib/salary/actions";
 import type { ProjectPaymentRecord } from "@/lib/salary/types";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
@@ -78,6 +80,7 @@ export default async function SalaryPeriodPage({ params }: PageProps) {
   const { periodId } = await params;
   const period = await getSalaryPeriod(periodId);
   if (!period) notFound();
+  const executionOverview = await getSalaryExecutionOverview(period.id);
 
   const policyType = (period.policy.configuracaoJson as { tipo?: string }).tipo;
   const isActual2024 = policyType === "actual_2024";
@@ -238,6 +241,82 @@ export default async function SalaryPeriodPage({ params }: PageProps) {
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums">
                           {formatCurrency(entry.valorLiquido)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="rounded-lg border bg-white">
+            <div className="flex flex-col gap-3 border-b bg-gray-50 px-5 py-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h2 className="font-semibold text-gray-800">Execução validada dos projectos</h2>
+                <p className="text-sm text-gray-500">
+                  Informativo nesta fase. Depois pode entrar como factor financeiro da folha.
+                </p>
+              </div>
+              {canManagePeriod && <GenerateExecutionSnapshotsButton periodId={period.id} />}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[980px] text-sm">
+                <thead className="border-b bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium text-gray-600">Projecto</th>
+                    <th className="px-4 py-3 text-right font-medium text-gray-600">Live</th>
+                    <th className="px-4 py-3 text-right font-medium text-gray-600">Snapshot</th>
+                    <th className="px-4 py-3 text-right font-medium text-gray-600">Aprovadas</th>
+                    <th className="px-4 py-3 text-right font-medium text-gray-600">Submetidas</th>
+                    <th className="px-4 py-3 text-right font-medium text-gray-600">Pend. validação</th>
+                    <th className="px-4 py-3 text-right font-medium text-gray-600">Rejeitadas/correcção</th>
+                    <th className="px-4 py-3 text-right font-medium text-gray-600">Atraso</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {executionOverview.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">
+                        Sem projectos para medir execução neste período.
+                      </td>
+                    </tr>
+                  ) : (
+                    executionOverview.map((entry) => (
+                      <tr key={entry.projectId}>
+                        <td className="px-4 py-3">
+                          <Link
+                            href={`/admin/projects/${entry.projectId}/execution`}
+                            className="font-medium text-blue-700 hover:underline"
+                          >
+                            {entry.titulo}
+                          </Link>
+                          <p className="text-xs text-gray-400">
+                            Peso {entry.live.approvedWeight.toFixed(2)} / {entry.live.plannedWeight.toFixed(2)}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium tabular-nums">
+                          {entry.live.executionPercent.toFixed(2)}%
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-gray-600">
+                          {entry.snapshot
+                            ? `${Number(entry.snapshot.executionPercent).toFixed(2)}%`
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {entry.live.approvedTasks}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {entry.live.submittedTasks}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {entry.live.pendingValidationTasks}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {entry.live.rejectedTasks}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {entry.live.overdueTasks}
                         </td>
                       </tr>
                     ))

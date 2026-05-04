@@ -68,6 +68,12 @@ export default async function ProjectDetailPage({
                 </span>
               </>
             )}
+            <Link
+              href={`/admin/projects/${project.id}/execution`}
+              className="ml-auto rounded-md border px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Execução validada
+            </Link>
           </div>
 
           {/* Invoices linked to this project */}

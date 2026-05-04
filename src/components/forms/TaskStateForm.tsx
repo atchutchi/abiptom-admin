@@ -6,10 +6,22 @@ import { Button } from "@/components/ui/button";
 
 interface Props {
   action: (prev: unknown, formData: FormData) => Promise<{ error?: string; success?: boolean }>;
-  currentState: "pendente" | "em_curso" | "concluida" | "cancelada";
+  currentState: string;
+  allowedStates?: string[];
 }
 
-export default function TaskStateForm({ action, currentState }: Props) {
+const STATE_OPTIONS = [
+  ["pendente", "Pendente"],
+  ["em_curso", "Em curso"],
+  ["submetida", "Submetida"],
+  ["aprovada", "Aprovada"],
+  ["precisa_correcao", "Precisa correcção"],
+  ["rejeitada", "Rejeitada"],
+  ["concluida", "Concluída"],
+  ["cancelada", "Cancelada"],
+] as const;
+
+export default function TaskStateForm({ action, currentState, allowedStates }: Props) {
   const [state, formAction, pending] = useActionState(action, null);
   const router = useRouter();
 
@@ -34,10 +46,16 @@ export default function TaskStateForm({ action, currentState }: Props) {
         defaultValue={currentState}
         className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
       >
-        <option value="pendente">Pendente</option>
-        <option value="em_curso">Em curso</option>
-        <option value="concluida">Concluída</option>
-        <option value="cancelada">Cancelada</option>
+        {STATE_OPTIONS.filter(
+          ([value]) =>
+            !allowedStates ||
+            allowedStates.includes(value) ||
+            value === currentState
+        ).map(([value, label]) => (
+          <option key={value} value={value}>
+            {label}
+          </option>
+        ))}
       </select>
 
       <Button type="submit" size="sm" disabled={pending}>

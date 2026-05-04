@@ -12,6 +12,10 @@ export const metadata = { title: "Tarefas" };
 const STATE_LABEL: Record<string, string> = {
   pendente: "Pendente",
   em_curso: "Em curso",
+  submetida: "Submetida",
+  aprovada: "Aprovada",
+  precisa_correcao: "Precisa correcção",
+  rejeitada: "Rejeitada",
   concluida: "Concluída",
   cancelada: "Cancelada",
 };
@@ -19,6 +23,10 @@ const STATE_LABEL: Record<string, string> = {
 const STATE_COLOR: Record<string, string> = {
   pendente: "bg-gray-100 text-gray-700",
   em_curso: "bg-blue-100 text-blue-700",
+  submetida: "bg-amber-100 text-amber-800",
+  aprovada: "bg-green-100 text-green-700",
+  precisa_correcao: "bg-orange-100 text-orange-800",
+  rejeitada: "bg-red-100 text-red-700",
   concluida: "bg-green-100 text-green-700",
   cancelada: "bg-red-100 text-red-700",
 };
@@ -61,10 +69,15 @@ export default async function TasksPage({ searchParams }: PageProps) {
   });
   const colaboradores = await listAssignableUsers();
 
-  const abertas = tarefas.filter((t) => t.estado !== "concluida" && t.estado !== "cancelada").length;
+  const abertas = tarefas.filter(
+    (t) => !["aprovada", "concluida", "cancelada"].includes(t.estado)
+  ).length;
   const atrasadas = tarefas.filter((t) => {
     if (!t.prazo) return false;
-    return t.prazo < new Date().toISOString().slice(0, 10) && t.estado !== "concluida";
+    return (
+      t.prazo < new Date().toISOString().slice(0, 10) &&
+      !["aprovada", "concluida", "cancelada"].includes(t.estado)
+    );
   }).length;
 
   return (
@@ -102,6 +115,10 @@ export default async function TasksPage({ searchParams }: PageProps) {
               <option value="">Todos estados</option>
               <option value="pendente">Pendente</option>
               <option value="em_curso">Em curso</option>
+              <option value="submetida">Submetida</option>
+              <option value="aprovada">Aprovada</option>
+              <option value="precisa_correcao">Precisa correcção</option>
+              <option value="rejeitada">Rejeitada</option>
               <option value="concluida">Concluída</option>
               <option value="cancelada">Cancelada</option>
             </select>
@@ -159,7 +176,11 @@ export default async function TasksPage({ searchParams }: PageProps) {
                   <tr key={t.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-900">{t.titulo}</p>
-                      <p className="text-xs text-gray-500">Criada por {t.atribuidaPor?.nomeCurto ?? "—"}</p>
+                      <p className="text-xs text-gray-500">
+                        Criada por {t.atribuidaPor?.nomeCurto ?? "—"}
+                        {t.deliverable ? ` · ${t.deliverable.titulo}` : ""}
+                        {" · "}Peso {Number(t.executionWeight).toFixed(2)}
+                      </p>
                     </td>
                     <td className="px-4 py-3 text-gray-700">{t.atribuidaA.nomeCurto}</td>
                     <td className="px-4 py-3 text-gray-700">

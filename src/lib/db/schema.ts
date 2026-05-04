@@ -100,6 +100,10 @@ export const stockMovementTypeEnum = pgEnum("stock_movement_type", [
 export const taskStateEnum = pgEnum("task_state", [
   "pendente",
   "em_curso",
+  "submetida",
+  "aprovada",
+  "precisa_correcao",
+  "rejeitada",
   "concluida",
   "cancelada",
 ]);
@@ -108,6 +112,19 @@ export const taskPriorityEnum = pgEnum("task_priority", [
   "baixa",
   "media",
   "alta",
+]);
+
+export const projectDeliverableStateEnum = pgEnum("project_deliverable_state", [
+  "planeado",
+  "em_curso",
+  "concluido",
+  "cancelado",
+]);
+
+export const taskValidationDecisionEnum = pgEnum("task_validation_decision", [
+  "aprovada",
+  "precisa_correcao",
+  "rejeitada",
 ]);
 
 export const reportTypeEnum = pgEnum("report_type", [
@@ -651,9 +668,23 @@ export const tasks = pgTable("tasks", {
   clienteId: uuid("cliente_id").references(() => clients.id, {
     onDelete: "set null",
   }),
+  deliverableId: uuid("deliverable_id").references(() => projectDeliverables.id, {
+    onDelete: "set null",
+  }),
+  executionWeight: numeric("execution_weight", { precision: 7, scale: 2 })
+    .notNull()
+    .default("1"),
   prazo: date("prazo"),
   estado: taskStateEnum("estado").notNull().default("pendente"),
   prioridade: taskPriorityEnum("prioridade").notNull().default("media"),
+  submissionNote: text("submission_note"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  validatedAt: timestamp("validated_at", { withTimezone: true }),
+  validatedBy: uuid("validated_by").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  qualityScore: integer("quality_score"),
+  validationNote: text("validation_note"),
   concluidaEm: timestamp("concluida_em", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -662,6 +693,161 @@ export const tasks = pgTable("tasks", {
     .notNull()
     .defaultNow(),
 });
+
+// ─── project_deliverables ───────────────────────────────────────────────────
+
+export const projectDeliverables = pgTable(
+  "project_deliverables",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    titulo: text("titulo").notNull(),
+    descricao: text("descricao"),
+    peso: numeric("peso", { precision: 7, scale: 2 }).notNull().default("0"),
+    prazo: date("prazo"),
+    estado: projectDeliverableStateEnum("estado").notNull().default("planeado"),
+    ordem: integer("ordem").notNull().default(0),
+    createdBy: uuid("created_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("project_deliverables_project_title_uq").on(
+      t.projectId,
+      t.titulo
+    ),
+  ]
+);
+
+// ─── task_submissions ───────────────────────────────────────────────────────
+
+export const taskSubmissions = pgTable("task_submissions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  taskId: uuid("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  submittedBy: uuid("submitted_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "restrict" }),
+  comentario: text("comentario"),
+  evidenciaUrl: text("evidencia_url"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ─── task_validations ───────────────────────────────────────────────────────
+
+export const taskValidations = pgTable("task_validations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  taskId: uuid("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  submissionId: uuid("submission_id").references(() => taskSubmissions.id, {
+    onDelete: "set null",
+  }),
+  validatedBy: uuid("validated_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "restrict" }),
+  decision: taskValidationDecisionEnum("decision").notNull(),
+  qualityScore: integer("quality_score"),
+  comentario: text("comentario"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ─── project_execution_snapshots ─────────────────────────────────────────────
+
+export const projectExecutionSnapshots = pgTable(
+  "project_execution_snapshots",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    ano: integer("ano").notNull(),
+    mes: integer("mes").notNull(),
+    plannedWeight: numeric("planned_weight", { precision: 7, scale: 2 })
+      .notNull()
+      .default("0"),
+    approvedWeight: numeric("approved_weight", { precision: 7, scale: 2 })
+      .notNull()
+      .default("0"),
+    executionPercent: numeric("execution_percent", { precision: 7, scale: 2 })
+      .notNull()
+      .default("0"),
+    assignedTasks: integer("assigned_tasks").notNull().default(0),
+    submittedTasks: integer("submitted_tasks").notNull().default(0),
+    approvedTasks: integer("approved_tasks").notNull().default(0),
+    rejectedTasks: integer("rejected_tasks").notNull().default(0),
+    pendingValidationTasks: integer("pending_validation_tasks")
+      .notNull()
+      .default(0),
+    overdueTasks: integer("overdue_tasks").notNull().default(0),
+    generatedBy: uuid("generated_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("project_execution_snapshots_project_month_uq").on(
+      t.projectId,
+      t.ano,
+      t.mes
+    ),
+  ]
+);
+
+// ─── staff_performance_snapshots ─────────────────────────────────────────────
+
+export const staffPerformanceSnapshots = pgTable(
+  "staff_performance_snapshots",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => projects.id, {
+      onDelete: "cascade",
+    }),
+    ano: integer("ano").notNull(),
+    mes: integer("mes").notNull(),
+    assignedTasks: integer("assigned_tasks").notNull().default(0),
+    submittedTasks: integer("submitted_tasks").notNull().default(0),
+    approvedTasks: integer("approved_tasks").notNull().default(0),
+    rejectedTasks: integer("rejected_tasks").notNull().default(0),
+    overdueTasks: integer("overdue_tasks").notNull().default(0),
+    approvalRate: numeric("approval_rate", { precision: 7, scale: 2 })
+      .notNull()
+      .default("0"),
+    qualityAverage: numeric("quality_average", { precision: 7, scale: 2 }),
+    generatedBy: uuid("generated_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("staff_performance_snapshots_user_project_month_uq").on(
+      t.userId,
+      t.projectId,
+      t.ano,
+      t.mes
+    ),
+  ]
+);
 
 // ─── reports ────────────────────────────────────────────────────────────────
 
@@ -926,6 +1112,25 @@ export const usersRelations = relations(users, ({ many }) => ({
   tasksCreated: many(tasks, {
     relationName: "task_assigned_by",
   }),
+  tasksValidated: many(tasks, {
+    relationName: "task_validated_by",
+  }),
+  projectDeliverablesCreated: many(projectDeliverables, {
+    relationName: "project_deliverable_created_by",
+  }),
+  taskSubmissions: many(taskSubmissions),
+  taskValidations: many(taskValidations, {
+    relationName: "task_validation_validated_by",
+  }),
+  projectExecutionSnapshotsGenerated: many(projectExecutionSnapshots, {
+    relationName: "project_execution_snapshot_generated_by",
+  }),
+  staffPerformanceSnapshots: many(staffPerformanceSnapshots, {
+    relationName: "staff_performance_snapshot_user",
+  }),
+  staffPerformanceSnapshotsGenerated: many(staffPerformanceSnapshots, {
+    relationName: "staff_performance_snapshot_generated_by",
+  }),
   reportsGenerated: many(reports),
   chatParticipants: many(chatParticipants),
   chatMessagesSent: many(chatMessages, { relationName: "chat_message_sender" }),
@@ -988,6 +1193,9 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   projectPayments: many(projectPayments),
   expenses: many(expenses),
   tasks: many(tasks),
+  deliverables: many(projectDeliverables),
+  executionSnapshots: many(projectExecutionSnapshots),
+  staffPerformanceSnapshots: many(staffPerformanceSnapshots),
 }));
 
 export const projectAssistantsRelations = relations(projectAssistants, ({ one }) => ({
@@ -1144,7 +1352,7 @@ export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
   }),
 }));
 
-export const tasksRelations = relations(tasks, ({ one }) => ({
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
   atribuidaA: one(users, {
     fields: [tasks.atribuidaA],
     references: [users.id],
@@ -1163,7 +1371,100 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
     fields: [tasks.clienteId],
     references: [clients.id],
   }),
+  deliverable: one(projectDeliverables, {
+    fields: [tasks.deliverableId],
+    references: [projectDeliverables.id],
+  }),
+  validatedByUser: one(users, {
+    fields: [tasks.validatedBy],
+    references: [users.id],
+    relationName: "task_validated_by",
+  }),
+  submissions: many(taskSubmissions),
+  validations: many(taskValidations),
 }));
+
+export const projectDeliverablesRelations = relations(
+  projectDeliverables,
+  ({ one, many }) => ({
+    project: one(projects, {
+      fields: [projectDeliverables.projectId],
+      references: [projects.id],
+    }),
+    createdByUser: one(users, {
+      fields: [projectDeliverables.createdBy],
+      references: [users.id],
+      relationName: "project_deliverable_created_by",
+    }),
+    tasks: many(tasks),
+  })
+);
+
+export const taskSubmissionsRelations = relations(
+  taskSubmissions,
+  ({ one, many }) => ({
+    task: one(tasks, {
+      fields: [taskSubmissions.taskId],
+      references: [tasks.id],
+    }),
+    submittedByUser: one(users, {
+      fields: [taskSubmissions.submittedBy],
+      references: [users.id],
+    }),
+    validations: many(taskValidations),
+  })
+);
+
+export const taskValidationsRelations = relations(taskValidations, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskValidations.taskId],
+    references: [tasks.id],
+  }),
+  submission: one(taskSubmissions, {
+    fields: [taskValidations.submissionId],
+    references: [taskSubmissions.id],
+  }),
+  validatedByUser: one(users, {
+    fields: [taskValidations.validatedBy],
+    references: [users.id],
+    relationName: "task_validation_validated_by",
+  }),
+}));
+
+export const projectExecutionSnapshotsRelations = relations(
+  projectExecutionSnapshots,
+  ({ one }) => ({
+    project: one(projects, {
+      fields: [projectExecutionSnapshots.projectId],
+      references: [projects.id],
+    }),
+    generatedByUser: one(users, {
+      fields: [projectExecutionSnapshots.generatedBy],
+      references: [users.id],
+      relationName: "project_execution_snapshot_generated_by",
+    }),
+  })
+);
+
+export const staffPerformanceSnapshotsRelations = relations(
+  staffPerformanceSnapshots,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [staffPerformanceSnapshots.userId],
+      references: [users.id],
+      relationName: "staff_performance_snapshot_user",
+    }),
+    project: one(projects, {
+      fields: [staffPerformanceSnapshots.projectId],
+      references: [projects.id],
+    }),
+    generatedByUser: one(users, {
+      fields: [staffPerformanceSnapshots.generatedBy],
+      references: [users.id],
+      relationName: "staff_performance_snapshot_generated_by",
+    }),
+  })
+);
 
 export const reportsRelations = relations(reports, ({ one }) => ({
   geradoPor: one(users, {
@@ -1314,6 +1615,20 @@ export type StockMovement = typeof stockMovements.$inferSelect;
 export type NewStockMovement = typeof stockMovements.$inferInsert;
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
+export type ProjectDeliverable = typeof projectDeliverables.$inferSelect;
+export type NewProjectDeliverable = typeof projectDeliverables.$inferInsert;
+export type TaskSubmission = typeof taskSubmissions.$inferSelect;
+export type NewTaskSubmission = typeof taskSubmissions.$inferInsert;
+export type TaskValidation = typeof taskValidations.$inferSelect;
+export type NewTaskValidation = typeof taskValidations.$inferInsert;
+export type ProjectExecutionSnapshot =
+  typeof projectExecutionSnapshots.$inferSelect;
+export type NewProjectExecutionSnapshot =
+  typeof projectExecutionSnapshots.$inferInsert;
+export type StaffPerformanceSnapshot =
+  typeof staffPerformanceSnapshots.$inferSelect;
+export type NewStaffPerformanceSnapshot =
+  typeof staffPerformanceSnapshots.$inferInsert;
 export type Report = typeof reports.$inferSelect;
 export type NewReport = typeof reports.$inferInsert;
 export type ChatConversation = typeof chatConversations.$inferSelect;
@@ -1357,6 +1672,10 @@ export type DividendState = (typeof dividendStateEnum.enumValues)[number];
 export type StockMovementType = (typeof stockMovementTypeEnum.enumValues)[number];
 export type TaskState = (typeof taskStateEnum.enumValues)[number];
 export type TaskPriority = (typeof taskPriorityEnum.enumValues)[number];
+export type ProjectDeliverableState =
+  (typeof projectDeliverableStateEnum.enumValues)[number];
+export type TaskValidationDecision =
+  (typeof taskValidationDecisionEnum.enumValues)[number];
 export type ReportType = (typeof reportTypeEnum.enumValues)[number];
 export type ChatConversationType =
   (typeof chatConversationTypeEnum.enumValues)[number];
