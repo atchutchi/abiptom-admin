@@ -48,9 +48,7 @@ A plataforma foi desenhada para fechar o ciclo mensal da ABIPTOM com menos erro 
 | --- | --- |
 | ![Chat interno](./public/readme/chat.png) | ![Módulo de tarefas](./public/readme/tasks.png) |
 
-| Execução validada | Folha com execução |
-| --- | --- |
-| ![Execução validada de projecto](./public/readme/project-execution.png) | ![Folha salarial com execução validada](./public/readme/salary-execution.png) |
+
 
 ## Funcionalidades Implementadas
 
