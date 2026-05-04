@@ -5,13 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { NativeSelect } from "@/components/ui/native-select";
 import { createProject, updateProject } from "@/lib/projects/actions";
 
 interface Client {
@@ -118,35 +112,37 @@ export default function ProjectForm({
 
         <div className="space-y-1">
           <Label htmlFor="clientId">Cliente *</Label>
-          <Select name="clientId" defaultValue={project?.clientId ?? ""} required>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Seleccionar cliente" />
-            </SelectTrigger>
-            <SelectContent>
-              {clients.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <NativeSelect
+            id="clientId"
+            name="clientId"
+            defaultValue={project?.clientId ?? ""}
+            required
+          >
+            <option value="" disabled>
+              Seleccionar cliente
+            </option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nome}
+              </option>
+            ))}
+          </NativeSelect>
         </div>
 
         <div className="space-y-1">
           <Label htmlFor="servicoId">Serviço</Label>
-          <Select name="servicoId" defaultValue={project?.servicoId ?? ""}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="(opcional)" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">Nenhum</SelectItem>
-              {services.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <NativeSelect
+            id="servicoId"
+            name="servicoId"
+            defaultValue={project?.servicoId ?? ""}
+          >
+            <option value="">Nenhum</option>
+            {services.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nome}
+              </option>
+            ))}
+          </NativeSelect>
         </div>
 
         <div className="space-y-1">
@@ -172,35 +168,33 @@ export default function ProjectForm({
 
         <div className="space-y-1">
           <Label htmlFor="estado">Estado</Label>
-          <Select name="estado" defaultValue={project?.estado ?? "proposta"}>
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="proposta">Proposta</SelectItem>
-              <SelectItem value="activo">Activo</SelectItem>
-              <SelectItem value="pausado">Pausado</SelectItem>
-              <SelectItem value="concluido">Concluído</SelectItem>
-              <SelectItem value="cancelado">Cancelado</SelectItem>
-            </SelectContent>
-          </Select>
+          <NativeSelect
+            id="estado"
+            name="estado"
+            defaultValue={project?.estado ?? "proposta"}
+          >
+            <option value="proposta">Proposta</option>
+            <option value="activo">Activo</option>
+            <option value="pausado">Pausado</option>
+            <option value="concluido">Concluído</option>
+            <option value="cancelado">Cancelado</option>
+          </NativeSelect>
         </div>
 
         <div className="space-y-1">
           <Label htmlFor="pontoFocalId">Ponto Focal (PF)</Label>
-          <Select name="pontoFocalId" defaultValue={project?.pontoFocalId ?? ""}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Seleccionar PF" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">Nenhum</SelectItem>
-              {staffUsers.map((u) => (
-                <SelectItem key={u.id} value={u.id}>
-                  {u.nomeCurto}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <NativeSelect
+            id="pontoFocalId"
+            name="pontoFocalId"
+            defaultValue={project?.pontoFocalId ?? ""}
+          >
+            <option value="">Nenhum</option>
+            {staffUsers.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.nomeCurto}
+              </option>
+            ))}
+          </NativeSelect>
         </div>
 
         <div className="space-y-1">
@@ -218,16 +212,15 @@ export default function ProjectForm({
 
         <div className="space-y-1">
           <Label htmlFor="moeda">Moeda</Label>
-          <Select name="moeda" defaultValue={project?.moeda ?? "XOF"}>
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="XOF">XOF</SelectItem>
-              <SelectItem value="EUR">EUR</SelectItem>
-              <SelectItem value="USD">USD</SelectItem>
-            </SelectContent>
-          </Select>
+          <NativeSelect
+            id="moeda"
+            name="moeda"
+            defaultValue={project?.moeda ?? "XOF"}
+          >
+            <option value="XOF">XOF</option>
+            <option value="EUR">EUR</option>
+            <option value="USD">USD</option>
+          </NativeSelect>
         </div>
       </div>
 

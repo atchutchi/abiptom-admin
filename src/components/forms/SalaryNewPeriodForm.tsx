@@ -5,13 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { NativeSelect } from "@/components/ui/native-select";
 import { createPeriod, loadPaidInvoiceProjectEntries } from "@/lib/salary/actions";
 import type {
   CreatePeriodInput,
@@ -87,8 +81,6 @@ export function SalaryNewPeriodForm({
     })),
   );
 
-  const selectedPolicy = policies.find((policy) => policy.id === policyId);
-  const selectedMonth = MES_OPTIONS.find((option) => option.value === mes);
   const includedEntries = entries.filter((entry) => entry.included);
   const totalImported = Object.values(invoiceEntries).reduce(
     (sum, entry) => sum + entry.valorRecebido,
@@ -236,54 +228,48 @@ export function SalaryNewPeriodForm({
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="space-y-1">
             <Label>Mes *</Label>
-            <Select value={mes} onValueChange={(value) => value && setMes(value)}>
-              <SelectTrigger>
-                <SelectValue>{selectedMonth?.label ?? "Seleccionar mes"}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {MES_OPTIONS.map((month) => (
-                  <SelectItem key={month.value} value={month.value}>
-                    {month.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <NativeSelect
+              value={mes}
+              onChange={(event) => setMes(event.target.value)}
+            >
+              {MES_OPTIONS.map((month) => (
+                <option key={month.value} value={month.value}>
+                  {month.label}
+                </option>
+              ))}
+            </NativeSelect>
           </div>
 
           <div className="space-y-1">
             <Label>Ano *</Label>
-            <Select value={ano} onValueChange={(value) => value && setAno(value)}>
-              <SelectTrigger>
-                <SelectValue>{ano}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {YEAR_OPTIONS.map((year) => (
-                  <SelectItem key={year} value={String(year)}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <NativeSelect
+              value={ano}
+              onChange={(event) => setAno(event.target.value)}
+            >
+              {YEAR_OPTIONS.map((year) => (
+                <option key={year} value={String(year)}>
+                  {year}
+                </option>
+              ))}
+            </NativeSelect>
           </div>
 
           <div className="space-y-1">
             <Label>Politica *</Label>
-            <Select value={policyId} onValueChange={(value) => value && setPolicyId(value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar politica">
-                  {selectedPolicy
-                    ? `${selectedPolicy.nome} v${selectedPolicy.versao}`
-                    : "Seleccionar politica"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {policies.map((policy) => (
-                  <SelectItem key={policy.id} value={policy.id}>
-                    {policy.nome} v{policy.versao}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <NativeSelect
+              value={policyId}
+              onChange={(event) => setPolicyId(event.target.value)}
+              required
+            >
+              <option value="" disabled>
+                Seleccionar politica
+              </option>
+              {policies.map((policy) => (
+                <option key={policy.id} value={policy.id}>
+                  {policy.nome} v{policy.versao}
+                </option>
+              ))}
+            </NativeSelect>
           </div>
         </div>
         <p className="text-xs text-gray-500">

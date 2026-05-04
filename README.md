@@ -48,8 +48,6 @@ A plataforma foi desenhada para fechar o ciclo mensal da ABIPTOM com menos erro 
 | --- | --- |
 | ![Chat interno](./public/readme/chat.png) | ![Módulo de tarefas](./public/readme/tasks.png) |
 
-
-
 ## Funcionalidades Implementadas
 
 ### Autenticação e segurança
@@ -176,6 +174,7 @@ Regras operacionais da política `actual_2024`:
 - cron `/api/cron/messages-email` diário no plano Hobby da Vercel para enviar notificações pendentes
 - deduplicação de emails pendentes por conversa e destinatário
 - RLS por participante: só membros da conversa podem ler mensagens e participantes
+- formulário de nova conversa carregado sob pedido, para a primeira abertura do chat não trazer logo listas completas de utilizadores e projectos
 
 ### Branding e favicon
 
@@ -202,6 +201,16 @@ Regras operacionais da política `actual_2024`:
 - protecção por `CRON_SECRET`
 - upload para bucket privado Supabase Storage
 - fallback SQL quando `pg_dump` não está disponível no runtime
+
+### Performance e navegação
+
+- cache do App Router configurada em `next.config.ts` com `staleTimes` para manter páginas visitadas mais rápidas ao voltar
+- prefetch da sidebar feito em `hover` ou `focus`, evitando que todas as rotas administrativas sejam pré-carregadas ao mesmo tempo
+- skeletons globais para `/admin/*` e `/staff/*`, reduzindo sensação de bloqueio nas transições
+- formulário de nova conversa separado e carregado só quando o utilizador clica em `Nova conversa`
+- opções de colegas e projectos do chat carregadas apenas quando são necessárias
+- formulários pesados de projectos e novo período salarial usam `NativeSelect`, reduzindo JavaScript de UI sem mudar a submissão dos dados
+- screenshots do README devem ficar limitados a imagens antigas ou sanitizadas, sem dados reais de salário, execução ou equipa
 
 ## Fluxo Financeiro Suportado
 
@@ -590,6 +599,26 @@ O botão `Gerar snapshot execução` grava métricas mensais, mas o total bruto/
 **Solução**
 
 Este comportamento é intencional. A execução validada está primeiro em modo informativo para auditoria e teste operacional. Só deve afectar pagamento variável, bónus ou bloqueios depois de a regra financeira ser aprovada.
+
+### Screenshots do README mostram dados reais
+
+**Problema**
+
+Prints de páginas como folha salarial, execução validada ou dados de equipa podem expor informação real quando o repositório é visto por terceiros.
+
+**Solução**
+
+Não publicar esses prints em `public/readme/`. Manter apenas screenshots antigos ou imagens sanitizadas. Foram removidos os prints recentes de execução e folha salarial que continham dados reais.
+
+### Navegação entre páginas parece pesada
+
+**Problema**
+
+Rotas administrativas grandes podem parecer lentas quando a sidebar tenta pré-carregar demasiadas páginas ou quando um formulário importa componentes de UI com muito JavaScript.
+
+**Solução**
+
+A app usa cache do router com `staleTimes`, skeletons de loading por área, prefetch controlado por hover/focus na sidebar e selects nativos em formulários operacionais pesados. Se uma página voltar a crescer muito, comparar o `First Load JS` de `npm run build` antes e depois da alteração.
 
 ### Chat abre mas a zona de escrever ou enviar não aparece
 

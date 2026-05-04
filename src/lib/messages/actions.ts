@@ -39,6 +39,11 @@ export interface MessageProject {
   titulo: string;
 }
 
+export interface NewConversationOptions {
+  users: MessageUser[];
+  projects: MessageProject[];
+}
+
 export interface ConversationSummary {
   id: string;
   type: ChatConversationType;
@@ -82,6 +87,8 @@ async function requireDbUser() {
   if (!user || !dbUser) throw new Error("Não autenticado.");
   return { user, dbUser };
 }
+
+type CurrentDbUser = Awaited<ReturnType<typeof requireDbUser>>["dbUser"];
 
 async function assertParticipant(conversationId: string, userId: string) {
   const participant = await dbAdmin.query.chatParticipants.findFirst({
@@ -170,9 +177,7 @@ export async function getUnreadMessageCount() {
   return [...unreadMap.values()].reduce((total, count) => total + count, 0);
 }
 
-export async function listMessageUsers(): Promise<MessageUser[]> {
-  const { dbUser } = await requireDbUser();
-
+async function listMessageUsersFor(dbUser: CurrentDbUser): Promise<MessageUser[]> {
   const [allUsers, presences] = await Promise.all([
     dbAdmin.query.users.findMany({
       where: and(eq(users.activo, true), ne(users.id, dbUser.id)),
@@ -201,9 +206,7 @@ export async function listMessageUsers(): Promise<MessageUser[]> {
   });
 }
 
-export async function listMessageProjects(): Promise<MessageProject[]> {
-  const { dbUser } = await requireDbUser();
-
+async function listMessageProjectsFor(dbUser: CurrentDbUser): Promise<MessageProject[]> {
   if (["ca", "dg", "coord"].includes(dbUser.role)) {
     const rows = await dbAdmin.query.projects.findMany({
       columns: { id: true, titulo: true },
@@ -227,6 +230,26 @@ export async function listMessageProjects(): Promise<MessageProject[]> {
     columns: { id: true, titulo: true },
     orderBy: (p, { desc }) => [desc(p.createdAt)],
   });
+}
+
+export async function listMessageUsers(): Promise<MessageUser[]> {
+  const { dbUser } = await requireDbUser();
+  return listMessageUsersFor(dbUser);
+}
+
+export async function listMessageProjects(): Promise<MessageProject[]> {
+  const { dbUser } = await requireDbUser();
+  return listMessageProjectsFor(dbUser);
+}
+
+export async function listNewConversationOptions(): Promise<NewConversationOptions> {
+  const { dbUser } = await requireDbUser();
+  const [users, projects] = await Promise.all([
+    listMessageUsersFor(dbUser),
+    listMessageProjectsFor(dbUser),
+  ]);
+
+  return { users, projects };
 }
 
 export async function listConversations(): Promise<ConversationSummary[]> {

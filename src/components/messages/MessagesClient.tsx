@@ -7,8 +7,8 @@ import {
   useMemo,
   useRef,
   useState,
-  useTransition,
 } from "react";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   FolderKanban,
@@ -21,25 +21,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
 import {
-  createDirectConversation,
-  createGroupConversation,
-  createProjectConversation,
   getConversationMessages,
   listConversations,
   markConversationRead,
   sendMessage,
   type ConversationMessage,
   type ConversationSummary,
-  type MessageProject,
   type MessageUser,
 } from "@/lib/messages/actions";
 import { cn } from "@/lib/utils";
@@ -47,18 +36,22 @@ import { cn } from "@/lib/utils";
 interface MessagesClientProps {
   currentUserId: string;
   initialConversations: ConversationSummary[];
-  users: MessageUser[];
-  projects: MessageProject[];
   initialConversationId?: string | null;
 }
-
-type NewConversationMode = "direct" | "group" | "project";
 
 const TYPE_LABELS: Record<string, string> = {
   direct: "Colega",
   group: "Grupo",
   project: "Projecto",
 };
+
+const NewConversationDialog = dynamic(
+  () =>
+    import("@/components/messages/NewConversationDialog").then(
+      (mod) => mod.NewConversationDialog
+    ),
+  { ssr: false }
+);
 
 function formatMessageTime(value: string) {
   return new Intl.DateTimeFormat("pt-PT", {
@@ -90,14 +83,11 @@ function formatLastSeen(value: string | null) {
 export function MessagesClient({
   currentUserId,
   initialConversations,
-  users,
-  projects,
   initialConversationId,
 }: MessagesClientProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
   const [conversations, setConversations] = useState(initialConversations);
   const [selectedId, setSelectedId] = useState(
     initialConversationId ?? initialConversations[0]?.id ?? null
@@ -106,18 +96,10 @@ export function MessagesClient({
   const [body, setBody] = useState("");
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [mode, setMode] = useState<NewConversationMode>("direct");
-  const [directUserId, setDirectUserId] = useState(users[0]?.id ?? "");
-  const [groupTitle, setGroupTitle] = useState("");
-  const [groupParticipantIds, setGroupParticipantIds] = useState<string[]>([]);
-  const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
+  const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-
-  const canCreateConversation =
-    (mode === "direct" && Boolean(directUserId)) ||
-    (mode === "group" && groupTitle.trim().length >= 2 && groupParticipantIds.length >= 2) ||
-    (mode === "project" && Boolean(projectId));
+  const selectedIdRef = useRef(selectedId);
 
   const selectedConversation = conversations.find(
     (conversation) => conversation.id === selectedId
@@ -139,7 +121,9 @@ export function MessagesClient({
 
   const loadMessages = useCallback(async (conversationId: string) => {
     const nextMessages = await getConversationMessages(conversationId);
-    setMessages(nextMessages);
+    if (selectedIdRef.current === conversationId) {
+      setMessages(nextMessages);
+    }
     await markConversationRead(conversationId).catch(() => undefined);
     await refreshConversations();
   }, [refreshConversations]);
@@ -152,8 +136,13 @@ export function MessagesClient({
 
   function selectConversation(conversationId: string) {
     setSelectedId(conversationId);
+    setError(null);
     updateUrl(conversationId);
   }
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -238,79 +227,48 @@ export function MessagesClient({
 
   async function handleSend(event: FormEvent) {
     event.preventDefault();
-    if (!selectedId || !body.trim() || isPending) return;
+    if (!selectedId || !body.trim() || isSending) return;
 
-    const nextBody = body;
+    const conversationId = selectedId;
+    const nextBody = body.trim();
     setBody("");
     setError(null);
+    setIsSending(true);
 
-    startTransition(async () => {
-      try {
-        const result = await sendMessage(selectedId, nextBody);
-        if ("error" in result && result.error) {
-          setError(result.error);
-          setBody(nextBody);
-          return;
-        }
-
-        if (result.message) {
-          setMessages((current) =>
-            current.some((message) => message.id === result.message.id)
-              ? current
-              : [...current, result.message]
-          );
-        }
-        await loadMessages(selectedId);
-      } catch {
-        setError("Não foi possível enviar a mensagem. Tenta novamente.");
+    try {
+      const result = await sendMessage(conversationId, nextBody);
+      if ("error" in result && result.error) {
+        setError(result.error);
         setBody(nextBody);
+        return;
       }
-    });
+
+      if (result.message && selectedIdRef.current === conversationId) {
+        setMessages((current) =>
+          current.some((message) => message.id === result.message.id)
+            ? current
+            : [...current, result.message]
+        );
+      }
+
+      if (selectedIdRef.current === conversationId) {
+        await loadMessages(conversationId);
+      } else {
+        await refreshConversations();
+      }
+    } catch {
+      setError("Não foi possível enviar a mensagem. Tenta novamente.");
+      setBody(nextBody);
+    } finally {
+      setIsSending(false);
+    }
   }
 
-  async function handleCreateConversation(event: FormEvent) {
-    event.preventDefault();
-    setError(null);
-
-    startTransition(async () => {
-      try {
-        const result =
-          mode === "direct"
-            ? await createDirectConversation(directUserId)
-            : mode === "group"
-              ? await createGroupConversation({
-                  title: groupTitle,
-                  participantIds: groupParticipantIds,
-                })
-              : await createProjectConversation(projectId);
-
-        if ("error" in result && result.error) {
-          setError(result.error);
-          return;
-        }
-
-        if (result.conversationId) {
-          const nextConversations = await listConversations();
-          setConversations(nextConversations);
-          setSelectedId(result.conversationId);
-          updateUrl(result.conversationId);
-        }
-
-        setDialogOpen(false);
-        setGroupTitle("");
-        setGroupParticipantIds([]);
-      } catch {
-        setError("Não foi possível criar a conversa.");
-      }
-    });
-  }
-
-  function toggleGroupParticipant(userId: string) {
-    setGroupParticipantIds((current) =>
-      current.includes(userId)
-        ? current.filter((id) => id !== userId)
-        : [...current, userId]
-    );
+  async function handleConversationCreated(conversationId: string) {
+    const nextConversations = await listConversations();
+    setConversations(nextConversations);
+    setSelectedId(conversationId);
+    updateUrl(conversationId);
   }
 
   return (
@@ -326,130 +284,21 @@ export function MessagesClient({
                 {conversations.length} activas
               </p>
             </div>
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger render={<Button size="icon-sm" aria-label="Nova conversa" />}>
-                <Plus className="h-4 w-4" aria-hidden="true" />
-              </DialogTrigger>
-              <DialogContent className="max-h-[min(44rem,calc(100vh-2rem))] w-[min(46rem,calc(100vw-2rem))] overflow-hidden p-0 sm:max-w-none">
-                <form
-                  onSubmit={handleCreateConversation}
-                  className="flex max-h-[min(44rem,calc(100vh-2rem))] min-w-0 flex-col"
-                >
-                  <DialogHeader className="border-b border-[color:var(--brand-line)] px-5 py-4">
-                    <DialogTitle>Nova conversa</DialogTitle>
-                  </DialogHeader>
-
-                  <div className="min-w-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-5 py-4">
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                      {(["direct", "group", "project"] as const).map((item) => (
-                        <button
-                          key={item}
-                          type="button"
-                          onClick={() => {
-                            setMode(item);
-                            setError(null);
-                          }}
-                          className={cn(
-                            "h-10 min-w-0 truncate rounded-lg border px-2 text-sm font-medium transition-colors",
-                            mode === item
-                              ? "border-[color:var(--brand-gold)] bg-[color:var(--brand-gold-soft)] text-[color:var(--brand-ink)]"
-                              : "border-[color:var(--brand-line)] text-[color:var(--brand-muted)] hover:bg-[rgb(245_184_0_/_10%)]"
-                          )}
-                        >
-                          {TYPE_LABELS[item]}
-                        </button>
-                      ))}
-                    </div>
-
-                    {mode === "direct" && (
-                      <label className="block space-y-2 text-sm">
-                        <span className="font-medium">Colega</span>
-                        <select
-                          value={directUserId}
-                          onChange={(event) => {
-                            setDirectUserId(event.target.value);
-                            setError(null);
-                          }}
-                          className="h-9 w-full min-w-0 rounded-lg border border-input bg-[rgb(255_253_248_/_85%)] px-2 text-sm outline-none focus:border-[color:var(--brand-gold)]"
-                        >
-                          {users.map((user) => (
-                            <option key={user.id} value={user.id}>
-                              {user.nomeCurto} · {user.cargo ?? user.email}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    )}
-
-                    {mode === "group" && (
-                      <div className="space-y-3">
-                        <label className="block min-w-0 space-y-2 text-sm">
-                          <span className="font-medium">Nome do grupo</span>
-                          <Input
-                            value={groupTitle}
-                            onChange={(event) => {
-                              setGroupTitle(event.target.value);
-                              setError(null);
-                            }}
-                            placeholder="Ex.: Equipa comercial"
-                            className="min-w-0"
-                          />
-                        </label>
-                        <div className="max-h-56 space-y-1 overflow-y-auto overflow-x-hidden rounded-lg border border-[color:var(--brand-line)] p-2">
-                          {users.map((user) => (
-                            <label
-                              key={user.id}
-                              className="flex min-w-0 cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-[rgb(245_184_0_/_10%)]"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={groupParticipantIds.includes(user.id)}
-                                onChange={() => {
-                                  toggleGroupParticipant(user.id);
-                                  setError(null);
-                                }}
-                                className="h-4 w-4 shrink-0 accent-[color:var(--brand-gold)]"
-                              />
-                              <span className="min-w-0 flex-1 truncate">
-                                {user.nomeCurto} · {user.cargo ?? user.email}
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {mode === "project" && (
-                      <label className="block min-w-0 space-y-2 text-sm">
-                        <span className="font-medium">Projecto</span>
-                        <select
-                          value={projectId}
-                          onChange={(event) => {
-                            setProjectId(event.target.value);
-                            setError(null);
-                          }}
-                          className="h-9 w-full min-w-0 rounded-lg border border-input bg-[rgb(255_253_248_/_85%)] px-2 text-sm outline-none focus:border-[color:var(--brand-gold)]"
-                        >
-                          {projects.map((project) => (
-                            <option key={project.id} value={project.id}>
-                              {project.titulo}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    )}
-
-                    {error && <p className="text-sm text-red-600">{error}</p>}
-                  </div>
-
-                  <div className="flex justify-end border-t border-[color:var(--brand-line)] bg-[rgb(255_243_194_/_45%)] px-5 py-4">
-                    <Button type="submit" disabled={isPending || !canCreateConversation}>
-                      Criar
-                    </Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
+            <Button
+              type="button"
+              size="icon-sm"
+              aria-label="Nova conversa"
+              onClick={() => setDialogOpen(true)}
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            {dialogOpen && (
+              <NewConversationDialog
+                open={dialogOpen}
+                onOpenChange={setDialogOpen}
+                onCreated={handleConversationCreated}
+              />
+            )}
           </div>
 
           <div className="border-b border-[color:var(--brand-line)] p-3">
@@ -609,7 +458,7 @@ export function MessagesClient({
                   <Button
                     type="submit"
                     size="icon-lg"
-                    disabled={!body.trim() || isPending}
+                    disabled={!body.trim() || isSending}
                     className="shrink-0 md:w-auto md:px-3"
                   >
                     <Send className="h-4 w-4" aria-hidden="true" />
