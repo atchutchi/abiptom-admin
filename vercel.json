@@ -11,7 +11,7 @@
     },
     {
       "path": "/api/cron/messages-email",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 8 * * *"
     }
   ]
 }

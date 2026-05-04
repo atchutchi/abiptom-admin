@@ -152,7 +152,7 @@ Regras operacionais da política `actual_2024`:
 - presença online com heartbeat em `user_presence`
 - actualização em tempo real via Supabase Realtime para novas mensagens e presença
 - fila de email para destinatários offline em `chat_email_notifications`
-- cron `/api/cron/messages-email` a cada 5 minutos para enviar notificações pendentes
+- cron `/api/cron/messages-email` diário no plano Hobby da Vercel para enviar notificações pendentes
 - deduplicação de emails pendentes por conversa e destinatário
 - RLS por participante: só membros da conversa podem ler mensagens e participantes
 
@@ -377,6 +377,7 @@ Checklist mínimo:
 - criar bucket privado de backups
 - definir `CRON_SECRET`
 - confirmar que a migration `0010_add_chat_messaging.sql` foi aplicada antes de activar mensagens
+- no plano Hobby da Vercel, manter crons no máximo uma vez por dia; para emails offline em poucos minutos, usar Vercel Pro ou cron externo
 - correr `npm run build` localmente antes do push quando houver alteração estrutural
 
 ## Supabase Auth

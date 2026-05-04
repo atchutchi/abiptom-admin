@@ -51,3 +51,4 @@ ABIPTOM_ADMIN_SPEC.md
 README.md.bak
 ABIPTOM_ADMIN_CLAUDE_CODE_PROMPT.md
 .playwright-mcp/
+.env*.local
