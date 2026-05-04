@@ -49,9 +49,9 @@ export function MessagesHeaderButton() {
 
   return (
     <Button asChild variant="ghost" size="sm" className="relative">
-      <Link href={href} aria-label="Mensagens">
+      <Link href={href} aria-label="Chat">
         <MessageSquare className="h-4 w-4" aria-hidden="true" />
-        <span className="hidden sm:inline">Mensagens</span>
+        <span className="hidden sm:inline">Chat</span>
         {count > 0 && (
           <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[color:var(--brand-gold)] px-1 text-[10px] font-bold text-[color:var(--brand-ink)] ring-1 ring-white">
             {count > 99 ? "99+" : count}

@@ -8,7 +8,7 @@ import {
   listMessageUsers,
 } from "@/lib/messages/actions";
 
-export const metadata = { title: "Mensagens — ABIPTOM Core" };
+export const metadata = { title: "Chat — ABIPTOM Core" };
 
 export default async function StaffMessagesPage({
   searchParams,
@@ -27,7 +27,7 @@ export default async function StaffMessagesPage({
 
   return (
     <>
-      <Header title="Mensagens" />
+      <Header title="Chat" />
       <MessagesClient
         currentUserId={dbUser.id}
         initialConversations={conversations}

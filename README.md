@@ -141,14 +141,14 @@ Regras operacionais da política `actual_2024`:
 - tarefas com responsável, estado, prioridade e contexto operacional
 - área staff para tarefas próprias
 
-### Mensagens internas
+### Chat interno
 
 - conversas directas entre colegas
 - grupos com múltiplos colaboradores
 - conversas ligadas a projectos, com participantes derivados do ponto focal e auxiliares
 - contador de mensagens não lidas no cabeçalho
-- página de mensagens para administração em `/admin/messages`
-- página de mensagens para colaboradores em `/staff/me/messages`
+- página de chat para administração em `/admin/messages`, com atalho `/admin/chat`
+- página de chat para colaboradores em `/staff/me/messages`, com atalho `/staff/me/chat`
 - presença online com heartbeat em `user_presence`
 - actualização em tempo real via Supabase Realtime para novas mensagens e presença
 - fila de email para destinatários offline em `chat_email_notifications`

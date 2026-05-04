@@ -102,7 +102,7 @@ const NAV_ITEMS: NavItem[] = [
     roles: ["ca", "dg", "coord"],
   },
   {
-    label: "Mensagens",
+    label: "Chat",
     href: "/admin/messages",
     icon: MessageSquare,
     roles: ["ca", "dg", "coord"],
@@ -153,7 +153,7 @@ const STAFF_NAV_ITEMS: NavItem[] = [
     roles: ["staff", "coord"],
   },
   {
-    label: "Mensagens",
+    label: "Chat",
     href: "/staff/me/messages",
     icon: MessageSquare,
     roles: ["staff", "coord"],
