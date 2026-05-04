@@ -2,7 +2,7 @@
 
 > Os Guardiões das Novas Tecnologias
 
-Última actualização: 29 de Abril de 2026.
+Última actualização: 4 de Maio de 2026.
 
 `ABIPTOM Core` é a plataforma operacional interna da ABIPTOM SARL. O repositório mantém o nome técnico `abiptom-admin`, mas a aplicação exposta aos utilizadores usa a marca Core. Centraliza clientes, projectos, facturação, despesas, folha salarial, dividendos, stock, tarefas, mensagens internas, relatórios e área pessoal dos colaboradores.
 
@@ -43,6 +43,10 @@ A plataforma foi desenhada para fechar o ciclo mensal da ABIPTOM com menos erro 
 | Relatórios | Stock |
 | --- | --- |
 | ![Relatório mensal](./public/readme/reports.png) | ![Módulo de stock](./public/readme/stock.png) |
+
+| Chat interno | Tarefas |
+| --- | --- |
+| ![Chat interno](./public/readme/chat.png) | ![Módulo de tarefas](./public/readme/tasks.png) |
 
 ## Funcionalidades Implementadas
 
@@ -151,10 +155,21 @@ Regras operacionais da política `actual_2024`:
 - página de chat para colaboradores em `/staff/me/messages`, com atalho `/staff/me/chat`
 - presença online com heartbeat em `user_presence`
 - actualização em tempo real via Supabase Realtime para novas mensagens e presença
+- fallback de actualização periódica quando o Realtime do browser atrasa ou falha
+- composer de mensagem sempre visível no fundo da conversa em desktop
+- envio protegido contra falhas da fila de email: a mensagem não falha se a notificação offline falhar
+- tratamento explícito de erro no frontend ao criar conversas ou enviar mensagens
 - fila de email para destinatários offline em `chat_email_notifications`
 - cron `/api/cron/messages-email` diário no plano Hobby da Vercel para enviar notificações pendentes
 - deduplicação de emails pendentes por conversa e destinatário
 - RLS por participante: só membros da conversa podem ler mensagens e participantes
+
+### Branding e favicon
+
+- favicon ABIPTOM em `src/app/favicon.ico`
+- ícone PNG em `src/app/icon.png`
+- Apple touch icon em `src/app/apple-icon.png`
+- metadata global com ícones explícitos para evitar fallback/cache do ícone da Vercel
 
 ### Relatórios
 
@@ -193,6 +208,74 @@ flowchart TD
 ```
 
 A folha salarial deve usar o valor bruto pago pelo cliente como base do projecto. Se a despesa directa já foi registada e ligada ao projecto, não se deve introduzir manualmente o valor líquido. O motor subtrai essas despesas automaticamente no cálculo.
+
+## Proposta: Execução e Validação de Tarefas
+
+Esta proposta ainda não está implementada. Deve ser aprovada antes de criar migrations e alterar a folha salarial.
+
+Objectivo: ligar tarefas, execução operacional, validação da coordenação, taxa de execução do projecto, controlo de RH e impacto salarial.
+
+### Modelo funcional recomendado
+
+- cada projecto passa a ter entregáveis/marcos com peso percentual, por exemplo estratégia 20%, design 30%, campanha 50%
+- cada tarefa pertence a um projecto e, opcionalmente, a um entregável
+- o colaborador marca a tarefa como `submetida` quando termina
+- a coordenação valida como `aprovada`, `rejeitada` ou `precisa_correcao`
+- a validação guarda data, validador, comentário, evidência e pontuação de qualidade
+- a taxa de execução do projecto é calculada pelo peso das tarefas aprovadas, não apenas por tarefas criadas
+- RH vê por colaborador: tarefas atribuídas, submetidas, aprovadas, rejeitadas, atraso médio e qualidade média
+- a folha salarial pode usar estes indicadores como factor de elegibilidade, bónus ou bloqueio de pagamento variável
+
+### Estados propostos
+
+```mermaid
+stateDiagram-v2
+    [*] --> aberta
+    aberta --> em_execucao
+    em_execucao --> submetida
+    submetida --> aprovada
+    submetida --> precisa_correcao
+    precisa_correcao --> em_execucao
+    submetida --> rejeitada
+    aprovada --> [*]
+    rejeitada --> [*]
+```
+
+### Tabelas prováveis
+
+- `project_deliverables`: entregáveis por projecto, peso e prazo
+- `task_submissions`: submissões do colaborador com descrição, anexos e data
+- `task_validations`: decisão da coordenação, nota, comentário e validador
+- `project_execution_snapshots`: snapshot mensal da execução usada em relatórios e folha salarial
+- `staff_performance_snapshots`: snapshot mensal por colaborador para RH e pagamento
+
+### Regras de cálculo recomendadas
+
+- execução do projecto = soma dos pesos dos entregáveis aprovados
+- execução individual = tarefas aprovadas ponderadas pelo peso e prazo
+- tarefa atrasada pode reduzir pontuação, mas não deve anular automaticamente trabalho aprovado
+- pagamento fixo continua independente da execução, salvo decisão administrativa
+- pagamento variável, prémio ou subsídio pode depender de execução aprovada e qualidade mínima
+- alterações retroactivas devem gerar snapshot novo, sem apagar o histórico usado numa folha já aprovada
+
+### Fluxo operacional
+
+```mermaid
+flowchart TD
+    A["Projecto"] --> B["Entregáveis ponderados"]
+    B --> C["Tarefas atribuídas"]
+    C --> D["Colaborador submete execução"]
+    D --> E["Coordenação valida"]
+    E --> F["Taxa de execução do projecto"]
+    E --> G["Indicadores RH por colaborador"]
+    F --> H["Relatórios de projecto"]
+    G --> I["Folha salarial e prémios"]
+```
+
+Implementação recomendada em duas fases:
+
+1. fase operacional: submissão, validação, histórico e dashboards
+2. fase salarial: integração com snapshots mensais e regras de pagamento variável
 
 ## Arquitectura
 
@@ -377,6 +460,7 @@ Checklist mínimo:
 - criar bucket privado de backups
 - definir `CRON_SECRET`
 - confirmar que a migration `0010_add_chat_messaging.sql` foi aplicada antes de activar mensagens
+- se a migration 10 já tiver sido aplicada com sucesso, não repetir a 10 e não executar a 11 por hábito; a 11 é apenas recuperação idempotente para ambientes incompletos
 - no plano Hobby da Vercel, manter crons no máximo uma vez por dia; para emails offline em poucos minutos, usar Vercel Pro ou cron externo
 - correr `npm run build` localmente antes do push quando houver alteração estrutural
 
@@ -436,6 +520,36 @@ A migration `0010_add_chat_messaging.sql` já foi executada total ou parcialment
 **Solução**
 
 Não repetir a migration 10 directamente. Executar `0011_chat_messaging_recovery_safe.sql`, que é idempotente e cria apenas o que estiver em falta: enums, tabelas, constraints, índices, funções, RLS e publicação Realtime.
+
+### Chat abre mas a zona de escrever ou enviar não aparece
+
+**Problema**
+
+O layout do chat pode ficar preso se a lista de conversas e a área de mensagens não respeitarem a altura disponível abaixo do header.
+
+**Solução**
+
+O cliente do chat usa `h-[calc(100dvh-4rem)]`, grid com altura fixa e scroll apenas na lista de conversas e no histórico de mensagens. O formulário de envio fica no fundo da conversa e não depende do scroll da página.
+
+### Mensagem não deve falhar por erro na notificação offline
+
+**Problema**
+
+A mensagem era enviada e, depois, a app tentava criar a fila de email para destinatários offline. Se essa fila falhasse, o server action podia parecer ter falhado no frontend.
+
+**Solução**
+
+O envio da mensagem é a operação principal. A fila de email é secundária e fica protegida por `try/catch`. Se a fila falhar, a mensagem continua gravada e o erro aparece nos logs para diagnóstico.
+
+### Browser continua a mostrar favicon da Vercel
+
+**Problema**
+
+O `/favicon.ico` existe, mas alguns browsers mantêm cache agressiva ou usam fallback se o HTML só anunciar um ícone pequeno.
+
+**Solução**
+
+A app declara explicitamente `/favicon.ico`, `/icon.png` e `/apple-icon.png` no metadata global. Depois de deploy, fazer hard refresh ou limpar o favicon cache do browser se o separador continuar com ícone antigo.
 
 ### Utilizador criado no Supabase Auth não aparece em `/admin/users`
 

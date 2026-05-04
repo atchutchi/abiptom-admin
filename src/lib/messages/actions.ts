@@ -156,6 +156,13 @@ function isMissingRelationError(error: unknown) {
   return maybeError.code === "42P01" || maybeError.cause?.code === "42P01";
 }
 
+function revalidateMessagePaths() {
+  revalidatePath("/admin/messages");
+  revalidatePath("/admin/chat");
+  revalidatePath("/staff/me/messages");
+  revalidatePath("/staff/me/chat");
+}
+
 export async function getUnreadMessageCount() {
   const { dbUser } = await requireDbUser();
   const unreadMap = await getUnreadMap(dbUser.id);
@@ -368,8 +375,7 @@ export async function markConversationRead(conversationId: string) {
       .onConflictDoNothing();
   }
 
-  revalidatePath("/admin/messages");
-  revalidatePath("/staff/me/messages");
+  revalidateMessagePaths();
   return { success: true };
 }
 
@@ -407,8 +413,7 @@ export async function createDirectConversation(recipientId: string) {
     { conversationId: conversation.id, userId: recipient.id },
   ]);
 
-  revalidatePath("/admin/messages");
-  revalidatePath("/staff/me/messages");
+  revalidateMessagePaths();
   return { success: true, conversationId: conversation.id };
 }
 
@@ -459,8 +464,7 @@ export async function createGroupConversation(input: {
     }))
   );
 
-  revalidatePath("/admin/messages");
-  revalidatePath("/staff/me/messages");
+  revalidateMessagePaths();
   return { success: true, conversationId: conversation.id };
 }
 
@@ -513,6 +517,7 @@ export async function createProjectConversation(projectId: string) {
       )
       .onConflictDoNothing();
 
+    revalidateMessagePaths();
     return { success: true, conversationId: existing.id };
   }
 
@@ -534,8 +539,7 @@ export async function createProjectConversation(projectId: string) {
     }))
   );
 
-  revalidatePath("/admin/messages");
-  revalidatePath("/staff/me/messages");
+  revalidateMessagePaths();
   return { success: true, conversationId: conversation.id };
 }
 
@@ -578,10 +582,13 @@ export async function sendMessage(conversationId: string, rawBody: string) {
       )
     );
 
-  await queueOfflineEmailNotifications(message.id, parsed.data.conversationId, dbUser.id);
+  try {
+    await queueOfflineEmailNotifications(message.id, parsed.data.conversationId, dbUser.id);
+  } catch (error) {
+    console.error("Falha ao enfileirar notificação de mensagem offline", error);
+  }
 
-  revalidatePath("/admin/messages");
-  revalidatePath("/staff/me/messages");
+  revalidateMessagePaths();
   return {
     success: true,
     message: {

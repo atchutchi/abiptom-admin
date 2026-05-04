@@ -114,6 +114,11 @@ export function MessagesClient({
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
+  const canCreateConversation =
+    (mode === "direct" && Boolean(directUserId)) ||
+    (mode === "group" && groupTitle.trim().length >= 2 && groupParticipantIds.length >= 2) ||
+    (mode === "project" && Boolean(projectId));
+
   const selectedConversation = conversations.find(
     (conversation) => conversation.id === selectedId
   );
@@ -172,6 +177,21 @@ export function MessagesClient({
   }, [messages.length, selectedId]);
 
   useEffect(() => {
+    if (!selectedId && conversations.length > 0) {
+      setSelectedId(conversations[0].id);
+      return;
+    }
+
+    if (
+      selectedId &&
+      conversations.length > 0 &&
+      !conversations.some((conversation) => conversation.id === selectedId)
+    ) {
+      setSelectedId(conversations[0].id);
+    }
+  }, [conversations, selectedId]);
+
+  useEffect(() => {
     const supabase = createClient();
     const channel = supabase
       .channel(`messages-${selectedId ?? "none"}`)
@@ -203,6 +223,19 @@ export function MessagesClient({
     };
   }, [loadMessages, refreshConversations, selectedId]);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (selectedId) {
+        void loadMessages(selectedId).catch(() => undefined);
+        return;
+      }
+
+      void refreshConversations();
+    }, 12_000);
+
+    return () => window.clearInterval(interval);
+  }, [loadMessages, refreshConversations, selectedId]);
+
   async function handleSend(event: FormEvent) {
     event.preventDefault();
     if (!selectedId || !body.trim() || isPending) return;
@@ -212,21 +245,26 @@ export function MessagesClient({
     setError(null);
 
     startTransition(async () => {
-      const result = await sendMessage(selectedId, nextBody);
-      if ("error" in result && result.error) {
-        setError(result.error);
-        setBody(nextBody);
-        return;
-      }
+      try {
+        const result = await sendMessage(selectedId, nextBody);
+        if ("error" in result && result.error) {
+          setError(result.error);
+          setBody(nextBody);
+          return;
+        }
 
-      if (result.message) {
-        setMessages((current) =>
-          current.some((message) => message.id === result.message.id)
-            ? current
-            : [...current, result.message]
-        );
+        if (result.message) {
+          setMessages((current) =>
+            current.some((message) => message.id === result.message.id)
+              ? current
+              : [...current, result.message]
+          );
+        }
+        await loadMessages(selectedId);
+      } catch {
+        setError("Não foi possível enviar a mensagem. Tenta novamente.");
+        setBody(nextBody);
       }
-      await refreshConversations();
     });
   }
 
@@ -235,31 +273,35 @@ export function MessagesClient({
     setError(null);
 
     startTransition(async () => {
-      const result =
-        mode === "direct"
-          ? await createDirectConversation(directUserId)
-          : mode === "group"
-            ? await createGroupConversation({
-                title: groupTitle,
-                participantIds: groupParticipantIds,
-              })
-            : await createProjectConversation(projectId);
+      try {
+        const result =
+          mode === "direct"
+            ? await createDirectConversation(directUserId)
+            : mode === "group"
+              ? await createGroupConversation({
+                  title: groupTitle,
+                  participantIds: groupParticipantIds,
+                })
+              : await createProjectConversation(projectId);
 
-      if ("error" in result && result.error) {
-        setError(result.error);
-        return;
+        if ("error" in result && result.error) {
+          setError(result.error);
+          return;
+        }
+
+        if (result.conversationId) {
+          const nextConversations = await listConversations();
+          setConversations(nextConversations);
+          setSelectedId(result.conversationId);
+          updateUrl(result.conversationId);
+        }
+
+        setDialogOpen(false);
+        setGroupTitle("");
+        setGroupParticipantIds([]);
+      } catch {
+        setError("Não foi possível criar a conversa.");
       }
-
-      if (result.conversationId) {
-        const nextConversations = await listConversations();
-        setConversations(nextConversations);
-        setSelectedId(result.conversationId);
-        updateUrl(result.conversationId);
-      }
-
-      setDialogOpen(false);
-      setGroupTitle("");
-      setGroupParticipantIds([]);
     });
   }
 
@@ -272,8 +314,8 @@ export function MessagesClient({
   }
 
   return (
-    <main className="flex h-[calc(100vh-4rem)] min-h-0 flex-1 overflow-hidden p-3 md:p-4">
-      <div className="grid h-full min-h-0 w-full grid-cols-1 overflow-hidden rounded-lg border border-[color:var(--brand-line)] bg-[color:var(--brand-card)] shadow-sm lg:grid-cols-[20rem_1fr]">
+    <main className="flex h-[calc(100dvh-4rem)] min-h-0 flex-1 overflow-hidden p-3 md:p-4">
+      <div className="grid h-full min-h-0 w-full grid-cols-1 grid-rows-[minmax(11rem,35%)_minmax(0,1fr)] overflow-hidden rounded-lg border border-[color:var(--brand-line)] bg-[color:var(--brand-card)] shadow-sm lg:grid-cols-[20rem_1fr] lg:grid-rows-1">
         <aside className="flex min-h-0 flex-col border-b border-[color:var(--brand-line)] lg:border-b-0 lg:border-r">
           <div className="flex items-center justify-between gap-3 border-b border-[color:var(--brand-line)] p-3">
             <div>
@@ -401,7 +443,7 @@ export function MessagesClient({
                   </div>
 
                   <div className="flex justify-end border-t border-[color:var(--brand-line)] bg-[rgb(255_243_194_/_45%)] px-5 py-4">
-                    <Button type="submit" disabled={isPending}>
+                    <Button type="submit" disabled={isPending || !canCreateConversation}>
                       Criar
                     </Button>
                   </div>
@@ -556,7 +598,7 @@ export function MessagesClient({
                     onChange={(event) => setBody(event.target.value)}
                     placeholder="Escrever mensagem"
                     rows={2}
-                    className="min-h-10 flex-1 resize-none rounded-lg border border-input bg-[rgb(255_253_248_/_85%)] px-3 py-2 text-sm outline-none focus:border-[color:var(--brand-gold)] focus:ring-3 focus:ring-[rgb(245_184_0_/_25%)]"
+                    className="min-h-10 min-w-0 flex-1 resize-none rounded-lg border border-input bg-[rgb(255_253_248_/_85%)] px-3 py-2 text-sm outline-none focus:border-[color:var(--brand-gold)] focus:ring-3 focus:ring-[rgb(245_184_0_/_25%)]"
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();
@@ -564,9 +606,14 @@ export function MessagesClient({
                       }
                     }}
                   />
-                  <Button type="submit" size="icon-lg" disabled={!body.trim() || isPending}>
+                  <Button
+                    type="submit"
+                    size="icon-lg"
+                    disabled={!body.trim() || isPending}
+                    className="shrink-0 md:w-auto md:px-3"
+                  >
                     <Send className="h-4 w-4" aria-hidden="true" />
-                    <span className="sr-only">Enviar</span>
+                    <span className="sr-only md:not-sr-only md:ml-2">Enviar</span>
                   </Button>
                 </div>
               </form>
