@@ -90,13 +90,17 @@ async function requireDbUser() {
 
 type CurrentDbUser = Awaited<ReturnType<typeof requireDbUser>>["dbUser"];
 
-async function assertParticipant(conversationId: string, userId: string) {
-  const participant = await dbAdmin.query.chatParticipants.findFirst({
+async function findParticipant(conversationId: string, userId: string) {
+  return dbAdmin.query.chatParticipants.findFirst({
     where: and(
       eq(chatParticipants.conversationId, conversationId),
       eq(chatParticipants.userId, userId)
     ),
   });
+}
+
+async function assertParticipant(conversationId: string, userId: string) {
+  const participant = await findParticipant(conversationId, userId);
 
   if (!participant) throw new Error("Sem acesso a esta conversa.");
   return participant;
@@ -698,10 +702,11 @@ export async function updateMyPresence(input?: {
 }) {
   const { dbUser } = await requireDbUser();
   const now = new Date();
-  const currentConversationId = input?.currentConversationId ?? null;
+  let currentConversationId = input?.currentConversationId ?? null;
 
   if (currentConversationId) {
-    await assertParticipant(currentConversationId, dbUser.id);
+    const participant = await findParticipant(currentConversationId, dbUser.id);
+    if (!participant) currentConversationId = null;
   }
 
   await dbAdmin

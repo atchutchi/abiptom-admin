@@ -4,11 +4,19 @@ import { processPendingMessageEmailNotifications } from "@/lib/messages/actions"
 
 export const runtime = "nodejs";
 
-export async function GET(req: NextRequest) {
+async function handleMessagesEmailCron(req: NextRequest) {
   if (!isAuthorizedCronRequest(req)) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
   const result = await processPendingMessageEmailNotifications();
   return NextResponse.json({ ok: true, ...result });
+}
+
+export async function GET(req: NextRequest) {
+  return handleMessagesEmailCron(req);
+}
+
+export async function POST(req: NextRequest) {
+  return handleMessagesEmailCron(req);
 }

@@ -88,10 +88,13 @@ export function MessagesClient({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const searchParamString = searchParams?.toString() ?? "";
+  const activeConversationParam = searchParams?.get("conversation") ?? null;
+  const initialSelectedId =
+    initialConversations.find((conversation) => conversation.id === initialConversationId)
+      ?.id ?? initialConversations[0]?.id ?? null;
   const [conversations, setConversations] = useState(initialConversations);
-  const [selectedId, setSelectedId] = useState(
-    initialConversationId ?? initialConversations[0]?.id ?? null
-  );
+  const [selectedId, setSelectedId] = useState(initialSelectedId);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [body, setBody] = useState("");
   const [search, setSearch] = useState("");
@@ -128,11 +131,11 @@ export function MessagesClient({
     await refreshConversations();
   }, [refreshConversations]);
 
-  function updateUrl(conversationId: string) {
-    const nextParams = new URLSearchParams(searchParams?.toString() ?? "");
+  const updateUrl = useCallback((conversationId: string) => {
+    const nextParams = new URLSearchParams(searchParamString);
     nextParams.set("conversation", conversationId);
     router.replace(`${pathname}?${nextParams.toString()}`, { scroll: false });
-  }
+  }, [pathname, router, searchParamString]);
 
   function selectConversation(conversationId: string) {
     setSelectedId(conversationId);
@@ -167,7 +170,9 @@ export function MessagesClient({
 
   useEffect(() => {
     if (!selectedId && conversations.length > 0) {
-      setSelectedId(conversations[0].id);
+      const fallbackId = conversations[0].id;
+      setSelectedId(fallbackId);
+      updateUrl(fallbackId);
       return;
     }
 
@@ -176,9 +181,23 @@ export function MessagesClient({
       conversations.length > 0 &&
       !conversations.some((conversation) => conversation.id === selectedId)
     ) {
-      setSelectedId(conversations[0].id);
+      const fallbackId = conversations[0].id;
+      setSelectedId(fallbackId);
+      updateUrl(fallbackId);
     }
-  }, [conversations, selectedId]);
+  }, [conversations, selectedId, updateUrl]);
+
+  useEffect(() => {
+    if (!activeConversationParam || !selectedId || conversations.length === 0) return;
+
+    const hasUrlConversation = conversations.some(
+      (conversation) => conversation.id === activeConversationParam
+    );
+
+    if (!hasUrlConversation) {
+      updateUrl(selectedId);
+    }
+  }, [activeConversationParam, conversations, selectedId, updateUrl]);
 
   useEffect(() => {
     const supabase = createClient();

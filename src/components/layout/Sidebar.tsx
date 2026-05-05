@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
@@ -170,19 +170,18 @@ const SIDEBAR_COLLAPSED_KEY = "abiptom_sidebar_collapsed";
 
 export function Sidebar({ role, userName, userAvatarUrl }: SidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
-  const isStaff = role === "staff";
+  const isStaffSurface = role === "staff" || Boolean(pathname?.startsWith("/staff"));
   const [collapsed, setCollapsed] = useState(false);
 
-  const items = isStaff
-    ? STAFF_NAV_ITEMS
+  const items = isStaffSurface
+    ? STAFF_NAV_ITEMS.filter((item) => item.roles.includes(role))
     : NAV_ITEMS.filter((item) => item.roles.includes(role)).map((item) =>
         role === "coord" && item.href === "/admin/dashboard"
           ? { ...item, href: "/staff/me/dashboard" }
           : item
       );
   const homeHref = getDefaultRoute(role);
-  const footerHref = isStaff ? "/staff/me/profile" : "/admin/profile";
+  const footerHref = isStaffSurface ? "/staff/me/profile" : "/admin/profile";
   const initials = getUserInitials(userName);
 
   useEffect(() => {
@@ -205,10 +204,6 @@ export function Sidebar({ role, userName, userAvatarUrl }: SidebarProps) {
     });
   }
 
-  function prefetchRoute(href: string) {
-    router.prefetch(href);
-  }
-
   return (
     <aside
       className={cn(
@@ -226,8 +221,6 @@ export function Sidebar({ role, userName, userAvatarUrl }: SidebarProps) {
         <Link
           href={homeHref}
           prefetch={false}
-          onFocus={() => prefetchRoute(homeHref)}
-          onMouseEnter={() => prefetchRoute(homeHref)}
           className={cn(
             "min-w-0 text-[#fff8df]",
             collapsed ? "inline-flex items-center" : "inline-flex items-center px-2"
@@ -295,8 +288,6 @@ export function Sidebar({ role, userName, userAvatarUrl }: SidebarProps) {
                 <Link
                   href={item.href}
                   prefetch={false}
-                  onFocus={() => prefetchRoute(item.href)}
-                  onMouseEnter={() => prefetchRoute(item.href)}
                   title={collapsed ? item.label : undefined}
                   className={cn(
                     "flex items-center rounded-lg py-2 text-sm transition-colors",
@@ -325,8 +316,6 @@ export function Sidebar({ role, userName, userAvatarUrl }: SidebarProps) {
         <Link
           href={footerHref}
           prefetch={false}
-          onFocus={() => prefetchRoute(footerHref)}
-          onMouseEnter={() => prefetchRoute(footerHref)}
           title={collapsed ? `${userName} (${role.toUpperCase()})` : undefined}
           className={cn(
             "flex items-center rounded-lg py-2 text-sm text-[rgb(247_236_203_/_80%)] transition-colors hover:bg-[rgb(245_184_0_/_12%)] hover:text-[#fff8df]",

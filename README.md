@@ -2,7 +2,7 @@
 
 > Os Guardiões das Novas Tecnologias
 
-Última actualização: 4 de Maio de 2026.
+Última actualização: 5 de Maio de 2026.
 
 `ABIPTOM Core` é a plataforma operacional interna da ABIPTOM SARL. O repositório mantém o nome técnico `abiptom-admin`, mas a aplicação exposta aos utilizadores usa a marca Core. Centraliza clientes, projectos, facturação, despesas, folha salarial, dividendos, stock, tarefas, mensagens internas, relatórios e área pessoal dos colaboradores.
 
@@ -205,10 +205,11 @@ Regras operacionais da política `actual_2024`:
 ### Performance e navegação
 
 - cache do App Router configurada em `next.config.ts` com `staleTimes` para manter páginas visitadas mais rápidas ao voltar
-- prefetch da sidebar feito em `hover` ou `focus`, evitando que todas as rotas administrativas sejam pré-carregadas ao mesmo tempo
+- prefetch manual da sidebar removido, evitando chamadas RSC desnecessárias quando o utilizador apenas passa o rato pela navegação
 - skeletons globais para `/admin/*` e `/staff/*`, reduzindo sensação de bloqueio nas transições
 - formulário de nova conversa separado e carregado só quando o utilizador clica em `Nova conversa`
 - opções de colegas e projectos do chat carregadas apenas quando são necessárias
+- links antigos de chat com `conversation` inválida são corrigidos automaticamente para uma conversa acessível
 - formulários pesados de projectos e novo período salarial usam `NativeSelect`, reduzindo JavaScript de UI sem mudar a submissão dos dados
 - screenshots do README devem ficar limitados a imagens antigas ou sanitizadas, sem dados reais de salário, execução ou equipa
 
@@ -618,17 +619,37 @@ Rotas administrativas grandes podem parecer lentas quando a sidebar tenta pré-c
 
 **Solução**
 
-A app usa cache do router com `staleTimes`, skeletons de loading por área, prefetch controlado por hover/focus na sidebar e selects nativos em formulários operacionais pesados. Se uma página voltar a crescer muito, comparar o `First Load JS` de `npm run build` antes e depois da alteração.
+A app usa cache do router com `staleTimes`, skeletons de loading por área, sem prefetch manual agressivo na sidebar, e selects nativos em formulários operacionais pesados. Se uma página voltar a crescer muito, comparar o `First Load JS` de `npm run build` antes e depois da alteração.
 
 ### Chat abre mas a zona de escrever ou enviar não aparece
 
 **Problema**
 
-O layout do chat pode ficar preso se a lista de conversas e a área de mensagens não respeitarem a altura disponível abaixo do header.
+O layout do chat pode ficar preso se a lista de conversas e a área de mensagens não respeitarem a altura disponível abaixo do header. Também pode parecer vazio se o URL tiver uma query `conversation` antiga, apagada ou sem acesso para o utilizador actual.
 
 **Solução**
 
-O cliente do chat usa `h-[calc(100dvh-4rem)]`, grid com altura fixa e scroll apenas na lista de conversas e no histórico de mensagens. O formulário de envio fica no fundo da conversa e não depende do scroll da página.
+O cliente do chat usa `h-[calc(100dvh-4rem)]`, grid com altura fixa e scroll apenas na lista de conversas e no histórico de mensagens. O formulário de envio fica no fundo da conversa e não depende do scroll da página. Se a query `conversation` não existir na lista de conversas do utilizador, a app selecciona a primeira conversa acessível e actualiza o URL.
+
+### Presença do chat devolve `401` com conversa antiga
+
+**Problema**
+
+Um link antigo podia chamar `/api/messages/presence` com uma `conversation` onde o utilizador já não era participante.
+
+**Solução**
+
+A presença continua a marcar o utilizador online. Se a conversa actual não for acessível, a app limpa apenas `current_conversation_id` em vez de falhar a chamada inteira.
+
+### Cron de emails do chat devolve `405`
+
+**Problema**
+
+Alguns disparos externos podem chamar `/api/cron/messages-email` por `POST`, enquanto a rota aceitava apenas `GET`.
+
+**Solução**
+
+A rota aceita `GET` e `POST`, ambos protegidos por `CRON_SECRET`. Se o segredo estiver ausente ou errado, a resposta correcta é `401`, não `405`.
 
 ### Mensagem não deve falhar por erro na notificação offline
 
