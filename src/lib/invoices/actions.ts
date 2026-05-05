@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { dbAdmin, withAuthenticatedDb } from "@/lib/db";
+import { dbAdmin } from "@/lib/db";
 import {
   invoices,
   invoiceItems,
@@ -92,6 +92,7 @@ export async function listInvoices(filters?: {
 }) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
+  if (!canManageInvoices(dbUser.role)) throw new Error("Sem permissão");
 
   const conditions: SQL[] = [];
   if (filters?.estado?.length)
@@ -110,33 +111,30 @@ export async function listInvoices(filters?: {
     );
   }
 
-  return withAuthenticatedDb(user, async (db) => {
-    return db.query.invoices.findMany({
-      where: conditions.length ? and(...conditions) : undefined,
-      with: {
-        client: true,
-        createdBy: { columns: { nomeCurto: true } },
-      },
-      orderBy: [desc(invoices.createdAt)],
-    });
+  return dbAdmin.query.invoices.findMany({
+    where: conditions.length ? and(...conditions) : undefined,
+    with: {
+      client: true,
+      createdBy: { columns: { nomeCurto: true } },
+    },
+    orderBy: [desc(invoices.createdAt)],
   });
 }
 
 export async function getInvoice(id: string) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
+  if (!canManageInvoices(dbUser.role)) throw new Error("Sem permissão");
 
-  return withAuthenticatedDb(user, async (db) => {
-    return db.query.invoices.findFirst({
-      where: eq(invoices.id, id),
-      with: {
-        client: { with: { contacts: true } },
-        project: { columns: { id: true, titulo: true } },
-        items: { orderBy: (i, { asc }) => [asc(i.ordem)] },
-        payments: { orderBy: (p, { desc }) => [desc(p.data)] },
-        createdBy: { columns: { nomeCurto: true, nomeCompleto: true } },
-      },
-    });
+  return dbAdmin.query.invoices.findFirst({
+    where: eq(invoices.id, id),
+    with: {
+      client: { with: { contacts: true } },
+      project: { columns: { id: true, titulo: true } },
+      items: { orderBy: (i, { asc }) => [asc(i.ordem)] },
+      payments: { orderBy: (p, { desc }) => [desc(p.data)] },
+      createdBy: { columns: { nomeCurto: true, nomeCompleto: true } },
+    },
   });
 }
 
@@ -210,6 +208,7 @@ export async function createInvoice(data: z.infer<typeof invoiceSchema>) {
   });
 
   revalidatePath("/admin/invoices");
+  revalidatePath(`/admin/invoices/${created.id}`);
   return { success: true, id: created.id };
 }
 
