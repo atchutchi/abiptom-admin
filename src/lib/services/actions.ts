@@ -18,6 +18,10 @@ const serviceSchema = z.object({
   precoXof: z.string().optional(),
 });
 
+function canManageServiceCatalog(role: string) {
+  return ["ca", "dg", "coord"].includes(role);
+}
+
 export async function listServices(includeInactive = false) {
   return dbAdmin.query.servicesCatalog.findMany({
     where: includeInactive ? undefined : eq(servicesCatalog.activo, true),
@@ -28,7 +32,7 @@ export async function listServices(includeInactive = false) {
 export async function createService(_: unknown, formData: FormData) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role))
+  if (!canManageServiceCatalog(dbUser.role))
     return { error: "Sem permissão" };
 
   const parsed = serviceSchema.safeParse({
@@ -55,7 +59,7 @@ export async function createService(_: unknown, formData: FormData) {
 export async function updateService(id: string, _: unknown, formData: FormData) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role))
+  if (!canManageServiceCatalog(dbUser.role))
     return { error: "Sem permissão" };
 
   const parsed = serviceSchema.safeParse({

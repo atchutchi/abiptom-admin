@@ -1,25 +1,42 @@
 import Link from "next/link";
 import { Package, Users } from "lucide-react";
+import type { ElementType } from "react";
 import { Header } from "@/components/layout/Header";
+import { getCurrentUser } from "@/lib/auth/actions";
+import type { UserRole } from "@/lib/db/schema";
 
 export const metadata = { title: "Definições — ABIPTOM Core" };
 
-const SECTIONS = [
+interface SettingsSection {
+  title: string;
+  description: string;
+  href: string;
+  icon: ElementType;
+  roles: UserRole[];
+}
+
+const SECTIONS: SettingsSection[] = [
   {
     title: "Catálogo de Serviços",
     description: "Gerir os serviços oferecidos pela ABIPTOM, preços e periodicidades.",
     href: "/admin/settings/services",
     icon: Package,
+    roles: ["ca", "dg", "coord"],
   },
   {
     title: "Utilizadores",
     description: "Criar, editar e desactivar utilizadores do sistema.",
     href: "/admin/users",
     icon: Users,
+    roles: ["ca", "dg"],
   },
 ];
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const { dbUser } = await getCurrentUser();
+  const role = dbUser?.role ?? "staff";
+  const sections = SECTIONS.filter((section) => section.roles.includes(role));
+
   return (
     <>
       <Header title="Definições" />
@@ -30,7 +47,7 @@ export default function SettingsPage() {
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {SECTIONS.map((s) => {
+            {sections.map((s) => {
               const Icon = s.icon;
               return (
                 <Link

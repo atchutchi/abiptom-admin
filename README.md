@@ -27,7 +27,7 @@ A plataforma foi desenhada para fechar o ciclo mensal da ABIPTOM com menos erro 
 | --- | --- |
 | `ca` | Conselho de Administração, acesso total e configuração crítica |
 | `dg` | Direcção Geral, gestão operacional e financeira avançada |
-| `coord` | Coordenação, operação diária de clientes, projectos, facturas, despesas, stock e tarefas |
+| `coord` | Coordenação, operação diária de clientes, projectos, facturas, despesas, stock, tarefas e catálogo de serviços |
 | `staff` | Área pessoal, tarefas, projectos e recibos próprios |
 
 ## Screenshots
@@ -73,6 +73,7 @@ A plataforma foi desenhada para fechar o ciclo mensal da ABIPTOM com menos erro 
 ### Clientes, contactos e projectos
 
 - CRUD de clientes e contactos
+- coordenação pode criar e editar clientes, contactos e projectos operacionais
 - projectos com cliente, serviço, ponto focal, auxiliares, estado, valor previsto e moeda
 - catálogo de serviços configurável
 - dropdown de serviços ajustado para nomes longos
@@ -82,6 +83,7 @@ A plataforma foi desenhada para fechar o ciclo mensal da ABIPTOM com menos erro 
 ### Facturação
 
 - facturas em rascunho, proforma, definitiva, paga parcial, paga e anulada
+- coordenação pode criar, emitir e acompanhar facturas operacionais
 - numeração automática ao emitir factura
 - ligação opcional da factura ao projecto
 - itens com quantidade, preço unitário, IGV e moeda
@@ -95,6 +97,7 @@ A plataforma foi desenhada para fechar o ciclo mensal da ABIPTOM com menos erro 
 ### Despesas
 
 - despesas por categoria, estado, data, fornecedor, moeda e taxa de câmbio
+- coordenação pode criar, editar, aprovar, marcar como paga e anular despesas operacionais
 - ligação opcional a projecto para despesas directas do projecto
 - ligação opcional a beneficiário para outros benefícios de colaborador
 - regra de consistência: uma despesa não pode estar ligada a projecto e beneficiário ao mesmo tempo
@@ -182,6 +185,12 @@ Regras operacionais da política `actual_2024`:
 - ícone PNG em `src/app/icon.png`
 - Apple touch icon em `src/app/apple-icon.png`
 - metadata global com ícones explícitos para evitar fallback/cache do ícone da Vercel
+
+### Catálogo de serviços
+
+- `ca`, `dg` e `coord` podem criar e editar serviços em `/admin/settings/services`
+- `coord` acede directamente ao catálogo pelo menu `Serviços`
+- desactivação/reactivação de serviços fica reservada a `ca`
 
 ### Relatórios
 

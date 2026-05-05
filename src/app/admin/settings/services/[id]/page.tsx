@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Header } from "@/components/layout/Header";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
+import { getCurrentUser } from "@/lib/auth/actions";
 
 export const metadata = { title: "Editar Serviço — ABIPTOM Core" };
 
@@ -17,13 +18,17 @@ export default async function EditServicePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const service = await dbAdmin.query.servicesCatalog.findFirst({
-    where: eq(servicesCatalog.id, id),
-  });
+  const [{ dbUser }, service] = await Promise.all([
+    getCurrentUser(),
+    dbAdmin.query.servicesCatalog.findFirst({
+      where: eq(servicesCatalog.id, id),
+    }),
+  ]);
 
   if (!service) notFound();
 
   const action = updateService.bind(null, id);
+  const canToggleActive = dbUser?.role === "ca";
   const toggle = async () => {
     "use server";
     await toggleServiceActive(id, !service.activo);
@@ -49,11 +54,13 @@ export default async function EditServicePage({
               <h1 className="text-2xl font-semibold">Editar Serviço</h1>
               <p className="text-sm text-muted-foreground">{service.categoria} · {service.nome}</p>
             </div>
-            <form action={toggle}>
-              <Button type="submit" variant={service.activo ? "outline" : "default"}>
-                {service.activo ? "Desactivar" : "Reactivar"}
-              </Button>
-            </form>
+            {canToggleActive && (
+              <form action={toggle}>
+                <Button type="submit" variant={service.activo ? "outline" : "default"}>
+                  {service.activo ? "Desactivar" : "Reactivar"}
+                </Button>
+              </form>
+            )}
           </div>
           <ServiceForm service={service} action={action} submitLabel="Actualizar" />
         </div>

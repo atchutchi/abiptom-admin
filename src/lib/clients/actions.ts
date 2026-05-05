@@ -27,6 +27,10 @@ const contactSchema = z.object({
   principal: z.boolean().default(false),
 });
 
+function canManageClients(role: string) {
+  return ["ca", "dg", "coord"].includes(role);
+}
+
 export async function listClients(search?: string) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
@@ -59,7 +63,7 @@ export async function getClient(id: string) {
 export async function createClient(_: unknown, formData: FormData) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role))
+  if (!canManageClients(dbUser.role))
     return { error: "Sem permissão" };
 
   const parsed = clientSchema.safeParse({
@@ -98,7 +102,7 @@ export async function createClient(_: unknown, formData: FormData) {
 export async function updateClient(id: string, _: unknown, formData: FormData) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role))
+  if (!canManageClients(dbUser.role))
     return { error: "Sem permissão" };
 
   const parsed = clientSchema.safeParse({
@@ -144,7 +148,7 @@ export async function updateClient(id: string, _: unknown, formData: FormData) {
 export async function toggleClientActive(id: string, activo: boolean) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role))
+  if (!canManageClients(dbUser.role))
     throw new Error("Sem permissão");
 
   await dbAdmin.update(clients).set({ activo }).where(eq(clients.id, id));
@@ -160,7 +164,7 @@ export async function upsertContact(
 ) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role))
+  if (!canManageClients(dbUser.role))
     throw new Error("Sem permissão");
 
   const parsed = contactSchema.safeParse(data);
@@ -188,7 +192,7 @@ export async function upsertContact(
 export async function deleteContact(clientId: string, contactId: string) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role))
+  if (!canManageClients(dbUser.role))
     throw new Error("Sem permissão");
 
   await dbAdmin

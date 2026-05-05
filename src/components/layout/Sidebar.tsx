@@ -123,7 +123,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Definições",
     href: "/admin/settings",
     icon: Settings,
-    roles: ["ca"],
+    roles: ["ca", "dg", "coord"],
   },
 ];
 
@@ -176,9 +176,7 @@ export function Sidebar({ role, userName, userAvatarUrl }: SidebarProps) {
   const items = isStaffSurface
     ? STAFF_NAV_ITEMS.filter((item) => item.roles.includes(role))
     : NAV_ITEMS.filter((item) => item.roles.includes(role)).map((item) =>
-        role === "coord" && item.href === "/admin/dashboard"
-          ? { ...item, href: "/staff/me/dashboard" }
-          : item
+        resolveAdminNavItem(role, item)
       );
   const homeHref = getDefaultRoute(role);
   const footerHref = isStaffSurface ? "/staff/me/profile" : "/admin/profile";
@@ -342,4 +340,18 @@ export function Sidebar({ role, userName, userAvatarUrl }: SidebarProps) {
       </div>
     </aside>
   );
+}
+
+function resolveAdminNavItem(role: UserRole, item: NavItem): NavItem {
+  if (role !== "coord") return item;
+
+  if (item.href === "/admin/dashboard") {
+    return { ...item, href: "/staff/me/dashboard" };
+  }
+
+  if (item.href === "/admin/settings") {
+    return { ...item, label: "Serviços", href: "/admin/settings/services" };
+  }
+
+  return item;
 }
