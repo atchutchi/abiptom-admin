@@ -170,7 +170,7 @@ const SIDEBAR_COLLAPSED_KEY = "abiptom_sidebar_collapsed";
 
 export function Sidebar({ role, userName, userAvatarUrl }: SidebarProps) {
   const pathname = usePathname();
-  const isStaffSurface = role === "staff" || Boolean(pathname?.startsWith("/staff"));
+  const isStaffSurface = role === "staff";
   const [collapsed, setCollapsed] = useState(false);
 
   const items = isStaffSurface

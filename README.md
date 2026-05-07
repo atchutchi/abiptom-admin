@@ -215,6 +215,7 @@ Regras operacionais da política `actual_2024`:
 
 - cache do App Router configurada em `next.config.ts` com `staleTimes` para manter páginas visitadas mais rápidas ao voltar
 - prefetch manual da sidebar removido, evitando chamadas RSC desnecessárias quando o utilizador apenas passa o rato pela navegação
+- coordenação vê sempre a navegação operacional, mesmo quando está em páginas pessoais `/staff/*`
 - skeletons globais para `/admin/*` e `/staff/*`, reduzindo sensação de bloqueio nas transições
 - formulário de nova conversa separado e carregado só quando o utilizador clica em `Nova conversa`
 - opções de colegas e projectos do chat carregadas apenas quando são necessárias
@@ -629,6 +630,16 @@ Rotas administrativas grandes podem parecer lentas quando a sidebar tenta pré-c
 **Solução**
 
 A app usa cache do router com `staleTimes`, skeletons de loading por área, sem prefetch manual agressivo na sidebar, e selects nativos em formulários operacionais pesados. Se uma página voltar a crescer muito, comparar o `First Load JS` de `npm run build` antes e depois da alteração.
+
+### Coordenação aparece com menu de staff
+
+**Problema**
+
+O utilizador tinha papel `coord`, mas ao abrir uma página `/staff/*` a sidebar calculava a navegação pela rota e mostrava apenas `O meu painel`, `Meus projectos`, `Histórico salarial`, `Minhas tarefas` e `Chat`.
+
+**Solução**
+
+A sidebar passou a escolher o menu pelo papel real do utilizador. Só `staff` recebe navegação de staff. `coord` mantém a navegação operacional com Clientes, Facturas, Projectos, Despesas, Stock, Tarefas, Chat e Serviços, mesmo quando está no painel pessoal.
 
 ### Chat abre mas a zona de escrever ou enviar não aparece
 

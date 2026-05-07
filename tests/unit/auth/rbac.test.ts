@@ -37,4 +37,20 @@ describe("canAccessRoute", () => {
       expect(canAccessRoute("coord", route), route).toBe(false);
     }
   });
+
+  it("nao transfere privilegios de coordenacao para staff", () => {
+    const deniedRoutes = [
+      "/admin/clients",
+      "/admin/invoices",
+      "/admin/projects",
+      "/admin/expenses",
+      "/admin/settings/services",
+    ];
+
+    for (const route of deniedRoutes) {
+      expect(canAccessRoute("staff", route), route).toBe(false);
+    }
+
+    expect(canAccessRoute("staff", "/staff/me/dashboard")).toBe(true);
+  });
 });
