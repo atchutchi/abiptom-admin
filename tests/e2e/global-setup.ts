@@ -32,7 +32,7 @@ async function ensureAuthUser(
       email: user.email,
       password: user.password,
       email_confirm: true,
-      user_metadata: {
+      app_metadata: {
         role: user.role,
         mfa_enabled: user.mfaEnabled,
         active: true,
@@ -48,7 +48,7 @@ async function ensureAuthUser(
     const { error } = await supabase.auth.admin.updateUserById(authUserId, {
       password: user.password,
       email_confirm: true,
-      user_metadata: {
+      app_metadata: {
         role: user.role,
         mfa_enabled: user.mfaEnabled,
         active: true,

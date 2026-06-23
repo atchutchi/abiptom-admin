@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
-import { canAccessRoute, getDefaultRoute } from "@/lib/auth/rbac";
-import type { UserRole } from "@/lib/db/schema";
+import {
+  resolveProtectedRouteAccess,
+  roleRequiresMfa,
+} from "@/lib/auth/session-gate";
 
 const PUBLIC_ROUTES = [
   "/login",
@@ -37,36 +39,35 @@ export async function middleware(request: NextRequest) {
 
   const { data: dbUser } = await supabase
     .from("users")
-    .select("role, activo, mfa_enabled")
+    .select("role, activo")
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
-  const role = ((dbUser?.role as UserRole | undefined) ??
-    user.user_metadata?.role ??
-    "staff") as UserRole;
-  const isActive = dbUser?.activo ?? (user.user_metadata?.active !== false);
-  const mfaEnabled =
-    dbUser?.mfa_enabled === true || user.user_metadata?.mfa_enabled === true;
+  let currentMfaLevel: string | null | undefined;
 
-  // Sem papel → login
-  if (!role || !isActive) {
+  if (roleRequiresMfa(dbUser?.role)) {
+    const { data: assurance } =
+      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    currentMfaLevel = assurance?.currentLevel;
+  }
+
+  const access = resolveProtectedRouteAccess({
+    hasUser: true,
+    dbUser: dbUser ?? null,
+    pathname,
+    currentMfaLevel,
+  });
+
+  if (access.action === "login") {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // MFA obrigatório para ca e dg
-  // Verifica user_metadata.mfa_enabled (marcado após verificação TOTP bem-sucedida)
-  if (
-    (role === "ca" || role === "dg") &&
-    !mfaEnabled &&
-    !pathname.startsWith("/setup-mfa")
-  ) {
+  if (access.action === "setup-mfa") {
     return NextResponse.redirect(new URL("/setup-mfa", request.url));
   }
 
-  // RBAC
-  if (!canAccessRoute(role, pathname)) {
-    const defaultRoute = getDefaultRoute(role);
-    return NextResponse.redirect(new URL(defaultRoute, request.url));
+  if (access.action === "redirect") {
+    return NextResponse.redirect(new URL(access.destination, request.url));
   }
 
   return supabaseResponse;

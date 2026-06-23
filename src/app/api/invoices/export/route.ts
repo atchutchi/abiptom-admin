@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuthenticatedDb } from "@/lib/db";
 import { invoices } from "@/lib/db/schema";
 import { and, gte, lte } from "drizzle-orm";
-import * as XLSX from "xlsx";
 import { getCurrentUser } from "@/lib/auth/actions";
+import {
+  buildInvoiceExportRows,
+  createInvoiceExportWorkbook,
+} from "@/lib/invoices/export";
 
 export async function GET(req: NextRequest) {
   const { user, dbUser } = await getCurrentUser();
@@ -28,29 +31,12 @@ export async function GET(req: NextRequest) {
     })
   );
 
-  const data = rows.map((r) => ({
-    Número: r.numero ? String(r.numero).padStart(5, "0") : "Rascunho",
-    Tipo: r.tipo ?? "—",
-    Estado: r.estado,
-    Cliente: r.client?.nome ?? "—",
-    "Data Emissão": r.dataEmissao,
-    "Data Vencimento": r.dataVencimento ?? "—",
-    Moeda: r.moeda,
-    Subtotal: Number(r.subtotal),
-    "IGV (%)": Number(r.igvPercentagem),
-    "IGV Valor": Number(r.igvValor),
-    Total: Number(r.total),
-    "Forma Pagamento": r.formaPagamento ?? "—",
-    "Enviada Em": r.enviadaEm?.toISOString().slice(0, 10) ?? "—",
-  }));
+  const buf = await createInvoiceExportWorkbook(
+    buildInvoiceExportRows(rows),
+    mes
+  );
 
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet(data);
-  XLSX.utils.book_append_sheet(wb, ws, `Facturas ${mes}`);
-
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-
-  return new NextResponse(buf, {
+  return new NextResponse(new Uint8Array(buf), {
     headers: {
       "Content-Type":
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

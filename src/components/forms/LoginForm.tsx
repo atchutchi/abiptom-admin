@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getPostLoginRedirectPath } from "@/lib/auth/redirects";
-import type { UserRole } from "@/lib/db/schema";
 
 type Step = "credentials" | "mfa";
 
@@ -48,7 +47,7 @@ export function LoginForm() {
     searchParams?.get("error") ?? null
   );
 
-  async function resolvePostLoginRedirect(fallbackRole: UserRole) {
+  async function resolvePostLoginRedirect() {
     const query = nextPath ? `?next=${encodeURIComponent(nextPath)}` : "";
     const response = await fetch(`/api/auth/post-login${query}`, {
       cache: "no-store",
@@ -63,7 +62,7 @@ export function LoginForm() {
     }
 
     const body = (await response.json()) as { redirectTo?: string };
-    return body.redirectTo ?? getPostLoginRedirectPath(fallbackRole, nextPath);
+    return body.redirectTo ?? getPostLoginRedirectPath("staff", nextPath);
   }
 
   async function handleCredentials(e: React.FormEvent) {
@@ -100,12 +99,7 @@ export function LoginForm() {
         setChallengeId(challenge.id);
         setStep("mfa");
       } else {
-        // Sem MFA — verificar papel e redirecionar
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        const role = (user?.user_metadata?.role ?? "staff") as UserRole;
-        router.push(await resolvePostLoginRedirect(role));
+        router.push(await resolvePostLoginRedirect());
         router.refresh();
       }
     } catch (err) {
@@ -136,11 +130,7 @@ export function LoginForm() {
         return;
       }
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const role = (user?.user_metadata?.role ?? "staff") as UserRole;
-      router.push(await resolvePostLoginRedirect(role));
+      router.push(await resolvePostLoginRedirect());
       router.refresh();
     } catch (err) {
       setError(

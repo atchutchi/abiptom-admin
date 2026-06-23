@@ -6,8 +6,6 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getDefaultRoute } from "@/lib/auth/rbac";
-import type { UserRole } from "@/lib/db/schema";
 import { APP_NAME } from "@/lib/brand";
 
 // init   → a verificar factores existentes
@@ -15,6 +13,21 @@ import { APP_NAME } from "@/lib/brand";
 // verify → factor já existe: só pede código
 // done   → sucesso
 type Step = "init" | "enroll" | "verify" | "done";
+
+async function resolvePostMfaRedirect() {
+  const response = await fetch("/api/auth/post-login", {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    return "/staff/me/dashboard";
+  }
+
+  const body = (await response.json().catch(() => null)) as {
+    redirectTo?: string;
+  } | null;
+  return body?.redirectTo ?? "/staff/me/dashboard";
+}
 
 export function SetupMfaForm() {
   const router = useRouter();
@@ -93,15 +106,12 @@ export function SetupMfaForm() {
         return;
       }
 
-      // Marcar MFA como activo nos metadados — o middleware lê este campo
-      await supabase.auth.updateUser({ data: { mfa_enabled: true } });
-
       setStep("done");
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const role = (user?.user_metadata?.role ?? "staff") as UserRole;
-      setTimeout(() => router.push(getDefaultRoute(role)), 1500);
+      const redirectTo = await resolvePostMfaRedirect();
+      setTimeout(() => {
+        router.push(redirectTo);
+        router.refresh();
+      }, 1500);
     } finally {
       setLoading(false);
     }

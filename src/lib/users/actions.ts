@@ -23,6 +23,7 @@ import {
 } from "@/lib/users/avatar";
 import { sql } from "drizzle-orm";
 import { repairAuthLinkForInternalUser } from "@/lib/users/auth-link";
+import { buildAuthAppMetadataUpdatePayload } from "@/lib/users/auth-link-policy";
 import { toXofString } from "@/lib/utils/money";
 
 const UserSchema = z.object({
@@ -109,11 +110,11 @@ export async function createUser(formData: UserFormData) {
     await supabaseAdmin.auth.admin.createUser({
       email: parsed.data.email,
       password: crypto.randomUUID(), // password temporária — deve ser redefinida
-      user_metadata: {
+      ...buildAuthAppMetadataUpdatePayload({
         role: parsed.data.role,
-        mfa_enabled: false,
         active: true,
-      },
+        mfaEnabled: false,
+      }),
       email_confirm: true,
     });
 
@@ -208,11 +209,11 @@ export async function updateUser(id: string, formData: Partial<UserFormData>) {
     syncedExisting.authUserId,
     {
       ...(parsed.data.email ? { email: parsed.data.email } : {}),
-      user_metadata: {
+      ...buildAuthAppMetadataUpdatePayload({
         role: parsed.data.role,
-        mfa_enabled: syncedExisting.mfaEnabled,
         active: syncedExisting.activo,
-      },
+        mfaEnabled: syncedExisting.mfaEnabled,
+      }),
     }
   );
 
@@ -274,13 +275,11 @@ export async function deactivateUser(id: string) {
   const supabaseAdmin = createAdminClient();
   const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
     syncedExisting.authUserId,
-    {
-      user_metadata: {
-        role: syncedExisting.role,
-        mfa_enabled: syncedExisting.mfaEnabled,
-        active: false,
-      },
-    }
+    buildAuthAppMetadataUpdatePayload({
+      role: syncedExisting.role,
+      active: false,
+      mfaEnabled: syncedExisting.mfaEnabled,
+    })
   );
 
   if (authError) {

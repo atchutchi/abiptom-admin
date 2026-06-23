@@ -131,7 +131,7 @@ test.describe("Recuperação de palavra-passe", () => {
         await supabaseAdmin.auth.admin.updateUserById(data.user.id, {
           password: STAFF_PASSWORD,
           email_confirm: true,
-          user_metadata: {
+          app_metadata: {
             role: "staff",
             mfa_enabled: false,
             active: true,

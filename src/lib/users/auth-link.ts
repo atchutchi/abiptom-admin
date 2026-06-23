@@ -4,6 +4,10 @@ import { eq, sql } from "drizzle-orm";
 import { dbAdmin } from "@/lib/db";
 import { users, type User } from "@/lib/db/schema";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  buildAuthAppMetadataUpdatePayload,
+  buildAuthLinkUpdatePayload,
+} from "@/lib/users/auth-link-policy";
 
 type MinimalInternalUser = Pick<
   User,
@@ -12,8 +16,6 @@ type MinimalInternalUser = Pick<
 
 type AuthLinkSnapshot = {
   authUserId: string;
-  active: boolean;
-  mfaEnabled: boolean;
 };
 
 async function getAuthLinkSnapshot(args: {
@@ -23,13 +25,9 @@ async function getAuthLinkSnapshot(args: {
   if (args.authUserId) {
     const rows = await dbAdmin.execute<{
       id: string;
-      active: boolean;
-      mfa_enabled: boolean;
     }>(sql`
       select
-        id::text as id,
-        coalesce((raw_user_meta_data->>'active')::boolean, true) as active,
-        coalesce((raw_user_meta_data->>'mfa_enabled')::boolean, false) as mfa_enabled
+        id::text as id
       from auth.users
       where id = ${args.authUserId}::uuid
       limit 1
@@ -38,8 +36,6 @@ async function getAuthLinkSnapshot(args: {
     if (rows[0]) {
       return {
         authUserId: rows[0].id,
-        active: rows[0].active,
-        mfaEnabled: rows[0].mfa_enabled,
       };
     }
   }
@@ -50,13 +46,9 @@ async function getAuthLinkSnapshot(args: {
 
   const rows = await dbAdmin.execute<{
     id: string;
-    active: boolean;
-    mfa_enabled: boolean;
   }>(sql`
     select
-      id::text as id,
-      coalesce((raw_user_meta_data->>'active')::boolean, true) as active,
-      coalesce((raw_user_meta_data->>'mfa_enabled')::boolean, false) as mfa_enabled
+      id::text as id
     from auth.users
     where lower(email) = lower(${args.email})
     limit 1
@@ -68,8 +60,6 @@ async function getAuthLinkSnapshot(args: {
 
   return {
     authUserId: rows[0].id,
-    active: rows[0].active,
-    mfaEnabled: rows[0].mfa_enabled,
   };
 }
 
@@ -107,9 +97,10 @@ export async function repairInternalUserFromAuth(args: {
   const [updated] = await dbAdmin
     .update(users)
     .set({
-      authUserId: authSnapshot?.authUserId ?? args.authUserId,
-      activo: authSnapshot?.active ?? emailMatch.activo,
-      mfaEnabled: authSnapshot?.mfaEnabled ?? emailMatch.mfaEnabled,
+      ...buildAuthLinkUpdatePayload({
+        requestedAuthUserId: args.authUserId,
+        authSnapshot,
+      }),
       updatedAt: new Date(),
     })
     .where(eq(users.id, emailMatch.id))
@@ -131,9 +122,7 @@ export async function repairAuthLinkForInternalUser(
   }
 
   if (
-    authSnapshot.authUserId === dbUser.authUserId &&
-    authSnapshot.active === dbUser.activo &&
-    authSnapshot.mfaEnabled === dbUser.mfaEnabled
+    authSnapshot.authUserId === dbUser.authUserId
   ) {
     const [fresh] = await dbAdmin
       .select()
@@ -146,9 +135,10 @@ export async function repairAuthLinkForInternalUser(
   const [updated] = await dbAdmin
     .update(users)
     .set({
-      authUserId: authSnapshot.authUserId,
-      activo: authSnapshot.active,
-      mfaEnabled: authSnapshot.mfaEnabled,
+      ...buildAuthLinkUpdatePayload({
+        requestedAuthUserId: dbUser.authUserId,
+        authSnapshot,
+      }),
       updatedAt: new Date(),
     })
     .where(eq(users.id, dbUser.id))
@@ -161,13 +151,14 @@ export async function syncAuthMetadataForDbUser(
   dbUser: Pick<User, "authUserId" | "role" | "activo" | "mfaEnabled">,
 ) {
   const admin = createAdminClient();
-  const { error } = await admin.auth.admin.updateUserById(dbUser.authUserId, {
-    user_metadata: {
+  const { error } = await admin.auth.admin.updateUserById(
+    dbUser.authUserId,
+    buildAuthAppMetadataUpdatePayload({
       role: dbUser.role,
       active: dbUser.activo,
-      mfa_enabled: dbUser.mfaEnabled,
-    },
-  });
+      mfaEnabled: dbUser.mfaEnabled,
+    })
+  );
 
   if (error) {
     throw new Error(error.message ?? "Erro ao sincronizar metadata Auth.");
