@@ -52,6 +52,7 @@
     "@types/react-dom": "^19",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
+    "esbuild": "^0.28.1",
     "eslint": "^9",
     "eslint-config-next": "15.5.19",
     "pg": "^8.20.0",
@@ -59,5 +60,11 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.4"
+  },
+  "overrides": {
+    "esbuild": "$esbuild",
+    "next": {
+      "postcss": "8.5.16"
+    }
   }
 }
