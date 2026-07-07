@@ -221,6 +221,50 @@ export default async function ReportsPage({ searchParams }: PageProps) {
             />
           </div>
 
+          <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="rounded-lg border bg-white p-5 lg:col-span-2">
+              <h2 className="font-semibold text-gray-900">Resumo executivo</h2>
+              <div className="mt-3 space-y-2 text-sm text-gray-700">
+                {report.narrativa.resumo.map((item) => (
+                  <p key={item}>{item}</p>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-lg border bg-white p-5">
+              <h2 className="font-semibold text-gray-900">Recomendações</h2>
+              <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-gray-700">
+                {report.narrativa.recomendacoes.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </section>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              label="Em aberto"
+              value={report.receitas.emAberto}
+              hint="Facturas emitidas no período ainda não totalmente pagas"
+            />
+            <MetricCard
+              label="Vencido"
+              value={report.receitas.vencido}
+              hint="Valor em aberto com vencimento ultrapassado"
+              danger={report.receitas.vencido > 0}
+            />
+            <PercentCard
+              label="Taxa de cobrança"
+              value={report.indicadores.taxaCobranca}
+              hint="Recebido / facturado"
+            />
+            <PercentCard
+              label="Despesas / facturado"
+              value={report.indicadores.despesaSobreFacturado}
+              hint="Peso das despesas no período"
+              danger={report.indicadores.despesaSobreFacturado > 40}
+            />
+          </div>
+
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <ResultCard
               icon={TrendingUp}
@@ -316,6 +360,18 @@ export default async function ReportsPage({ searchParams }: PageProps) {
           ) : null}
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <BreakdownTable
+          title="Top clientes"
+          rows={report.receitas.topClientes}
+          emptyLabel="Sem facturação por cliente neste período."
+        />
+
+        <BreakdownTable
+          title="Top projectos"
+          rows={report.receitas.topProjectos}
+          emptyLabel="Sem facturação por projecto neste período."
+        />
+
         <section className="rounded-lg border bg-white overflow-hidden">
           <div className="px-5 py-3 border-b bg-gray-50 flex items-center justify-between">
             <h2 className="font-semibold text-gray-800">Despesas por categoria</h2>
@@ -468,6 +524,94 @@ function ResultCard({ icon: Icon, label, value, hint }: ResultCardProps) {
       </p>
       <p className="text-xs text-gray-400 mt-1">{hint}</p>
     </div>
+  );
+}
+
+interface MetricCardProps {
+  label: string;
+  value: number;
+  hint: string;
+  danger?: boolean;
+}
+
+function MetricCard({ label, value, hint, danger = false }: MetricCardProps) {
+  return (
+    <div className="rounded-lg border bg-white p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+        {label}
+      </p>
+      <p
+        className={`mt-2 text-xl font-bold tabular-nums ${
+          danger ? "text-red-700" : "text-gray-950"
+        }`}
+      >
+        {formatCurrency(value)}
+      </p>
+      <p className="mt-1 text-xs text-gray-500">{hint}</p>
+    </div>
+  );
+}
+
+interface PercentCardProps {
+  label: string;
+  value: number;
+  hint: string;
+  danger?: boolean;
+}
+
+function PercentCard({ label, value, hint, danger = false }: PercentCardProps) {
+  return (
+    <div className="rounded-lg border bg-white p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+        {label}
+      </p>
+      <p
+        className={`mt-2 text-xl font-bold tabular-nums ${
+          danger ? "text-red-700" : "text-gray-950"
+        }`}
+      >
+        {value.toFixed(1)}%
+      </p>
+      <p className="mt-1 text-xs text-gray-500">{hint}</p>
+    </div>
+  );
+}
+
+interface BreakdownTableProps {
+  title: string;
+  rows: Array<{ id: string; nome: string; valor: number; count: number }>;
+  emptyLabel: string;
+}
+
+function BreakdownTable({ title, rows, emptyLabel }: BreakdownTableProps) {
+  return (
+    <section className="overflow-hidden rounded-lg border bg-white">
+      <div className="border-b bg-gray-50 px-5 py-3">
+        <h2 className="font-semibold text-gray-800">{title}</h2>
+      </div>
+      <table className="w-full text-sm">
+        <tbody className="divide-y divide-gray-100">
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={3} className="py-8 text-center text-gray-400">
+                {emptyLabel}
+              </td>
+            </tr>
+          )}
+          {rows.map((row) => (
+            <tr key={row.id} className="hover:bg-gray-50">
+              <td className="px-4 py-3">
+                <p className="font-medium text-gray-900">{row.nome}</p>
+                <p className="text-xs text-gray-500">{row.count} factura(s)</p>
+              </td>
+              <td className="px-4 py-3 text-right font-medium tabular-nums">
+                {formatCurrency(row.valor)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
   );
 }
 

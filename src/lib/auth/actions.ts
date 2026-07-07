@@ -53,18 +53,6 @@ export async function logout() {
   redirect("/login");
 }
 
-export async function verifyMfaCode(code: string) {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase.auth.mfa.challengeAndVerify({
-    factorId: "", // preenchido pelo cliente depois de listar os factores
-    code,
-  });
-
-  if (error) return { error: "Código inválido ou expirado." };
-  return { data };
-}
-
 export async function getCurrentUser() {
   const supabase = await createClient();
   const {

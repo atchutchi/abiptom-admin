@@ -9,8 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getPostLoginRedirectPath } from "@/lib/auth/redirects";
 
-type Step = "credentials" | "mfa";
-
 function getNoticeMessage(code: string | null) {
   if (code === "password-reset-success") {
     return "Palavra-passe actualizada. Inicia sessão com as novas credenciais.";
@@ -32,19 +30,15 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const supabase = createClient();
 
-  const [step, setStep] = useState<Step>("credentials");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mfaCode, setMfaCode] = useState("");
-  const [factorId, setFactorId] = useState("");
-  const [challengeId, setChallengeId] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const nextPath = searchParams?.get("next") ?? null;
   const noticeMessage = getNoticeMessage(searchParams?.get("notice") ?? null);
   const queryErrorMessage = getQueryErrorMessage(
-    searchParams?.get("error") ?? null
+    searchParams?.get("error") ?? null,
   );
 
   async function resolvePostLoginRedirect() {
@@ -57,7 +51,7 @@ export function LoginForm() {
       const body = await response.json().catch(() => null);
       throw new Error(
         body?.error ??
-          "Sessão iniciada, mas a conta não está ligada à aplicação."
+          "Sessão iniciada, mas a conta não está ligada à aplicação.",
       );
     }
 
@@ -65,8 +59,8 @@ export function LoginForm() {
     return body.redirectTo ?? getPostLoginRedirectPath("staff", nextPath);
   }
 
-  async function handleCredentials(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleCredentials(event: React.FormEvent) {
+    event.preventDefault();
     setError("");
     setLoading(true);
 
@@ -81,109 +75,17 @@ export function LoginForm() {
         return;
       }
 
-      // Verificar se tem MFA activo
-      const { data: factors } = await supabase.auth.mfa.listFactors();
-      const totpFactor = factors?.totp?.find((f) => f.status === "verified");
-
-      if (totpFactor) {
-        // Iniciar challenge MFA
-        const { data: challenge, error: challengeError } =
-          await supabase.auth.mfa.challenge({ factorId: totpFactor.id });
-
-        if (challengeError || !challenge) {
-          setError("Erro ao iniciar verificação MFA.");
-          return;
-        }
-
-        setFactorId(totpFactor.id);
-        setChallengeId(challenge.id);
-        setStep("mfa");
-      } else {
-        router.push(await resolvePostLoginRedirect());
-        router.refresh();
-      }
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Não foi possível concluir o início de sessão."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleMfa(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    try {
-      const { error: verifyError } = await supabase.auth.mfa.verify({
-        factorId,
-        challengeId,
-        code: mfaCode.replace(/\s/g, ""),
-      });
-
-      if (verifyError) {
-        setError("Código inválido ou expirado.");
-        return;
-      }
-
       router.push(await resolvePostLoginRedirect());
       router.refresh();
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Não foi possível concluir o início de sessão."
+          : "Não foi possível concluir o início de sessão.",
       );
     } finally {
       setLoading(false);
     }
-  }
-
-  if (step === "mfa") {
-    return (
-      <form onSubmit={handleMfa} className="space-y-4">
-        <div className="text-center space-y-1">
-          <p className="font-medium text-gray-900">Verificação em dois passos</p>
-          <p className="text-sm text-gray-500">
-            Insere o código da tua aplicação autenticadora.
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="mfaCode">Código de 6 dígitos</Label>
-          <Input
-            id="mfaCode"
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9 ]*"
-            maxLength={7}
-            placeholder="000 000"
-            value={mfaCode}
-            onChange={(e) => setMfaCode(e.target.value)}
-            autoFocus
-            required
-          />
-        </div>
-
-        {error && <p className="text-sm text-red-600">{error}</p>}
-
-        <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "A verificar..." : "Verificar"}
-        </Button>
-
-        <button
-          type="button"
-          onClick={() => { setStep("credentials"); setError(""); }}
-          className="w-full text-sm text-gray-500 hover:underline"
-        >
-          Voltar
-        </button>
-      </form>
-    );
   }
 
   return (
@@ -194,7 +96,7 @@ export function LoginForm() {
           id="email"
           type="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(event) => setEmail(event.target.value)}
           placeholder="utilizador@abiptom.gw"
           autoComplete="email"
           required
@@ -207,7 +109,7 @@ export function LoginForm() {
           id="password"
           type="password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(event) => setPassword(event.target.value)}
           autoComplete="current-password"
           required
         />
@@ -219,7 +121,7 @@ export function LoginForm() {
       {!error && queryErrorMessage ? (
         <p className="text-sm text-red-600">{queryErrorMessage}</p>
       ) : null}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? "A iniciar sessão..." : "Iniciar sessão"}

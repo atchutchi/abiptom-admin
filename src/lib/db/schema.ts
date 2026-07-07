@@ -74,6 +74,9 @@ export const expenseCategoryEnum = pgEnum("expense_category", [
   "software_licencas",
   "manutencao",
   "impostos_taxas",
+  "impressao",
+  "fundo_maneio",
+  "comunicacao",
   "outros",
 ]);
 
@@ -291,6 +294,7 @@ export const projects = pgTable("projects", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  arquivadoEm: timestamp("arquivado_em", { withTimezone: true }),
 });
 
 // ─── project_assistants ───────────────────────────────────────────────────────

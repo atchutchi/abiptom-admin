@@ -14,6 +14,9 @@ export const EXPENSE_CATEGORY_LABEL: Record<string, string> = {
   software_licencas: "Software / Licenças",
   manutencao: "Manutenção",
   impostos_taxas: "Impostos / Taxas",
+  impressao: "Impressão",
+  fundo_maneio: "Fundo de maneio",
+  comunicacao: "Comunicação",
   outros: "Outros",
 };
 

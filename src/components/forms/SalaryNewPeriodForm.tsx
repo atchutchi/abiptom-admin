@@ -12,6 +12,7 @@ import type {
   PaidInvoiceProjectEntry,
 } from "@/lib/salary/actions";
 import { toXofInteger } from "@/lib/utils/money";
+import { buildSalaryProjectEntries } from "@/lib/salary/project-selection";
 
 interface PolicyOption {
   id: string;
@@ -73,13 +74,8 @@ export function SalaryNewPeriodForm({
   const [invoiceEntries, setInvoiceEntries] = useState<
     Record<string, PaidInvoiceProjectEntry>
   >({});
-  const [entries, setEntries] = useState<ProjectEntry[]>(
-    projects.map((project) => ({
-      projectId: project.id,
-      included: false,
-      valorLiquido: "",
-    })),
-  );
+  const [entries, setEntries] = useState<ProjectEntry[]>([]);
+  const [manualProjectId, setManualProjectId] = useState("");
 
   const includedEntries = entries.filter((entry) => entry.included);
   const totalImported = Object.values(invoiceEntries).reduce(
@@ -129,9 +125,6 @@ export function SalaryNewPeriodForm({
         return;
       }
 
-      const importedByProject = new Map(
-        result.entries.map((entry) => [entry.projectId, entry]),
-      );
       const knownProjectIds = new Set(projects.map((project) => project.id));
       const missingProjectWarnings = result.entries
         .filter((entry) => !knownProjectIds.has(entry.projectId))
@@ -148,14 +141,11 @@ export function SalaryNewPeriodForm({
         ),
       );
       setInvoiceWarnings([...result.warnings, ...missingProjectWarnings]);
-      setEntries((previous) =>
-        previous.map((entry) => {
-          const imported = importedByProject.get(entry.projectId);
-          return {
-            ...entry,
-            included: Boolean(imported),
-            valorLiquido: imported ? String(imported.valorRecebido) : "",
-          };
+      setEntries(
+        buildSalaryProjectEntries({
+          projects,
+          importedEntries: result.entries,
+          mode: "paid-invoices",
         }),
       );
 
@@ -166,6 +156,21 @@ export function SalaryNewPeriodForm({
         ]);
       }
     });
+  }
+
+  function handleAddManualProject() {
+    if (!manualProjectId) return;
+    setEntries((previous) => {
+      if (previous.some((entry) => entry.projectId === manualProjectId)) {
+        return previous;
+      }
+
+      return [
+        ...previous,
+        { projectId: manualProjectId, included: true, valorLiquido: "" },
+      ];
+    });
+    setManualProjectId("");
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -319,12 +324,16 @@ export function SalaryNewPeriodForm({
           </div>
         )}
 
-        {projects.length === 0 ? (
-          <p className="text-sm text-gray-400">Nenhum projecto activo encontrado.</p>
+        {entries.length === 0 ? (
+          <div className="rounded-md border border-dashed px-4 py-6 text-sm text-gray-500">
+            Carrega facturas pagas para listar apenas projectos com pagamentos no mês escolhido.
+          </div>
         ) : (
           <div className="divide-y divide-gray-100">
-            {projects.map((project) => {
-              const entry = entries.find((item) => item.projectId === project.id)!;
+            {entries.map((entry) => {
+              const project = projects.find((item) => item.id === entry.projectId);
+              if (!project) return null;
+
               return (
                 <div
                   key={project.id}
@@ -377,6 +386,33 @@ export function SalaryNewPeriodForm({
             })}
           </div>
         )}
+
+        <div className="flex flex-col gap-2 rounded-md border bg-gray-50 p-3 sm:flex-row sm:items-end">
+          <div className="flex-1 space-y-1">
+            <Label>Adicionar projecto manualmente</Label>
+            <NativeSelect
+              value={manualProjectId}
+              onChange={(event) => setManualProjectId(event.target.value)}
+            >
+              <option value="">Seleccionar projecto activo ou proposta</option>
+              {projects
+                .filter((project) => !entries.some((entry) => entry.projectId === project.id))
+                .map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.titulo} · {project.clienteNome}
+                  </option>
+                ))}
+            </NativeSelect>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleAddManualProject}
+            disabled={!manualProjectId}
+          >
+            Adicionar
+          </Button>
+        </div>
       </section>
 
       <div className="flex flex-col gap-3 pt-2 sm:flex-row">

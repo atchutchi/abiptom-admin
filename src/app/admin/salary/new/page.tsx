@@ -21,10 +21,11 @@ export default async function NewSalaryPeriodPage() {
     orderBy: (p, { desc }) => [desc(p.dataInicio)],
   });
 
-  // Load active projects with PF + assistants
+  // Load only operational projects for manual fallback. Paid invoices remain
+  // the primary source for period projects.
   const projectRows = await dbAdmin.query.projects.findMany({
     where: (p, { inArray }) =>
-      inArray(p.estado, ["activo", "proposta", "pausado", "concluido"]),
+      inArray(p.estado, ["activo", "proposta"]),
     with: {
       client: { columns: { id: true, nome: true } },
       pontoFocal: { columns: { id: true, nomeCurto: true } },

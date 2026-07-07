@@ -23,6 +23,9 @@ const expenseSchema = z.object({
     "software_licencas",
     "manutencao",
     "impostos_taxas",
+    "impressao",
+    "fundo_maneio",
+    "comunicacao",
     "outros",
   ]),
   descricao: z.string().min(2, "Descrição obrigatória"),
@@ -110,6 +113,9 @@ export async function listExpenses(filters: ExpenseFilters = {}) {
           | "software_licencas"
           | "manutencao"
           | "impostos_taxas"
+          | "impressao"
+          | "fundo_maneio"
+          | "comunicacao"
           | "outros"
       )
     );

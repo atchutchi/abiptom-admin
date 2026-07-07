@@ -7,7 +7,7 @@ export const E2E_USERS = {
     nomeCurto: "E2E CA",
     cargo: "Administrador de Testes",
     salarioBaseMensal: "0",
-    mfaEnabled: true,
+    mfaEnabled: false,
   },
   dg: {
     email: process.env.E2E_DG_EMAIL ?? "e2e.dg@abiptom.gw",
@@ -17,7 +17,7 @@ export const E2E_USERS = {
     nomeCurto: "E2E DG",
     cargo: "Director Geral de Testes",
     salarioBaseMensal: "37500",
-    mfaEnabled: true,
+    mfaEnabled: false,
   },
   coord: {
     email: process.env.E2E_COORD_EMAIL ?? "e2e.coord@abiptom.gw",

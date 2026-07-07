@@ -1,19 +1,26 @@
-import { listInvoices } from "@/lib/invoices/actions";
 import Link from "next/link";
+import { FileText, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Plus, FileText } from "lucide-react";
-import {
-  formatDate,
-  formatCurrency,
-  invoiceNumber,
-  INVOICE_STATE_LABELS,
-  INVOICE_STATE_COLORS,
-} from "@/lib/utils/format";
-import type { InvoiceState } from "@/lib/db/schema";
 import InvoiceExportButton from "@/components/forms/InvoiceExportButton";
 import { Header } from "@/components/layout/Header";
+import { listClients } from "@/lib/clients/actions";
+import { listInvoices } from "@/lib/invoices/actions";
+import {
+  invoiceFiltersToSearchParams,
+  normalizeInvoiceFilters,
+  type RawInvoiceFilters,
+} from "@/lib/invoices/filters";
+import { listProjects } from "@/lib/projects/actions";
+import {
+  formatCurrency,
+  formatDate,
+  INVOICE_STATE_COLORS,
+  INVOICE_STATE_LABELS,
+  invoiceNumber,
+} from "@/lib/utils/format";
+import type { InvoiceState } from "@/lib/db/schema";
 
-export const metadata = { title: "Facturas — ABIPTOM Core" };
+export const metadata = { title: "Facturas - ABIPTOM Core" };
 
 const STATES: InvoiceState[] = [
   "rascunho",
@@ -27,39 +34,41 @@ const STATES: InvoiceState[] = [
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ estado?: string; mes?: string; vencidas?: string }>;
+  searchParams: Promise<RawInvoiceFilters>;
 }) {
-  const { estado, mes, vencidas } = await searchParams;
-  const isVencidas = vencidas === "1";
-
+  const rawFilters = await searchParams;
+  const normalizedFilters = normalizeInvoiceFilters(rawFilters);
+  const isVencidas = normalizedFilters.vencidas === true;
   const estadoFilter = isVencidas
     ? undefined
-    : estado
-      ? ([estado] as InvoiceState[])
+    : normalizedFilters.estado
+      ? normalizedFilters.estado
       : (["proforma", "definitiva", "paga_parcial", "paga"] as InvoiceState[]);
 
-  const mesInicio = mes ? `${mes}-01` : undefined;
-  const mesFim = mes ? `${mes}-31` : undefined;
-
-  const facturas = await listInvoices({
-    estado: estadoFilter,
-    mesInicio,
-    mesFim,
-    vencidas: isVencidas,
-  });
+  const [facturas, clientes, projectos] = await Promise.all([
+    listInvoices({ ...normalizedFilters, estado: estadoFilter }),
+    listClients(),
+    listProjects({ scope: "todos" }),
+  ]);
 
   const mesAtual = new Date().toISOString().slice(0, 7);
+  const exportQuery = invoiceFiltersToSearchParams({
+    ...rawFilters,
+    mes: rawFilters.mes ?? mesAtual,
+  }).toString();
 
   return (
     <>
       <Header title={isVencidas ? "Facturas vencidas" : "Facturas"} />
 
       <main className="flex-1 p-6">
-        <div className="mx-auto max-w-6xl space-y-6">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">{facturas.length} resultado(s)</p>
+        <div className="mx-auto max-w-7xl space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              {facturas.length} resultado(s)
+            </p>
             <div className="flex gap-2">
-              <InvoiceExportButton mes={mes ?? mesAtual} />
+              <InvoiceExportButton query={exportQuery} />
               <Button asChild>
                 <Link href="/admin/invoices/new">
                   <Plus className="size-4" />
@@ -69,32 +78,125 @@ export default async function InvoicesPage({
             </div>
           </div>
 
-          {/* Filters */}
-          <form className="flex flex-wrap gap-3 items-end">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Estado</label>
+          <form className="grid gap-3 rounded-lg border bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
+            <FilterField label="Estado">
               <select
                 name="estado"
-                defaultValue={estado ?? ""}
+                defaultValue={rawFilters.estado ?? ""}
                 disabled={isVencidas}
-                className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none disabled:opacity-50"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none disabled:opacity-50"
               >
                 <option value="">Todos activos</option>
-                {STATES.map((s) => (
-                  <option key={s} value={s}>{INVOICE_STATE_LABELS[s]}</option>
+                {STATES.map((state) => (
+                  <option key={state} value={state}>
+                    {INVOICE_STATE_LABELS[state]}
+                  </option>
                 ))}
               </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Mês</label>
+            </FilterField>
+
+            <FilterField label="Mês de emissão">
               <input
                 name="mes"
                 type="month"
-                defaultValue={mes ?? ""}
-                className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
+                defaultValue={rawFilters.mes ?? ""}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
               />
-            </div>
-            <label className="flex items-center gap-2 text-sm text-muted-foreground pb-2 cursor-pointer">
+            </FilterField>
+
+            <FilterField label="Cliente">
+              <select
+                name="clientId"
+                defaultValue={rawFilters.clientId ?? ""}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
+              >
+                <option value="">Todos os clientes</option>
+                {clientes.map((cliente) => (
+                  <option key={cliente.id} value={cliente.id}>
+                    {cliente.nome}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+
+            <FilterField label="Projecto">
+              <select
+                name="projectId"
+                defaultValue={rawFilters.projectId ?? ""}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
+              >
+                <option value="">Todos os projectos</option>
+                {projectos.map((projecto) => (
+                  <option key={projecto.id} value={projecto.id}>
+                    {projecto.titulo}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+
+            <FilterField label="Nº da factura">
+              <input
+                name="numero"
+                type="number"
+                min="1"
+                defaultValue={rawFilters.numero ?? ""}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
+              />
+            </FilterField>
+
+            <FilterField label="Tipo">
+              <select
+                name="tipo"
+                defaultValue={rawFilters.tipo ?? ""}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
+              >
+                <option value="">Todos</option>
+                <option value="proforma">Proforma</option>
+                <option value="definitiva">Definitiva</option>
+              </select>
+            </FilterField>
+
+            <FilterField label="Moeda">
+              <select
+                name="moeda"
+                defaultValue={rawFilters.moeda ?? ""}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
+              >
+                <option value="">Todas</option>
+                <option value="XOF">XOF</option>
+                <option value="EUR">EUR</option>
+                <option value="USD">USD</option>
+              </select>
+            </FilterField>
+
+            <FilterField label="Pago no mês">
+              <input
+                name="pagoNoMes"
+                type="month"
+                defaultValue={rawFilters.pagoNoMes ?? ""}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
+              />
+            </FilterField>
+
+            <FilterField label="Data inicial">
+              <input
+                name="dataInicio"
+                type="date"
+                defaultValue={rawFilters.dataInicio ?? ""}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
+              />
+            </FilterField>
+
+            <FilterField label="Data final">
+              <input
+                name="dataFim"
+                type="date"
+                defaultValue={rawFilters.dataFim ?? ""}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none"
+              />
+            </FilterField>
+
+            <label className="flex items-center gap-2 pb-2 text-sm text-muted-foreground">
               <input
                 type="checkbox"
                 name="vencidas"
@@ -104,15 +206,20 @@ export default async function InvoicesPage({
               />
               Só vencidas
             </label>
-            <Button type="submit" variant="secondary">Filtrar</Button>
-            {isVencidas && (
-              <Link
-                href="/admin/invoices"
-                className="text-xs text-muted-foreground hover:underline pb-2"
-              >
-                Limpar
-              </Link>
-            )}
+
+            <div className="flex items-center gap-3">
+              <Button type="submit" variant="secondary">
+                Filtrar
+              </Button>
+              {normalizedFilters.hasActiveFilters && (
+                <Link
+                  href="/admin/invoices"
+                  className="text-xs text-muted-foreground hover:underline"
+                >
+                  Limpar
+                </Link>
+              )}
+            </div>
           </form>
 
           {facturas.length === 0 ? (
@@ -124,12 +231,13 @@ export default async function InvoicesPage({
               </Button>
             </div>
           ) : (
-            <div className="rounded-lg border border-border overflow-hidden">
+            <div className="overflow-hidden rounded-lg border border-border">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
                   <tr>
                     <th className="px-4 py-3 text-left font-medium">Nº</th>
                     <th className="px-4 py-3 text-left font-medium">Cliente</th>
+                    <th className="px-4 py-3 text-left font-medium">Projecto</th>
                     <th className="px-4 py-3 text-left font-medium">Data</th>
                     <th className="px-4 py-3 text-left font-medium">Estado</th>
                     <th className="px-4 py-3 text-right font-medium">Total</th>
@@ -137,29 +245,37 @@ export default async function InvoicesPage({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {facturas.map((f) => (
-                    <tr key={f.id} className="hover:bg-muted/30 transition-colors">
+                  {facturas.map((factura) => (
+                    <tr
+                      key={factura.id}
+                      className="transition-colors hover:bg-muted/30"
+                    >
                       <td className="px-4 py-3 font-mono font-medium">
-                        {invoiceNumber(f.numero)}
+                        {invoiceNumber(factura.numero)}
                       </td>
-                      <td className="px-4 py-3">{f.client?.nome ?? "—"}</td>
+                      <td className="px-4 py-3">
+                        {factura.client?.nome ?? "Sem cliente"}
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground">
-                        {formatDate(f.dataEmissao)}
+                        {factura.project?.titulo ?? "Sem projecto"}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {formatDate(factura.dataEmissao)}
                       </td>
                       <td className="px-4 py-3">
                         <span
-                          className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${INVOICE_STATE_COLORS[f.estado]}`}
+                          className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${INVOICE_STATE_COLORS[factura.estado]}`}
                         >
-                          {INVOICE_STATE_LABELS[f.estado]}
+                          {INVOICE_STATE_LABELS[factura.estado]}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right font-mono">
-                        {formatCurrency(f.total, f.moeda)}
+                        {formatCurrency(factura.total, factura.moeda)}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <Link
-                          href={`/admin/invoices/${f.id}`}
-                          className="text-primary hover:underline text-xs"
+                          href={`/admin/invoices/${factura.id}`}
+                          className="text-xs text-primary hover:underline"
                         >
                           Ver
                         </Link>
@@ -173,5 +289,20 @@ export default async function InvoicesPage({
         </div>
       </main>
     </>
+  );
+}
+
+function FilterField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      {children}
+    </div>
   );
 }

@@ -2,12 +2,11 @@ import { describe, expect, it } from "vitest";
 import { resolveProtectedRouteAccess } from "@/lib/auth/session-gate";
 
 describe("resolveProtectedRouteAccess", () => {
-  it("redirecciona quando a sessão autenticada não tem utilizador interno", () => {
+  it("redirecciona quando a sessao autenticada nao tem utilizador interno", () => {
     const decision = resolveProtectedRouteAccess({
       hasUser: true,
       dbUser: null,
       pathname: "/admin/users",
-      currentMfaLevel: "aal2",
     });
 
     expect(decision).toEqual({ action: "login" });
@@ -18,7 +17,6 @@ describe("resolveProtectedRouteAccess", () => {
       hasUser: true,
       dbUser: { role: "staff", activo: true },
       pathname: "/admin/users",
-      currentMfaLevel: "aal2",
       authMetadataRole: "ca",
     });
 
@@ -28,14 +26,13 @@ describe("resolveProtectedRouteAccess", () => {
     });
   });
 
-  it("exige sessão aal2 para ca e dg em rotas protegidas", () => {
+  it("permite ca e dg com login por password sem exigir MFA", () => {
     const decision = resolveProtectedRouteAccess({
       hasUser: true,
       dbUser: { role: "ca", activo: true },
       pathname: "/admin/dashboard",
-      currentMfaLevel: "aal1",
     });
 
-    expect(decision).toEqual({ action: "setup-mfa" });
+    expect(decision).toEqual({ action: "allow", role: "ca" });
   });
 });

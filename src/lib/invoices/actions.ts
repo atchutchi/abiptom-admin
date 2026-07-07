@@ -7,7 +7,9 @@ import {
   invoiceItems,
   invoicePayments,
   projects,
+  type Currency,
   type InvoiceState,
+  type InvoiceType,
 } from "@/lib/db/schema";
 import { eq, and, desc, gte, lte, inArray, type SQL } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -86,9 +88,17 @@ function calcTotals(
 export async function listInvoices(filters?: {
   estado?: InvoiceState[];
   clientId?: string;
+  projectId?: string;
+  numero?: number;
+  tipo?: InvoiceType;
+  moeda?: Currency;
   mesInicio?: string;
   mesFim?: string;
+  dataInicio?: string;
+  dataFim?: string;
   vencidas?: boolean;
+  pagoInicio?: string;
+  pagoFim?: string;
 }) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
@@ -99,10 +109,38 @@ export async function listInvoices(filters?: {
     conditions.push(inArray(invoices.estado, filters.estado));
   if (filters?.clientId)
     conditions.push(eq(invoices.clientId, filters.clientId));
+  if (filters?.projectId)
+    conditions.push(eq(invoices.projectId, filters.projectId));
+  if (filters?.numero)
+    conditions.push(eq(invoices.numero, filters.numero));
+  if (filters?.tipo)
+    conditions.push(eq(invoices.tipo, filters.tipo));
+  if (filters?.moeda)
+    conditions.push(eq(invoices.moeda, filters.moeda));
   if (filters?.mesInicio)
     conditions.push(gte(invoices.dataEmissao, filters.mesInicio));
   if (filters?.mesFim)
     conditions.push(lte(invoices.dataEmissao, filters.mesFim));
+  if (filters?.dataInicio)
+    conditions.push(gte(invoices.dataEmissao, filters.dataInicio));
+  if (filters?.dataFim)
+    conditions.push(lte(invoices.dataEmissao, filters.dataFim));
+  if (filters?.pagoInicio || filters?.pagoFim) {
+    const paymentConditions: SQL[] = [];
+    if (filters.pagoInicio)
+      paymentConditions.push(gte(invoicePayments.data, filters.pagoInicio));
+    if (filters.pagoFim)
+      paymentConditions.push(lte(invoicePayments.data, filters.pagoFim));
+
+    const paidRows = await dbAdmin.query.invoicePayments.findMany({
+      where: paymentConditions.length ? and(...paymentConditions) : undefined,
+      columns: { invoiceId: true },
+    });
+    const paidInvoiceIds = [...new Set(paidRows.map((row) => row.invoiceId))];
+
+    if (paidInvoiceIds.length === 0) return [];
+    conditions.push(inArray(invoices.id, paidInvoiceIds));
+  }
   if (filters?.vencidas) {
     const hoje = new Date().toISOString().split("T")[0];
     conditions.push(
@@ -115,6 +153,7 @@ export async function listInvoices(filters?: {
     where: conditions.length ? and(...conditions) : undefined,
     with: {
       client: true,
+      project: { columns: { id: true, titulo: true } },
       createdBy: { columns: { nomeCurto: true } },
     },
     orderBy: [desc(invoices.createdAt)],

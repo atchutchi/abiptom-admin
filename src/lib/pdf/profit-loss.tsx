@@ -62,6 +62,9 @@ const EXPENSE_CATEGORY_LABEL: Record<string, string> = {
   software_licencas: "Software / Licenças",
   manutencao: "Manutenção",
   impostos_taxas: "Impostos / Taxas",
+  impressao: "Impressão",
+  fundo_maneio: "Fundo de maneio",
+  comunicacao: "Comunicação",
   outros: "Outros",
 };
 
@@ -149,6 +152,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     marginTop: 10,
     marginBottom: 4,
+  },
+  paragraph: {
+    fontSize: 8.5,
+    color: DARK,
+    lineHeight: 1.45,
+    marginBottom: 3,
   },
   tableHeader: {
     flexDirection: "row",
@@ -338,6 +347,20 @@ export function ProfitLossPDF({
             </Text>
           </View>
         </View>
+
+        <Text style={styles.sectionTitle}>Resumo executivo</Text>
+        {report.narrativa.resumo.map((item) => (
+          <Text key={item} style={styles.paragraph}>
+            {item}
+          </Text>
+        ))}
+
+        <Text style={styles.sectionTitle}>Recomendações</Text>
+        {report.narrativa.recomendacoes.map((item) => (
+          <Text key={item} style={styles.paragraph}>
+            {item}
+          </Text>
+        ))}
 
         {categoriasOrdenadas.length > 0 && (
           <>

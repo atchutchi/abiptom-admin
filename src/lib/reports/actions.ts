@@ -1,17 +1,21 @@
 "use server";
 
+import { and, eq, gte, inArray, lte } from "drizzle-orm";
 import { dbAdmin, withAuthenticatedDb } from "@/lib/db";
 import {
-  invoices,
-  invoicePayments,
-  expenses,
-  salaryPeriods,
-  salaryLines,
-  dividendPeriods,
+  clients,
   dividendLines,
+  dividendPeriods,
+  expenses,
+  invoicePayments,
+  invoices,
+  projects,
+  salaryLines,
+  salaryPeriods,
 } from "@/lib/db/schema";
-import { eq, and, gte, lte, inArray } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth/actions";
+import { buildReportNarrative, type ReportNarrative } from "@/lib/reports/insights";
+import { getMonthRange } from "@/lib/utils/date-range";
 import { toXofInteger } from "@/lib/utils/money";
 
 interface MonthRange {
@@ -19,11 +23,11 @@ interface MonthRange {
   end: string;
 }
 
-function monthRange(ano: number, mes: number): MonthRange {
-  const start = `${ano}-${String(mes).padStart(2, "0")}-01`;
-  const endDate = new Date(ano, mes, 0);
-  const end = `${ano}-${String(mes).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
-  return { start, end };
+export interface ReportBreakdownItem {
+  id: string;
+  nome: string;
+  valor: number;
+  count: number;
 }
 
 export interface ProfitLossReport {
@@ -33,11 +37,22 @@ export interface ProfitLossReport {
   trimestre?: number;
   periodoLabel?: string;
   monthlyBreakdown?: ProfitLossMonthSummary[];
+  narrativa: ReportNarrative;
+  indicadores: {
+    taxaCobranca: number;
+    margemLiquidaPercentagem: number;
+    despesaSobreFacturado: number;
+  };
   receitas: {
     facturado: number;
     recebido: number;
+    emAberto: number;
+    vencido: number;
     facturasCount: number;
     pagamentosCount: number;
+    porEstado: Record<string, number>;
+    topClientes: ReportBreakdownItem[];
+    topProjectos: ReportBreakdownItem[];
   };
   despesas: {
     total: number;
@@ -100,32 +115,118 @@ async function assertReportsAccess() {
   return { user, dbUser };
 }
 
+function addBreakdown(
+  map: Map<string, ReportBreakdownItem>,
+  id: string | null,
+  nome: string | null,
+  valor: number,
+) {
+  const key = id ?? "sem-associacao";
+  const current = map.get(key) ?? {
+    id: key,
+    nome: nome ?? "Sem associação",
+    valor: 0,
+    count: 0,
+  };
+
+  current.valor += valor;
+  current.count += 1;
+  map.set(key, current);
+}
+
+function topItems(map: Map<string, ReportBreakdownItem>) {
+  return Array.from(map.values())
+    .sort((left, right) => right.valor - left.valor)
+    .slice(0, 5);
+}
+
+function buildIndicators(
+  facturado: number,
+  recebido: number,
+  totalDespesas: number,
+  margemLiquida: number,
+) {
+  return {
+    taxaCobranca: facturado > 0 ? (recebido / facturado) * 100 : 0,
+    margemLiquidaPercentagem: facturado > 0 ? (margemLiquida / facturado) * 100 : 0,
+    despesaSobreFacturado: facturado > 0 ? (totalDespesas / facturado) * 100 : 0,
+  };
+}
+
+async function getInvoiceOutstandingById(
+  db: typeof dbAdmin,
+  invoiceRows: Array<{
+    id: string;
+    total: string;
+    taxaCambio: string | null;
+  }>,
+) {
+  const invoiceIds = invoiceRows.map((invoice) => invoice.id);
+  if (invoiceIds.length === 0) return new Map<string, number>();
+
+  const paymentRows = await db
+    .select({
+      invoiceId: invoicePayments.invoiceId,
+      valor: invoicePayments.valor,
+      taxaCambio: invoicePayments.taxaCambio,
+    })
+    .from(invoicePayments)
+    .where(inArray(invoicePayments.invoiceId, invoiceIds));
+
+  const paidByInvoice = new Map<string, number>();
+  for (const payment of paymentRows) {
+    paidByInvoice.set(
+      payment.invoiceId,
+      (paidByInvoice.get(payment.invoiceId) ?? 0) +
+        toXofInteger(Number(payment.valor) * Number(payment.taxaCambio ?? "1")),
+    );
+  }
+
+  const outstandingByInvoice = new Map<string, number>();
+  for (const invoice of invoiceRows) {
+    const total = toXofInteger(Number(invoice.total) * Number(invoice.taxaCambio ?? "1"));
+    outstandingByInvoice.set(
+      invoice.id,
+      Math.max(0, total - (paidByInvoice.get(invoice.id) ?? 0)),
+    );
+  }
+
+  return outstandingByInvoice;
+}
+
 async function computeMonthlyProfitLoss(
   db: typeof dbAdmin,
   ano: number,
-  mes: number
+  mes: number,
 ): Promise<ProfitLossReport> {
-  const { start, end } = monthRange(ano, mes);
+  const { start, end }: MonthRange = getMonthRange(ano, mes);
 
-  // receitas: facturas emitidas no mês (definitivas/pagas) e pagamentos recebidos
   const facturasDoMes = await db
     .select({
       id: invoices.id,
       total: invoices.total,
       taxaCambio: invoices.taxaCambio,
       estado: invoices.estado,
+      dataVencimento: invoices.dataVencimento,
+      clientId: invoices.clientId,
+      clientName: clients.nome,
+      projectId: invoices.projectId,
+      projectTitle: projects.titulo,
     })
     .from(invoices)
+    .leftJoin(clients, eq(invoices.clientId, clients.id))
+    .leftJoin(projects, eq(invoices.projectId, projects.id))
     .where(
       and(
         gte(invoices.dataEmissao, start),
         lte(invoices.dataEmissao, end),
-        inArray(invoices.estado, ["definitiva", "paga_parcial", "paga"])
-      )
+        inArray(invoices.estado, ["definitiva", "paga_parcial", "paga"]),
+      ),
     );
 
   const facturado = facturasDoMes.reduce(
-    (s, f) => s + toXofInteger(Number(f.total) * Number(f.taxaCambio ?? "1")),
+    (sum, invoice) =>
+      sum + toXofInteger(Number(invoice.total) * Number(invoice.taxaCambio ?? "1")),
     0,
   );
 
@@ -138,11 +239,37 @@ async function computeMonthlyProfitLoss(
     .where(and(gte(invoicePayments.data, start), lte(invoicePayments.data, end)));
 
   const recebido = pagamentosDoMes.reduce(
-    (s, p) => s + toXofInteger(Number(p.valor) * Number(p.taxaCambio ?? "1")),
-    0
+    (sum, payment) =>
+      sum + toXofInteger(Number(payment.valor) * Number(payment.taxaCambio ?? "1")),
+    0,
   );
 
-  // despesas: todas as despesas com data no mês (excepto anuladas)
+  const outstandingByInvoice = await getInvoiceOutstandingById(db, facturasDoMes);
+  const hoje = new Date().toISOString().split("T")[0];
+  let emAberto = 0;
+  let vencido = 0;
+  const porEstado: Record<string, number> = {};
+  const clientesMap = new Map<string, ReportBreakdownItem>();
+  const projectosMap = new Map<string, ReportBreakdownItem>();
+
+  for (const invoice of facturasDoMes) {
+    const total = toXofInteger(Number(invoice.total) * Number(invoice.taxaCambio ?? "1"));
+    const aberto = outstandingByInvoice.get(invoice.id) ?? 0;
+    emAberto += aberto;
+    porEstado[invoice.estado] = (porEstado[invoice.estado] ?? 0) + total;
+    addBreakdown(clientesMap, invoice.clientId, invoice.clientName, total);
+    addBreakdown(projectosMap, invoice.projectId, invoice.projectTitle, total);
+
+    if (
+      aberto > 0 &&
+      invoice.dataVencimento &&
+      invoice.dataVencimento <= hoje &&
+      ["definitiva", "paga_parcial"].includes(invoice.estado)
+    ) {
+      vencido += aberto;
+    }
+  }
+
   const despesasDoMes = await db
     .select({
       categoria: expenses.categoria,
@@ -152,18 +279,17 @@ async function computeMonthlyProfitLoss(
     .from(expenses)
     .where(and(gte(expenses.data, start), lte(expenses.data, end)));
 
-  const despesasValidas = despesasDoMes.filter((d) => d.estado !== "anulada");
+  const despesasValidas = despesasDoMes.filter((expense) => expense.estado !== "anulada");
   const totalDespesas = despesasValidas.reduce(
-    (s, d) => s + toXofInteger(d.valorXof),
+    (sum, expense) => sum + toXofInteger(expense.valorXof),
     0,
   );
   const porCategoria: Record<string, number> = {};
-  for (const d of despesasValidas) {
-    porCategoria[d.categoria] =
-      (porCategoria[d.categoria] ?? 0) + toXofInteger(d.valorXof);
+  for (const expense of despesasValidas) {
+    porCategoria[expense.categoria] =
+      (porCategoria[expense.categoria] ?? 0) + toXofInteger(expense.valorXof);
   }
 
-  // salários: período ano/mes
   const periodo = await db.query.salaryPeriods.findFirst({
     where: and(eq(salaryPeriods.ano, ano), eq(salaryPeriods.mes, mes)),
   });
@@ -187,20 +313,18 @@ async function computeMonthlyProfitLoss(
         })
         .from(salaryLines)
         .where(eq(salaryLines.periodId, periodo.id));
-      totalBruto = linhas.reduce((s, l) => s + toXofInteger(l.totalBruto), 0);
+      totalBruto = linhas.reduce((sum, line) => sum + toXofInteger(line.totalBruto), 0);
       totalLiquido = linhas.reduce(
-        (s, l) => s + toXofInteger(l.totalLiquido),
+        (sum, line) => sum + toXofInteger(line.totalLiquido),
         0,
       );
       totalFolha = totalBruto;
     }
   }
 
-  // dividendos pagos no mês
   const linhasDivPagas = await db
     .select({
       valorBruto: dividendLines.valorBruto,
-      estado: dividendPeriods.estado,
     })
     .from(dividendLines)
     .innerJoin(dividendPeriods, eq(dividendLines.periodId, dividendPeriods.id))
@@ -208,16 +332,15 @@ async function computeMonthlyProfitLoss(
       and(
         eq(dividendLines.pago, true),
         gte(dividendLines.dataPagamento, start),
-        lte(dividendLines.dataPagamento, end)
-      )
+        lte(dividendLines.dataPagamento, end),
+      ),
     );
 
   const pagoNoMes = linhasDivPagas.reduce(
-    (s, l) => s + toXofInteger(l.valorBruto),
+    (sum, line) => sum + toXofInteger(line.valorBruto),
     0,
   );
 
-  // totalDistribuido de periodos com ano/mes correspondente (se aplicável ao trimestre)
   const periodosAno = await db
     .select({
       totalDistribuido: dividendPeriods.totalDistribuido,
@@ -227,28 +350,55 @@ async function computeMonthlyProfitLoss(
     .where(eq(dividendPeriods.ano, ano));
 
   const totalDistribuido = periodosAno
-    .filter((p) => {
-      if (!p.trimestre) return false;
-      const tMes = [0, 3, 6, 9, 12];
-      return p.trimestre >= 1 && p.trimestre <= 4 && tMes[p.trimestre] === mes;
+    .filter((period) => {
+      if (!period.trimestre) return false;
+      const trimestreMes = [0, 3, 6, 9, 12];
+      return (
+        period.trimestre >= 1 &&
+        period.trimestre <= 4 &&
+        trimestreMes[period.trimestre] === mes
+      );
     })
-    .reduce((s, p) => s + toXofInteger(p.totalDistribuido), 0);
+    .reduce((sum, period) => sum + toXofInteger(period.totalDistribuido), 0);
 
   const margemBruta = facturado - totalDespesas;
   const margemLiquida = margemBruta - totalFolha;
   const cashflow = recebido - totalDespesas - totalLiquido - pagoNoMes;
   const saldoGlobal = cashflow;
+  const indicadores = buildIndicators(facturado, recebido, totalDespesas, margemLiquida);
+  const periodoLabel = `${String(mes).padStart(2, "0")}/${ano}`;
 
   return {
     ano,
     mes,
     periodoTipo: "mensal",
-    periodoLabel: `${String(mes).padStart(2, "0")}/${ano}`,
+    periodoLabel,
+    narrativa: buildReportNarrative({
+      periodoLabel,
+      receitas: {
+        facturado,
+        recebido,
+        emAberto,
+        vencido,
+        facturasCount: facturasDoMes.length,
+        pagamentosCount: pagamentosDoMes.length,
+      },
+      despesas: { total: totalDespesas, count: despesasValidas.length },
+      salarios: { totalFolha, totalLiquido },
+      resultado: { margemLiquida, cashflow },
+      indicadores,
+    }),
+    indicadores,
     receitas: {
       facturado,
       recebido,
+      emAberto,
+      vencido,
       facturasCount: facturasDoMes.length,
       pagamentosCount: pagamentosDoMes.length,
+      porEstado,
+      topClientes: topItems(clientesMap),
+      topProjectos: topItems(projectosMap),
     },
     despesas: {
       total: totalDespesas,
@@ -276,7 +426,7 @@ async function computeMonthlyProfitLoss(
 
 export async function getMonthlyProfitLoss(
   ano: number,
-  mes: number
+  mes: number,
 ): Promise<ProfitLossReport> {
   const { user } = await assertReportsAccess();
   return withAuthenticatedDb(user, async (db) => computeMonthlyProfitLoss(db, ano, mes));
@@ -284,25 +434,42 @@ export async function getMonthlyProfitLoss(
 
 export async function getQuarterlyProfitLoss(
   ano: number,
-  trimestre: number
+  trimestre: number,
 ): Promise<ProfitLossReport> {
   const { user } = await assertReportsAccess();
   return withAuthenticatedDb(user, async (db) =>
-    getQuarterlyProfitLossForDb(db, ano, trimestre)
+    getQuarterlyProfitLossForDb(db, ano, trimestre),
   );
 }
 
 export async function getMonthlyProfitLossSystem(
   ano: number,
-  mes: number
+  mes: number,
 ): Promise<ProfitLossReport> {
   return computeMonthlyProfitLoss(dbAdmin, ano, mes);
+}
+
+function mergeBreakdown(
+  reports: ProfitLossReport[],
+  key: "topClientes" | "topProjectos",
+) {
+  const map = new Map<string, ReportBreakdownItem>();
+  for (const report of reports) {
+    for (const item of report.receitas[key]) {
+      const current = map.get(item.id) ?? { ...item, valor: 0, count: 0 };
+      current.valor += item.valor;
+      current.count += item.count;
+      map.set(item.id, current);
+    }
+  }
+
+  return topItems(map);
 }
 
 async function getQuarterlyProfitLossForDb(
   db: typeof dbAdmin,
   ano: number,
-  trimestre: number
+  trimestre: number,
 ): Promise<ProfitLossReport> {
   if (trimestre < 1 || trimestre > 4) {
     throw new Error("Trimestre inválido");
@@ -311,27 +478,34 @@ async function getQuarterlyProfitLossForDb(
   const mesInicial = (trimestre - 1) * 3 + 1;
   const meses = [mesInicial, mesInicial + 1, mesInicial + 2];
   const monthlyReports = await Promise.all(
-    meses.map((mes) => computeMonthlyProfitLoss(db, ano, mes))
+    meses.map((month) => computeMonthlyProfitLoss(db, ano, month)),
   );
 
   const porCategoria: Record<string, number> = {};
+  const porEstado: Record<string, number> = {};
   for (const report of monthlyReports) {
-    for (const [cat, value] of Object.entries(report.despesas.porCategoria)) {
-      porCategoria[cat] = (porCategoria[cat] ?? 0) + value;
+    for (const [category, value] of Object.entries(report.despesas.porCategoria)) {
+      porCategoria[category] = (porCategoria[category] ?? 0) + value;
+    }
+    for (const [state, value] of Object.entries(report.receitas.porEstado)) {
+      porEstado[state] = (porEstado[state] ?? 0) + value;
     }
   }
 
-  const facturado = monthlyReports.reduce((s, r) => s + r.receitas.facturado, 0);
-  const recebido = monthlyReports.reduce((s, r) => s + r.receitas.recebido, 0);
-  const totalDespesas = monthlyReports.reduce((s, r) => s + r.despesas.total, 0);
-  const totalFolha = monthlyReports.reduce((s, r) => s + r.salarios.totalFolha, 0);
-  const totalLiquido = monthlyReports.reduce((s, r) => s + r.salarios.totalLiquido, 0);
-  const totalBruto = monthlyReports.reduce((s, r) => s + r.salarios.totalBruto, 0);
+  const facturado = monthlyReports.reduce((sum, report) => sum + report.receitas.facturado, 0);
+  const recebido = monthlyReports.reduce((sum, report) => sum + report.receitas.recebido, 0);
+  const emAberto = monthlyReports.reduce((sum, report) => sum + report.receitas.emAberto, 0);
+  const vencido = monthlyReports.reduce((sum, report) => sum + report.receitas.vencido, 0);
+  const totalDespesas = monthlyReports.reduce((sum, report) => sum + report.despesas.total, 0);
+  const totalFolha = monthlyReports.reduce((sum, report) => sum + report.salarios.totalFolha, 0);
+  const totalLiquido = monthlyReports.reduce((sum, report) => sum + report.salarios.totalLiquido, 0);
+  const totalBruto = monthlyReports.reduce((sum, report) => sum + report.salarios.totalBruto, 0);
   const totalDistribuido = monthlyReports.reduce(
-    (s, r) => s + r.dividendos.totalDistribuido,
-    0
+    (sum, report) => sum + report.dividendos.totalDistribuido,
+    0,
   );
-  const pagoNoMes = monthlyReports.reduce((s, r) => s + r.dividendos.pagoNoMes, 0);
+  const pagoNoMes = monthlyReports.reduce((sum, report) => sum + report.dividendos.pagoNoMes, 0);
+
   let saldoAcumulado = 0;
   const monthlyBreakdown: ProfitLossMonthSummary[] = monthlyReports.map((report) => {
     saldoAcumulado += report.resultado.saldoGlobal;
@@ -356,27 +530,62 @@ async function getQuarterlyProfitLossForDb(
   const margemLiquida = margemBruta - totalFolha;
   const cashflow = recebido - totalDespesas - totalLiquido - pagoNoMes;
   const saldoGlobal = cashflow;
+  const indicadores = buildIndicators(facturado, recebido, totalDespesas, margemLiquida);
+  const periodoLabel = `T${trimestre} ${ano}`;
 
   return {
     ano,
     mes: meses[2],
     trimestre,
     periodoTipo: "trimestral",
-    periodoLabel: `T${trimestre} ${ano}`,
+    periodoLabel,
     monthlyBreakdown,
+    narrativa: buildReportNarrative({
+      periodoLabel,
+      receitas: {
+        facturado,
+        recebido,
+        emAberto,
+        vencido,
+        facturasCount: monthlyReports.reduce(
+          (sum, report) => sum + report.receitas.facturasCount,
+          0,
+        ),
+        pagamentosCount: monthlyReports.reduce(
+          (sum, report) => sum + report.receitas.pagamentosCount,
+          0,
+        ),
+      },
+      despesas: {
+        total: totalDespesas,
+        count: monthlyReports.reduce((sum, report) => sum + report.despesas.count, 0),
+      },
+      salarios: { totalFolha, totalLiquido },
+      resultado: { margemLiquida, cashflow },
+      indicadores,
+    }),
+    indicadores,
     receitas: {
       facturado,
       recebido,
-      facturasCount: monthlyReports.reduce((s, r) => s + r.receitas.facturasCount, 0),
-      pagamentosCount: monthlyReports.reduce(
-        (s, r) => s + r.receitas.pagamentosCount,
-        0
+      emAberto,
+      vencido,
+      facturasCount: monthlyReports.reduce(
+        (sum, report) => sum + report.receitas.facturasCount,
+        0,
       ),
+      pagamentosCount: monthlyReports.reduce(
+        (sum, report) => sum + report.receitas.pagamentosCount,
+        0,
+      ),
+      porEstado,
+      topClientes: mergeBreakdown(monthlyReports, "topClientes"),
+      topProjectos: mergeBreakdown(monthlyReports, "topProjectos"),
     },
     despesas: {
       total: totalDespesas,
       porCategoria,
-      count: monthlyReports.reduce((s, r) => s + r.despesas.count, 0),
+      count: monthlyReports.reduce((sum, report) => sum + report.despesas.count, 0),
     },
     salarios: {
       totalFolha,
@@ -399,7 +608,7 @@ async function getQuarterlyProfitLossForDb(
 
 export async function getQuarterlyProfitLossSystem(
   ano: number,
-  trimestre: number
+  trimestre: number,
 ): Promise<ProfitLossReport> {
   return getQuarterlyProfitLossForDb(dbAdmin, ano, trimestre);
 }

@@ -1,13 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
-import {
-  resolveProtectedRouteAccess,
-  roleRequiresMfa,
-} from "@/lib/auth/session-gate";
+import { resolveProtectedRouteAccess } from "@/lib/auth/session-gate";
 
 const PUBLIC_ROUTES = [
   "/login",
-  "/setup-mfa",
   "/forgot-password",
   "/update-password",
   "/auth/confirm",
@@ -43,27 +39,14 @@ export async function middleware(request: NextRequest) {
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
-  let currentMfaLevel: string | null | undefined;
-
-  if (roleRequiresMfa(dbUser?.role)) {
-    const { data: assurance } =
-      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    currentMfaLevel = assurance?.currentLevel;
-  }
-
   const access = resolveProtectedRouteAccess({
     hasUser: true,
     dbUser: dbUser ?? null,
     pathname,
-    currentMfaLevel,
   });
 
   if (access.action === "login") {
     return NextResponse.redirect(new URL("/login", request.url));
-  }
-
-  if (access.action === "setup-mfa") {
-    return NextResponse.redirect(new URL("/setup-mfa", request.url));
   }
 
   if (access.action === "redirect") {

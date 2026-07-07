@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,11 +11,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus } from "lucide-react";
 import { listProjects } from "@/lib/projects/actions";
 import { getCurrentUser } from "@/lib/auth/actions";
+import type { ProjectScope } from "@/lib/projects/archive";
 
-export const metadata = { title: "Projectos — ABIPTOM Core" };
+export const metadata = { title: "Projectos - ABIPTOM Core" };
 
 const ESTADO_LABELS: Record<string, string> = {
   proposta: "Proposta",
@@ -32,12 +33,29 @@ const ESTADO_COLORS: Record<string, string> = {
   cancelado: "bg-gray-100 text-gray-600",
 };
 
+const SCOPES: Array<{ value: ProjectScope; label: string }> = [
+  { value: "activos", label: "Activos" },
+  { value: "pausados", label: "Pausados" },
+  { value: "arquivados", label: "Arquivados" },
+  { value: "todos", label: "Todos" },
+];
+
 function fmt(val: string | null) {
-  if (!val) return "—";
+  if (!val) return "Sem valor";
   return Number(val).toLocaleString("pt-PT");
 }
 
-export default async function ProjectsPage() {
+function normalizeScope(scope?: string): ProjectScope {
+  return SCOPES.some((item) => item.value === scope)
+    ? (scope as ProjectScope)
+    : "activos";
+}
+
+export default async function ProjectsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ scope?: string; q?: string }>;
+}) {
   const { user, dbUser } = await getCurrentUser();
   if (!user) redirect("/login");
 
@@ -45,24 +63,65 @@ export default async function ProjectsPage() {
     redirect("/admin/dashboard");
   }
 
-  const allProjects = await listProjects();
+  const params = await searchParams;
+  const scope = normalizeScope(params.scope);
+  const allProjects = await listProjects({ scope, search: params.q });
 
   return (
     <>
       <Header title="Projectos" />
       <main className="flex-1 p-6">
-        <div className="max-w-6xl mx-auto space-y-4">
-          <div className="flex justify-between items-center">
-            <p className="text-sm text-gray-500">{allProjects.length} projectos</p>
+        <div className="mx-auto max-w-6xl space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-gray-500">
+              {allProjects.length} projecto(s)
+            </p>
             <Link href="/admin/projects/new">
               <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
                 Novo projecto
               </Button>
             </Link>
           </div>
 
-          <div className="rounded-lg border bg-white overflow-hidden">
+          <form className="flex flex-wrap items-end gap-2 rounded-lg border bg-white p-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-500">Vista</label>
+              <select
+                name="scope"
+                defaultValue={scope}
+                className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
+              >
+                {SCOPES.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-500">Pesquisa</label>
+              <input
+                name="q"
+                defaultValue={params.q ?? ""}
+                className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm"
+                placeholder="Título do projecto"
+              />
+            </div>
+            <Button type="submit" size="sm" variant="secondary">
+              Aplicar
+            </Button>
+            {(params.scope || params.q) && (
+              <Link
+                href="/admin/projects"
+                className="pb-2 text-xs text-gray-500 hover:underline"
+              >
+                Limpar
+              </Link>
+            )}
+          </form>
+
+          <div className="overflow-hidden rounded-lg border bg-white">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -78,34 +137,38 @@ export default async function ProjectsPage() {
               <TableBody>
                 {allProjects.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-gray-400 py-8">
-                      Nenhum projecto criado ainda.
+                    <TableCell colSpan={7} className="py-8 text-center text-gray-400">
+                      Nenhum projecto encontrado nesta vista.
                     </TableCell>
                   </TableRow>
                 )}
-                {allProjects.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-medium">{p.titulo}</TableCell>
-                    <TableCell className="text-gray-600">{p.client.nome}</TableCell>
+                {allProjects.map((project) => (
+                  <TableRow key={project.id}>
+                    <TableCell className="font-medium">{project.titulo}</TableCell>
                     <TableCell className="text-gray-600">
-                      {p.pontoFocal?.nomeCurto ?? "—"}
+                      {project.client.nome}
+                    </TableCell>
+                    <TableCell className="text-gray-600">
+                      {project.pontoFocal?.nomeCurto ?? "Sem PF"}
                     </TableCell>
                     <TableCell>
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${ESTADO_COLORS[p.estado]}`}
+                        className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${ESTADO_COLORS[project.estado]}`}
                       >
-                        {ESTADO_LABELS[p.estado]}
+                        {ESTADO_LABELS[project.estado]}
                       </span>
                     </TableCell>
-                    <TableCell className="text-gray-600">{p.dataInicio}</TableCell>
+                    <TableCell className="text-gray-600">
+                      {project.dataInicio}
+                    </TableCell>
                     <TableCell className="text-right text-gray-600">
-                      {p.valorPrevisto
-                        ? `${fmt(p.valorPrevisto)} ${p.moeda}`
-                        : "—"}
+                      {project.valorPrevisto
+                        ? `${fmt(project.valorPrevisto)} ${project.moeda}`
+                        : "Sem valor"}
                     </TableCell>
                     <TableCell>
                       <Link
-                        href={`/admin/projects/${p.id}`}
+                        href={`/admin/projects/${project.id}`}
                         className="text-sm text-blue-600 hover:underline"
                       >
                         Ver
