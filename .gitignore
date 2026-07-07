@@ -55,3 +55,8 @@ README.md.bak
 ABIPTOM_ADMIN_CLAUDE_CODE_PROMPT.md
 .playwright-mcp/
 .env*.local
+
+.vercel/
+.env
+.env.*
+!.env.example
