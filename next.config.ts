@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { buildSecurityHeaders } from "./src/lib/security/headers";
 
 const nextConfig: NextConfig = {
   typescript: { ignoreBuildErrors: false },
@@ -10,6 +11,14 @@ const nextConfig: NextConfig = {
     },
   },
   serverExternalPackages: ["@react-pdf/renderer"],
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: buildSecurityHeaders(),
+      },
+    ];
+  },
 };
 
 export default nextConfig;
