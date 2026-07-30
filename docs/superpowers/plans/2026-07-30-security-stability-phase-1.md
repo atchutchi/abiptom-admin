@@ -848,3 +848,11 @@ git commit -m "docs: actualiza estado de seguranca da aplicacao"
 2. A aplicação tem alterações locais não comprometidas na folha salarial. Qualquer tarefa que toque em `src/lib/salary/actions.ts` deve preservar esse diff e rever a combinação antes do commit.
 3. A migração `0014_security_hardening.sql` deve ser aplicada primeiro num ambiente de teste com cópia sanitizada do esquema.
 4. A política CSP deve começar em `Content-Security-Policy-Report-Only` se a verificação local revelar recursos legítimos bloqueados. Só passa a bloqueio depois de corrigir as origens necessárias.
+
+## Registo de execução de 30 de Julho de 2026
+
+As Tasks 0 a 8 foram implementadas em commits isolados. A suite unitária, o lint, TypeScript e o build passaram durante a execução. Os cabeçalhos foram confirmados localmente com resposta HTTP 200.
+
+A execução Playwright não ficou validada porque este checkout não possui `.env.local` nem uma base Supabase dedicada a testes. O `globalSetup` cria e altera utilizadores, por isso não deve ser apontado à produção. O teste integrado ficou criado para execução futura num ambiente controlado.
+
+O comando de restauro passou os testes de segurança e o modo de ajuda. Um restauro completo continua dependente da criação explícita de uma base PostgreSQL isolada e descartável, conforme `docs/operations/backup-restore.md`.

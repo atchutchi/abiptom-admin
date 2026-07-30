@@ -54,12 +54,16 @@ A plataforma foi desenhada para fechar o ciclo mensal da ABIPTOM com menos erro 
 
 - login com Supabase Auth
 - recuperação de palavra-passe com `/forgot-password`, `/auth/confirm` e `/update-password`
-- MFA obrigatório para `ca` e `dg`
+- login por palavra-passe sem MFA obrigatório, por decisão funcional desta fase
+- login e recuperação executados no servidor com mensagens que não revelam se uma conta existe
+- limites persistentes por IP e identificador protegido por HMAC
 - middleware com RBAC por rota
+- matriz central de autorização por operação e rejeição de contas inactivas
 - sincronização entre `auth.users` e `public.users`
 - reparação automática de ligação Auth quando o email existe nas duas camadas
 - perfil pessoal com edição de dados básicos e avatar
-- audit log para operações sensíveis
+- cabeçalhos HTTP de segurança, CSP, HSTS, bloqueio de enquadramento e política de permissões
+- audit log sanitizado para operações sensíveis e consulta paginada em `/admin/settings/audit`, exclusiva para `ca`
 
 ### Utilizadores e equipa
 
@@ -210,6 +214,8 @@ Regras operacionais da política `actual_2024`:
 - protecção por `CRON_SECRET`
 - upload para bucket privado Supabase Storage
 - fallback SQL quando `pg_dump` não está disponível no runtime
+- comando de restauro para uma base isolada com validação de tabelas e contagens
+- procedimento trimestral em `docs/operations/backup-restore.md`
 
 ### Performance e navegação
 
@@ -449,7 +455,9 @@ Criar `.env.local` com as variáveis do ambiente.
 | `RESEND_API_KEY` | Sim para email de facturas | Chave da API Resend |
 | `RESEND_FROM` | Sim para email de facturas e mensagens offline | Remetente, por exemplo `ABIPTOM SARL <info@abiptom.gw>` |
 | `CRON_SECRET` | Sim em produção | Segredo para cron jobs |
+| `SECURITY_RATE_LIMIT_SECRET` | Sim em produção | Segredo aleatório com pelo menos 32 caracteres para HMAC dos identificadores usados nos limites |
 | `BACKUP_SUPABASE_BUCKET` | Sim para backup remoto | Bucket privado para backups |
+| `BACKUP_RESTORE_DATABASE_URL` | Apenas em verificações de restauro | Ligação para uma base isolada cujo nome contém `restore`, `verify` ou `test` |
 | `E2E_CA_EMAIL` | Opcional | Conta CA para Playwright |
 | `E2E_CA_PASSWORD` | Opcional | Password da conta CA |
 | `E2E_DG_EMAIL` | Opcional | Conta DG para Playwright |
@@ -472,6 +480,7 @@ Migrations relevantes recentes:
 | `0009_round_xof_monetary_values.sql` | normalização de valores XOF para inteiros |
 | `0010_add_chat_messaging.sql` | mensagens internas, grupos, conversas por projecto, presença online, fila de emails offline, RLS e Realtime |
 | `0011_chat_messaging_recovery_safe.sql` | recuperação idempotente do chat quando a migration 10 já existe ou ficou parcialmente aplicada |
+| `0014_security_hardening.sql` | limites persistentes, resultado, severidade, identificador do pedido e índices de auditoria |
 
 Comandos úteis:
 
@@ -492,6 +501,7 @@ Em produção, quando uma migration SQL é aplicada manualmente no Supabase SQL 
 | `npm run lint` | executa ESLint |
 | `npm run test` | corre Vitest |
 | `npm run test:e2e` | corre Playwright |
+| `npm run backup:verify-restore -- --file CAMINHO` | restaura um dump numa base isolada e valida tabelas essenciais |
 | `npm run db:generate` | gera migrations Drizzle |
 | `npm run db:migrate` | aplica migrations |
 | `npm run db:push` | sincroniza schema directamente |
@@ -914,11 +924,12 @@ Adicionar rota de perfil para administração e staff, com edição de dados e a
 
 ### Riscos residuais e próximos hardenings
 
-- ainda existem server actions com `dbAdmin` directo e RBAC aplicacional. Isto é aceitável no estado actual, mas os fluxos financeiros críticos devem continuar a migrar para helpers explícitos de autorização por função.
-- `listServices(includeInactive)` não valida sessão. O catálogo não é crítico, mas se serviços inactivos forem considerados sensíveis deve receber RBAC.
-- a acção server-side legacy `verifyMfaCode` tem `factorId` vazio e deve ser removida ou corrigida se voltar a ser usada. O fluxo activo de MFA usa componentes cliente.
+- algumas server actions continuam a usar `dbAdmin` directo, mas as operações críticas consultam agora uma matriz central de papéis e a sessão rejeita contas inactivas.
+- a auditoria das dependências de produção está limpa. A cadeia de desenvolvimento do ESLint mantém um alerta em `brace-expansion` cuja eliminação exige uma mudança principal incompatível. O risco fica limitado às ferramentas locais até existir uma actualização compatível.
+- não foi acrescentada revogação administrativa imediata de todas as sessões de um utilizador. A desactivação bloqueia novos acessos à aplicação quando a sessão volta a ser validada.
+- a Content Security Policy mantém `unsafe-inline` para scripts e estilos por compatibilidade com o Next.js 15. Uma evolução para nonces exige middleware próprio e validação completa das páginas dinâmicas.
 - a suite E2E ainda não cobre todos os fluxos novos da folha salarial, especialmente anulação de aprovação, descontos percentuais, relação factura-projecto-despesa e recalculo de períodos antigos.
-- backups devem ser testados com restore real, não apenas geração de ficheiro.
+- o comando de restauro está implementado, mas a verificação real continua a exigir uma base PostgreSQL isolada e descartável.
 - qualquer nova API que use `dbAdmin` deve ter teste de acesso negativo por `staff` e `coord` quando aplicável.
 
 ## Estado Actual
