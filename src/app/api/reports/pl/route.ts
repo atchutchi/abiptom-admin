@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
-import { getCurrentUser } from "@/lib/auth/actions";
+import { authorizeRoles } from "@/lib/auth/authorization";
+import { getRequestIp } from "@/lib/auth/request-security";
 import { getMonthlyProfitLoss, getQuarterlyProfitLoss } from "@/lib/reports/actions";
 import { ProfitLossPDF } from "@/lib/pdf/profit-loss";
+import { consumeRateLimit } from "@/lib/security/rate-limit-db";
 
 const MES_SLUG = [
   "",
@@ -21,12 +23,28 @@ const MES_SLUG = [
 ];
 
 export async function GET(req: NextRequest) {
-  const { user, dbUser } = await getCurrentUser();
-  if (!user || !dbUser) {
-    return new NextResponse("Não autorizado", { status: 401 });
+  const authorization = await authorizeRoles(["ca", "dg"]);
+  if (!authorization.success) {
+    const status = authorization.error === "Não autenticado" ? 401 : 403;
+    return new NextResponse(authorization.error, { status });
   }
-  if (!["ca", "dg"].includes(dbUser.role)) {
-    return new NextResponse("Sem permissão", { status: 403 });
+
+  const rateLimit = await consumeRateLimit({
+    action: "profit-loss-export",
+    subject: `${authorization.dbUser.id}:${getRequestIp(req.headers)}`,
+    limit: 20,
+    windowMs: 5 * 60_000,
+    blockMs: 10 * 60_000,
+  });
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Demasiados pedidos. Tenta novamente mais tarde." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+      },
+    );
   }
 
   const { searchParams } = new URL(req.url);

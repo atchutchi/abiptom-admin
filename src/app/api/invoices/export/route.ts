@@ -1,19 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
 import { withAuthenticatedDb } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth/actions";
+import { authorizeRoles } from "@/lib/auth/authorization";
+import { getRequestIp } from "@/lib/auth/request-security";
 import { invoices, invoicePayments } from "@/lib/db/schema";
 import {
   buildInvoiceExportRows,
   createInvoiceExportWorkbook,
 } from "@/lib/invoices/export";
 import { normalizeInvoiceFilters } from "@/lib/invoices/filters";
+import { consumeRateLimit } from "@/lib/security/rate-limit-db";
 
 export async function GET(req: NextRequest) {
-  const { user, dbUser } = await getCurrentUser();
-  if (!user || !dbUser) return new NextResponse("Não autorizado", { status: 401 });
-  if (!["ca", "dg"].includes(dbUser.role)) {
-    return new NextResponse("Sem permissão", { status: 403 });
+  const authorization = await authorizeRoles(["ca", "dg"]);
+  if (!authorization.success) {
+    const status = authorization.error === "Não autenticado" ? 401 : 403;
+    return new NextResponse(authorization.error, { status });
+  }
+
+  const { user, dbUser } = authorization;
+  const rateLimit = await consumeRateLimit({
+    action: "invoice-export",
+    subject: `${dbUser.id}:${getRequestIp(req.headers)}`,
+    limit: 10,
+    windowMs: 5 * 60_000,
+    blockMs: 10 * 60_000,
+  });
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Demasiados pedidos. Tenta novamente mais tarde." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+      },
+    );
   }
 
   const { searchParams } = req.nextUrl;
