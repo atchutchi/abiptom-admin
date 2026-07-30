@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
 import { dbAdmin } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth/actions";
+import { authorizeOperation } from "@/lib/auth/authorization";
 
 export async function GET() {
-  const { user, dbUser } = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  }
-
-  if (!dbUser || (dbUser.role !== "ca" && dbUser.role !== "dg")) {
-    return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+  const authorization = await authorizeOperation("usersWrite");
+  if (!authorization.success) {
+    const status = authorization.error === "Não autenticado" ? 401 : 403;
+    return NextResponse.json({ error: authorization.error }, { status });
   }
 
   const allUsers = await dbAdmin.query.users.findMany({

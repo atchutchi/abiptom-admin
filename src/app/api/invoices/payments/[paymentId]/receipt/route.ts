@@ -3,7 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { dbAdmin } from "@/lib/db";
 import { invoicePayments } from "@/lib/db/schema";
 import { eq, asc } from "drizzle-orm";
-import { getCurrentUser } from "@/lib/auth/actions";
+import { authorizeRoles } from "@/lib/auth/authorization";
 import {
   PaymentReceiptPDF,
   type PaymentReceiptPDFData,
@@ -14,12 +14,10 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ paymentId: string }> }
 ) {
-  const { user, dbUser } = await getCurrentUser();
-  if (!user || !dbUser) {
-    return new NextResponse("Não autorizado", { status: 401 });
-  }
-  if (!["ca", "dg"].includes(dbUser.role)) {
-    return new NextResponse("Sem permissão", { status: 403 });
+  const authorization = await authorizeRoles(["ca", "dg"]);
+  if (!authorization.success) {
+    const status = authorization.error === "Não autenticado" ? 401 : 403;
+    return new NextResponse(authorization.error, { status });
   }
 
   const { paymentId } = await params;

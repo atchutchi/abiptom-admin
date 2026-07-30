@@ -10,6 +10,7 @@ import {
 import { eq, and, desc, isNull, or, gte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/actions";
+import { isOperationAllowed } from "@/lib/auth/authorization";
 import { insertAuditLog } from "@/lib/db/audit";
 import { headers } from "next/headers";
 import { toXofInteger, toXofString } from "@/lib/utils/money";
@@ -34,8 +35,8 @@ function parseCreate(formData: FormData) {
   });
 }
 
-function assertAdmin(role: string) {
-  if (!["ca", "dg"].includes(role)) {
+function assertAdmin(role: Parameters<typeof isOperationAllowed>[1]) {
+  if (!isOperationAllowed("dividendsWrite", role)) {
     throw new Error("Sem permissão");
   }
 }
@@ -74,7 +75,9 @@ export async function getDividendPeriod(id: string) {
 export async function createDividendPeriod(_: unknown, formData: FormData) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg"].includes(dbUser.role)) return { error: "Sem permissão" };
+  if (!isOperationAllowed("dividendsWrite", dbUser.role)) {
+    return { error: "Sem permissão" };
+  }
 
   const parsed = parseCreate(formData);
   if (!parsed.success) {

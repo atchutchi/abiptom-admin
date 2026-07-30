@@ -6,6 +6,7 @@ import { expenses } from "@/lib/db/schema";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/actions";
+import { isOperationAllowed } from "@/lib/auth/authorization";
 import { insertAuditLog } from "@/lib/db/audit";
 import { headers } from "next/headers";
 import type { ExpenseFilters } from "./labels";
@@ -41,8 +42,8 @@ const expenseSchema = z.object({
   beneficiarioUserId: z.string().uuid().optional(),
 });
 
-function canManageExpenses(role: string) {
-  return ["ca", "dg", "coord"].includes(role);
+function canManageExpenses(role: Parameters<typeof isOperationAllowed>[1]) {
+  return isOperationAllowed("expensesWrite", role);
 }
 
 function parseForm(formData: FormData) {

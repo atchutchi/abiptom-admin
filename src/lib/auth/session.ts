@@ -15,5 +15,5 @@ export async function getCurrentUser() {
     email: user.email,
   });
 
-  return { user, dbUser: dbUser ?? null };
+  return { user, dbUser: dbUser?.activo ? dbUser : null };
 }

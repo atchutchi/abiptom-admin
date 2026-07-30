@@ -17,6 +17,7 @@ import {
 } from "@/lib/db/schema";
 import { insertAuditLog } from "@/lib/db/audit";
 import { getCurrentUser } from "@/lib/auth/actions";
+import { authorizeOperation } from "@/lib/auth/authorization";
 import { calculateActual2024 } from "./engines/actual-2024";
 import { calculateGuia2026 } from "./engines/guia-2026";
 import { toXofInteger, toXofString } from "@/lib/utils/money";
@@ -147,8 +148,8 @@ type EnsureHistoricalPeriodSnapshotResult =
   | { error: string };
 
 export async function listSalaryPolicies() {
-  const { user, dbUser } = await getCurrentUser();
-  if (!user || !dbUser) throw new Error("Nao autenticado");
+  const authorization = await authorizeOperation("salaryRead");
+  if (!authorization.success) throw new Error(authorization.error);
 
   return dbAdmin.query.salaryPolicies.findMany({
     where: eq(salaryPolicies.activo, true),
@@ -157,8 +158,8 @@ export async function listSalaryPolicies() {
 }
 
 export async function listSalaryPeriods() {
-  const { user, dbUser } = await getCurrentUser();
-  if (!user || !dbUser) throw new Error("Nao autenticado");
+  const authorization = await authorizeOperation("salaryRead");
+  if (!authorization.success) throw new Error(authorization.error);
 
   return dbAdmin.query.salaryPeriods.findMany({
     with: { policy: { columns: { nome: true, versao: true } } },
@@ -255,8 +256,8 @@ export async function loadPaidInvoiceProjectEntries(input: {
 }
 
 export async function getSalaryPeriod(id: string) {
-  const { user, dbUser } = await getCurrentUser();
-  if (!user || !dbUser) throw new Error("Nao autenticado");
+  const authorization = await authorizeOperation("salaryRead");
+  if (!authorization.success) throw new Error(authorization.error);
 
   const period = await dbAdmin.query.salaryPeriods.findFirst({
     where: eq(salaryPeriods.id, id),
@@ -1625,13 +1626,7 @@ async function refreshPeriodTotals(periodId: string) {
 }
 
 async function requirePayrollAdmin(): Promise<PayrollAdminResult> {
-  const { user, dbUser } = await getCurrentUser();
-  if (!user || !dbUser) {
-    return { error: "Nao autenticado" };
-  }
-  if (!["ca", "dg"].includes(dbUser.role)) {
-    return { error: "Sem permissao" };
-  }
-
-  return { dbUser };
+  const authorization = await authorizeOperation("salaryWrite");
+  if (!authorization.success) return { error: authorization.error };
+  return { dbUser: authorization.dbUser };
 }

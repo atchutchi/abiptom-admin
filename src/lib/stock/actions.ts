@@ -4,7 +4,7 @@ import { z } from "zod";
 import { eq, asc, desc } from "drizzle-orm";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { getCurrentUser } from "@/lib/auth/actions";
+import { authorizeOperation } from "@/lib/auth/authorization";
 import { insertAuditLog } from "@/lib/db/audit";
 import { withAuthenticatedDb } from "@/lib/db";
 import { stockItems, stockMovements } from "@/lib/db/schema";
@@ -44,12 +44,9 @@ const stockMovementSchema = z.object({
 });
 
 async function requireStockAccess() {
-  const { user, dbUser } = await getCurrentUser();
-  if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg", "coord"].includes(dbUser.role)) {
-    throw new Error("Sem permissão");
-  }
-  return { user, dbUser };
+  const authorization = await authorizeOperation("stockWrite");
+  if (!authorization.success) throw new Error(authorization.error);
+  return authorization;
 }
 
 export async function listStockItems() {

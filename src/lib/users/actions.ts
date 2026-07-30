@@ -15,6 +15,7 @@ import {
 import { eq } from "drizzle-orm";
 import { insertAuditLog } from "@/lib/db/audit";
 import { getCurrentUser } from "@/lib/auth/actions";
+import { isOperationAllowed } from "@/lib/auth/authorization";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   AVATAR_BUCKET,
@@ -91,7 +92,7 @@ export async function createUser(formData: UserFormData) {
   }
 
   const { dbUser: actor } = await getCurrentUser();
-  if (!actor || (actor.role !== "ca" && actor.role !== "dg")) {
+  if (!actor || !actor.activo || !isOperationAllowed("usersWrite", actor.role)) {
     return { error: "Sem permissão." };
   }
 
@@ -154,7 +155,7 @@ export async function createUser(formData: UserFormData) {
 
 export async function updateUser(id: string, formData: Partial<UserFormData>) {
   const { dbUser: actor } = await getCurrentUser();
-  if (!actor || (actor.role !== "ca" && actor.role !== "dg")) {
+  if (!actor || !actor.activo || !isOperationAllowed("usersWrite", actor.role)) {
     return { error: "Sem permissão." };
   }
 
@@ -256,7 +257,7 @@ export async function updateUser(id: string, formData: Partial<UserFormData>) {
 
 export async function deactivateUser(id: string) {
   const { dbUser: actor } = await getCurrentUser();
-  if (!actor || (actor.role !== "ca" && actor.role !== "dg")) {
+  if (!actor || !actor.activo || !isOperationAllowed("usersWrite", actor.role)) {
     return { error: "Sem permissão." };
   }
 
@@ -309,7 +310,7 @@ export async function deactivateUser(id: string) {
 
 export async function deleteUserPermanently(id: string) {
   const { dbUser: actor } = await getCurrentUser();
-  if (!actor || (actor.role !== "ca" && actor.role !== "dg")) {
+  if (!actor || !actor.activo || !isOperationAllowed("usersWrite", actor.role)) {
     return { error: "Sem permissão." };
   }
 
@@ -401,7 +402,7 @@ export async function deleteUserPermanently(id: string) {
 export async function listUsers() {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (dbUser.role !== "ca" && dbUser.role !== "dg") {
+  if (!isOperationAllowed("usersWrite", dbUser.role)) {
     throw new Error("Sem permissão");
   }
 

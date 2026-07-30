@@ -10,6 +10,10 @@ import {
   type ProjectState,
 } from "@/lib/db/schema";
 import { getCurrentUser } from "@/lib/auth/actions";
+import {
+  authorizeOperation,
+  isOperationAllowed,
+} from "@/lib/auth/authorization";
 import { insertAuditLog } from "@/lib/db/audit";
 import { toCurrencyStorageString } from "@/lib/utils/money";
 import {
@@ -56,8 +60,8 @@ export type ProjectFormData = z.infer<typeof projectSchema>;
 export async function listProjects(
   filters: string | { search?: string; scope?: ProjectScope } = {},
 ) {
-  const { user, dbUser } = await getCurrentUser();
-  if (!user || !dbUser) throw new Error("Não autenticado");
+  const authorization = await authorizeOperation("projectsRead");
+  if (!authorization.success) throw new Error(authorization.error);
 
   const search = typeof filters === "string" ? filters : filters.search;
   const scope = typeof filters === "string" ? "todos" : filters.scope ?? "activos";
@@ -83,8 +87,8 @@ export async function listProjects(
 }
 
 export async function getProject(id: string) {
-  const { user, dbUser } = await getCurrentUser();
-  if (!user || !dbUser) throw new Error("Não autenticado");
+  const authorization = await authorizeOperation("projectsRead");
+  if (!authorization.success) throw new Error(authorization.error);
 
   return dbAdmin.query.projects.findFirst({
     where: eq(projects.id, id),
@@ -106,7 +110,7 @@ export async function getProject(id: string) {
 export async function createProject(_: unknown, formData: FormData) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg", "coord"].includes(dbUser.role)) {
+  if (!isOperationAllowed("projectsWrite", dbUser.role)) {
     return { error: "Sem permissão" };
   }
 
@@ -166,7 +170,7 @@ export async function createProject(_: unknown, formData: FormData) {
 export async function updateProject(id: string, _: unknown, formData: FormData) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg", "coord"].includes(dbUser.role)) {
+  if (!isOperationAllowed("projectsWrite", dbUser.role)) {
     return { error: "Sem permissão" };
   }
 
@@ -239,7 +243,7 @@ export async function updateProject(id: string, _: unknown, formData: FormData) 
 export async function updateProjectEstado(id: string, estado: string) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (!["ca", "dg", "coord"].includes(dbUser.role)) {
+  if (!isOperationAllowed("projectsWrite", dbUser.role)) {
     return { error: "Sem permissão" };
   }
 

@@ -14,6 +14,7 @@ import {
 import { eq, and, desc, gte, lte, inArray, type SQL } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/actions";
+import { isOperationAllowed } from "@/lib/auth/authorization";
 import { insertAuditLog } from "@/lib/db/audit";
 import { headers } from "next/headers";
 import { sql } from "drizzle-orm";
@@ -62,8 +63,8 @@ const invoiceProjectUpdateSchema = z.object({
   projectId: z.string().uuid().nullable(),
 });
 
-function canManageInvoices(role: string) {
-  return ["ca", "dg", "coord"].includes(role);
+function canManageInvoices(role: Parameters<typeof isOperationAllowed>[1]) {
+  return isOperationAllowed("invoicesWrite", role);
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

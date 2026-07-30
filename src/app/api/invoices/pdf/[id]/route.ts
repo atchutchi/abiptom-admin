@@ -4,17 +4,18 @@ import { withAuthenticatedDb } from "@/lib/db";
 import { invoices } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { InvoicePDF } from "@/lib/pdf/invoice";
-import { getCurrentUser } from "@/lib/auth/actions";
+import { authorizeOperation } from "@/lib/auth/authorization";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { user, dbUser } = await getCurrentUser();
-  if (!user || !dbUser) return new NextResponse("Não autorizado", { status: 401 });
-  if (!["ca", "dg", "coord"].includes(dbUser.role)) {
-    return new NextResponse("Sem permissão", { status: 403 });
+  const authorization = await authorizeOperation("invoicesRead");
+  if (!authorization.success) {
+    const status = authorization.error === "Não autenticado" ? 401 : 403;
+    return new NextResponse(authorization.error, { status });
   }
+  const { user, dbUser } = authorization;
 
   const { id } = await params;
 

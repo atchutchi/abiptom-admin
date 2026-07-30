@@ -3,7 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { dbAdmin } from "@/lib/db";
 import { salaryLines } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { getCurrentUser } from "@/lib/auth/actions";
+import { authorizeRoles } from "@/lib/auth/authorization";
 import {
   SalaryReceiptPDF,
   type SalaryReceiptPDFData,
@@ -31,10 +31,12 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ lineId: string }> }
 ) {
-  const { user, dbUser } = await getCurrentUser();
-  if (!user || !dbUser) {
-    return new NextResponse("Não autorizado", { status: 401 });
+  const authorization = await authorizeRoles(["ca", "dg", "coord", "staff"]);
+  if (!authorization.success) {
+    const status = authorization.error === "Não autenticado" ? 401 : 403;
+    return new NextResponse(authorization.error, { status });
   }
+  const { dbUser } = authorization;
 
   const { lineId } = await params;
 

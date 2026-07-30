@@ -7,7 +7,10 @@ import { revalidatePath } from "next/cache";
 import { dbAdmin, withAuthenticatedDb } from "@/lib/db";
 import { insertAuditLog } from "@/lib/db/audit";
 import { clients, projectDeliverables, tasks, users, type TaskState } from "@/lib/db/schema";
-import { getCurrentUser } from "@/lib/auth/actions";
+import {
+  authorizeOperation,
+  isOperationAllowed,
+} from "@/lib/auth/authorization";
 
 export interface TaskFilters {
   estado?: string;
@@ -71,13 +74,13 @@ const TASK_STATES = [
 ] as const;
 
 async function requireTaskAccess() {
-  const { user, dbUser } = await getCurrentUser();
-  if (!user || !dbUser) throw new Error("Não autenticado");
-  return { user, dbUser };
+  const authorization = await authorizeOperation("tasksRead");
+  if (!authorization.success) throw new Error(authorization.error);
+  return authorization;
 }
 
-function canManageTasks(role: string) {
-  return role === "ca" || role === "dg" || role === "coord";
+function canManageTasks(role: Parameters<typeof isOperationAllowed>[1]) {
+  return isOperationAllowed("tasksManage", role);
 }
 
 export async function listTasks(filters: TaskFilters = {}) {

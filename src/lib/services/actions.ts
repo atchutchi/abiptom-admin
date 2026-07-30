@@ -6,6 +6,10 @@ import { servicesCatalog } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/actions";
+import {
+  authorizeOperation,
+  isOperationAllowed,
+} from "@/lib/auth/authorization";
 import { toXofString } from "@/lib/utils/money";
 
 const serviceSchema = z.object({
@@ -18,11 +22,14 @@ const serviceSchema = z.object({
   precoXof: z.string().optional(),
 });
 
-function canManageServiceCatalog(role: string) {
-  return ["ca", "dg", "coord"].includes(role);
+function canManageServiceCatalog(role: Parameters<typeof isOperationAllowed>[1]) {
+  return isOperationAllowed("servicesWrite", role);
 }
 
 export async function listServices(includeInactive = false) {
+  const authorization = await authorizeOperation("servicesWrite");
+  if (!authorization.success) throw new Error(authorization.error);
+
   return dbAdmin.query.servicesCatalog.findMany({
     where: includeInactive ? undefined : eq(servicesCatalog.activo, true),
     orderBy: (s, { asc }) => [asc(s.categoria), asc(s.nome)],
@@ -90,7 +97,9 @@ export async function updateService(id: string, _: unknown, formData: FormData) 
 export async function toggleServiceActive(id: string, activo: boolean) {
   const { user, dbUser } = await getCurrentUser();
   if (!user || !dbUser) throw new Error("Não autenticado");
-  if (dbUser.role !== "ca") throw new Error("Sem permissão");
+  if (!isOperationAllowed("servicesToggle", dbUser.role)) {
+    throw new Error("Sem permissão");
+  }
 
   await dbAdmin
     .update(servicesCatalog)
