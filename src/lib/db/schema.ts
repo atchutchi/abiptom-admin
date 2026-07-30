@@ -1,5 +1,6 @@
 import {
   pgTable,
+  index,
   uniqueIndex,
   uuid,
   text,
@@ -1090,6 +1091,30 @@ export const auditLog = pgTable("audit_log", {
     .defaultNow(),
 });
 
+export const securityRateLimits = pgTable(
+  "security_rate_limits",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    action: varchar("action", { length: 80 }).notNull(),
+    subjectHash: varchar("subject_hash", { length: 64 }).notNull(),
+    windowStartedAt: timestamp("window_started_at", {
+      withTimezone: true,
+    }).notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    blockedUntil: timestamp("blocked_until", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("security_rate_limits_action_subject_uq").on(
+      table.action,
+      table.subjectHash,
+    ),
+    index("security_rate_limits_blocked_idx").on(table.blockedUntil),
+  ],
+);
+
 // ─── Relations ────────────────────────────────────────────────────────────────
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -1611,6 +1636,8 @@ export type InvoicePayment = typeof invoicePayments.$inferSelect;
 export type NewInvoicePayment = typeof invoicePayments.$inferInsert;
 export type AuditLog = typeof auditLog.$inferSelect;
 export type NewAuditLog = typeof auditLog.$inferInsert;
+export type SecurityRateLimit = typeof securityRateLimits.$inferSelect;
+export type NewSecurityRateLimit = typeof securityRateLimits.$inferInsert;
 export type Expense = typeof expenses.$inferSelect;
 export type NewExpense = typeof expenses.$inferInsert;
 export type StockItem = typeof stockItems.$inferSelect;
