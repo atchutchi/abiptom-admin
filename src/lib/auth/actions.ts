@@ -9,6 +9,7 @@ import {
   repairInternalUserFromAuth,
   syncAuthMetadataForDbUser,
 } from "@/lib/users/auth-link";
+import { getCurrentUser as readCurrentUser } from "./session";
 
 export async function login(formData: FormData) {
   const supabase = await createClient();
@@ -54,18 +55,5 @@ export async function logout() {
 }
 
 export async function getCurrentUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error || !user) return { user: null, dbUser: null };
-
-  const dbUser = await repairInternalUserFromAuth({
-    authUserId: user.id,
-    email: user.email,
-  });
-
-  return { user, dbUser: dbUser ?? null };
+  return readCurrentUser();
 }
