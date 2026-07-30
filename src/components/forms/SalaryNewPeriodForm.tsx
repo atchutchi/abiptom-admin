@@ -12,7 +12,11 @@ import type {
   PaidInvoiceProjectEntry,
 } from "@/lib/salary/actions";
 import { toXofInteger } from "@/lib/utils/money";
-import { buildSalaryProjectEntries } from "@/lib/salary/project-selection";
+import {
+  buildUnavailableProjectWarning,
+  buildSalaryProjectEntries,
+  isSalaryProjectAvailable,
+} from "@/lib/salary/project-selection";
 
 interface PolicyOption {
   id: string;
@@ -24,6 +28,7 @@ interface PolicyOption {
 interface ProjectOption {
   id: string;
   titulo: string;
+  estado: string;
   clienteNome: string;
   pontoFocalId: string | null;
   pontoFocalNome: string | null;
@@ -128,10 +133,7 @@ export function SalaryNewPeriodForm({
       const knownProjectIds = new Set(projects.map((project) => project.id));
       const missingProjectWarnings = result.entries
         .filter((entry) => !knownProjectIds.has(entry.projectId))
-        .map(
-          (entry) =>
-            `Projecto ${entry.projectId} tem pagamentos no mês, mas nao esta disponivel na lista de projectos.`,
-        );
+        .map(buildUnavailableProjectWarning);
 
       setInvoiceEntries(
         Object.fromEntries(
@@ -396,7 +398,11 @@ export function SalaryNewPeriodForm({
             >
               <option value="">Seleccionar projecto activo ou proposta</option>
               {projects
-                .filter((project) => !entries.some((entry) => entry.projectId === project.id))
+                .filter(
+                  (project) =>
+                    isSalaryProjectAvailable(project, "manual") &&
+                    !entries.some((entry) => entry.projectId === project.id),
+                )
                 .map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.titulo} · {project.clienteNome}

@@ -73,6 +73,7 @@ export type CalculatePeriodResult =
   | { error: string };
 export type PaidInvoiceProjectEntry = {
   projectId: string;
+  projectTitle: string;
   valorRecebido: number;
   paymentCount: number;
   invoices: Array<{
@@ -226,6 +227,7 @@ export async function loadPaidInvoiceProjectEntries(input: {
     );
     const current = entriesByProject.get(invoice.projectId) ?? {
       projectId: invoice.projectId,
+      projectTitle: invoice.project.titulo,
       valorRecebido: 0,
       paymentCount: 0,
       invoices: [],

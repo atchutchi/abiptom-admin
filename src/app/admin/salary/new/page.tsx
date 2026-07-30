@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { SalaryNewPeriodForm } from "@/components/forms/SalaryNewPeriodForm";
+import { isSalaryProjectAvailable } from "@/lib/salary/project-selection";
 
 export const metadata = { title: "Novo Período Salarial — ABIPTOM Core" };
 
@@ -21,11 +22,9 @@ export default async function NewSalaryPeriodPage() {
     orderBy: (p, { desc }) => [desc(p.dataInicio)],
   });
 
-  // Load only operational projects for manual fallback. Paid invoices remain
-  // the primary source for period projects.
+  // Paid invoices may belong to projects that have since been paused or
+  // concluded. Manual selection remains restricted in the form.
   const projectRows = await dbAdmin.query.projects.findMany({
-    where: (p, { inArray }) =>
-      inArray(p.estado, ["activo", "proposta"]),
     with: {
       client: { columns: { id: true, nome: true } },
       pontoFocal: { columns: { id: true, nomeCurto: true } },
@@ -67,17 +66,22 @@ export default async function NewSalaryPeriodPage() {
               versao: p.versao,
               tipo: (p.configuracaoJson as { tipo: string }).tipo,
             }))}
-            projects={projectRows.map((p) => ({
-              id: p.id,
-              titulo: p.titulo,
-              clienteNome: p.client.nome,
-              pontoFocalId: p.pontoFocalId,
-              pontoFocalNome: p.pontoFocal?.nomeCurto ?? null,
-              assistants: p.assistants.map((a) => ({
-                userId: a.userId,
-                nomeCurto: a.user.nomeCurto,
-              })),
-            }))}
+            projects={projectRows
+              .filter((project) =>
+                isSalaryProjectAvailable(project, "paid-invoices"),
+              )
+              .map((p) => ({
+                id: p.id,
+                titulo: p.titulo,
+                estado: p.estado,
+                clienteNome: p.client.nome,
+                pontoFocalId: p.pontoFocalId,
+                pontoFocalNome: p.pontoFocal?.nomeCurto ?? null,
+                assistants: p.assistants.map((a) => ({
+                  userId: a.userId,
+                  nomeCurto: a.user.nomeCurto,
+                })),
+              }))}
           />
         </div>
       </main>
