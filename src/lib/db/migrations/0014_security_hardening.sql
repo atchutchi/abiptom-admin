@@ -12,3 +12,14 @@ CREATE TABLE IF NOT EXISTS security_rate_limits (
 
 CREATE INDEX IF NOT EXISTS security_rate_limits_blocked_idx
   ON security_rate_limits (blocked_until);
+
+ALTER TABLE audit_log
+  ADD COLUMN IF NOT EXISTS resultado varchar(20) NOT NULL DEFAULT 'success',
+  ADD COLUMN IF NOT EXISTS severidade varchar(20) NOT NULL DEFAULT 'info',
+  ADD COLUMN IF NOT EXISTS request_id varchar(100);
+
+CREATE INDEX IF NOT EXISTS audit_log_created_at_idx
+  ON audit_log (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS audit_log_result_created_at_idx
+  ON audit_log (resultado, created_at DESC);

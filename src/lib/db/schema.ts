@@ -1076,20 +1076,39 @@ export const dividendLines = pgTable("dividend_lines", {
 
 // ─── audit_log ────────────────────────────────────────────────────────────────
 
-export const auditLog = pgTable("audit_log", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
-  acao: varchar("acao", { length: 100 }).notNull(),
-  entidade: varchar("entidade", { length: 100 }).notNull(),
-  entidadeId: text("entidade_id"),
-  dadosAntes: jsonb("dados_antes"),
-  dadosDepois: jsonb("dados_depois"),
-  ip: varchar("ip", { length: 45 }),
-  userAgent: text("user_agent"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    acao: varchar("acao", { length: 100 }).notNull(),
+    entidade: varchar("entidade", { length: 100 }).notNull(),
+    entidadeId: text("entidade_id"),
+    resultado: varchar("resultado", { length: 20 })
+      .notNull()
+      .default("success"),
+    severidade: varchar("severidade", { length: 20 })
+      .notNull()
+      .default("info"),
+    requestId: varchar("request_id", { length: 100 }),
+    dadosAntes: jsonb("dados_antes"),
+    dadosDepois: jsonb("dados_depois"),
+    ip: varchar("ip", { length: 45 }),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("audit_log_created_at_idx").on(table.createdAt),
+    index("audit_log_result_created_at_idx").on(
+      table.resultado,
+      table.createdAt,
+    ),
+  ],
+);
 
 export const securityRateLimits = pgTable(
   "security_rate_limits",

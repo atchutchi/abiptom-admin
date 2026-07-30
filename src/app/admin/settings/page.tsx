@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Package, Users } from "lucide-react";
+import { Package, ShieldCheck, Users } from "lucide-react";
 import type { ElementType } from "react";
 import { Header } from "@/components/layout/Header";
 import { getCurrentUser } from "@/lib/auth/actions";
@@ -29,6 +29,13 @@ const SECTIONS: SettingsSection[] = [
     href: "/admin/users",
     icon: Users,
     roles: ["ca", "dg"],
+  },
+  {
+    title: "Auditoria de segurança",
+    description: "Consultar acessos, bloqueios e operações sensíveis do sistema.",
+    href: "/admin/settings/audit",
+    icon: ShieldCheck,
+    roles: ["ca"],
   },
 ];
 

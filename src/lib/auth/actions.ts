@@ -10,6 +10,8 @@ import {
   normalizeAuthEmail,
 } from "@/lib/auth/request-security";
 import { consumeRateLimit } from "@/lib/security/rate-limit-db";
+import { hashRateLimitSubject } from "@/lib/security/rate-limit";
+import { recordSecurityEvent } from "@/lib/security/events";
 import { createClient } from "@/lib/supabase/server";
 import {
   repairInternalUserFromAuth,
@@ -34,7 +36,9 @@ export async function loginAction(
   const email = normalizeAuthEmail(String(formData.get("email") ?? ""));
   const password = String(formData.get("password") ?? "");
   const nextPath = String(formData.get("next") ?? "") || null;
-  const requestIp = getRequestIp(await headers());
+  const requestHeaders = await headers();
+  const requestIp = getRequestIp(requestHeaders);
+  const emailHash = hashRateLimitSubject(email || "empty");
 
   const [ipDecision, emailDecision] = await Promise.all([
     consumeRateLimit({
@@ -54,10 +58,26 @@ export async function loginAction(
   ]);
 
   if (!ipDecision.allowed || !emailDecision.allowed) {
+    await recordSecurityEvent({
+      action: "auth.login",
+      entity: "authentication",
+      result: "blocked",
+      severity: "warning",
+      requestHeaders,
+      after: { emailHash },
+    });
     return { error: LIMIT_ERROR, success: "" };
   }
 
   if (!email || !password) {
+    await recordSecurityEvent({
+      action: "auth.login",
+      entity: "authentication",
+      result: "failure",
+      severity: "warning",
+      requestHeaders,
+      after: { emailHash },
+    });
     return { error: LOGIN_ERROR, success: "" };
   }
 
@@ -65,6 +85,14 @@ export async function loginAction(
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
+    await recordSecurityEvent({
+      action: "auth.login",
+      entity: "authentication",
+      result: "failure",
+      severity: "warning",
+      requestHeaders,
+      after: { emailHash },
+    });
     return { error: LOGIN_ERROR, success: "" };
   }
 
@@ -72,7 +100,17 @@ export async function loginAction(
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { error: LOGIN_ERROR, success: "" };
+  if (!user) {
+    await recordSecurityEvent({
+      action: "auth.login",
+      entity: "authentication",
+      result: "failure",
+      severity: "warning",
+      requestHeaders,
+      after: { emailHash },
+    });
+    return { error: LOGIN_ERROR, success: "" };
+  }
 
   const dbUser = await repairInternalUserFromAuth({
     authUserId: user.id,
@@ -80,6 +118,14 @@ export async function loginAction(
   });
   if (!dbUser || !dbUser.activo) {
     await supabase.auth.signOut();
+    await recordSecurityEvent({
+      action: "auth.login",
+      entity: "authentication",
+      result: "denied",
+      severity: "warning",
+      requestHeaders,
+      after: { emailHash },
+    });
     return { error: LOGIN_ERROR, success: "" };
   }
 
@@ -89,6 +135,14 @@ export async function loginAction(
     console.error("Falha ao sincronizar metadata Auth no login", syncError);
   }
 
+  await recordSecurityEvent({
+    actorId: dbUser.id,
+    action: "auth.login",
+    entity: "authentication",
+    entityId: dbUser.id,
+    result: "success",
+    requestHeaders,
+  });
   revalidatePath("/", "layout");
   redirect(getPostLoginRedirectPath(dbUser.role, nextPath));
 }
@@ -98,7 +152,9 @@ export async function requestPasswordResetAction(
   formData: FormData,
 ): Promise<AuthActionState> {
   const email = normalizeAuthEmail(String(formData.get("email") ?? ""));
-  const requestIp = getRequestIp(await headers());
+  const requestHeaders = await headers();
+  const requestIp = getRequestIp(requestHeaders);
+  const emailHash = hashRateLimitSubject(email || "empty");
 
   const [ipDecision, emailDecision] = await Promise.all([
     consumeRateLimit({
@@ -118,15 +174,34 @@ export async function requestPasswordResetAction(
   ]);
 
   if (!ipDecision.allowed || !emailDecision.allowed) {
+    await recordSecurityEvent({
+      action: "auth.password_reset",
+      entity: "authentication",
+      result: "blocked",
+      severity: "warning",
+      requestHeaders,
+      after: { emailHash },
+    });
     return { error: LIMIT_ERROR, success: "" };
   }
 
+  let resetFailed = false;
   if (email) {
     const supabase = await createClient();
-    await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: buildAppUrl("/auth/confirm?next=/update-password"),
     });
+    resetFailed = Boolean(error);
   }
+
+  await recordSecurityEvent({
+    action: "auth.password_reset",
+    entity: "authentication",
+    result: resetFailed ? "failure" : "success",
+    severity: resetFailed ? "warning" : "info",
+    requestHeaders,
+    after: { emailHash },
+  });
 
   return { error: "", success: RESET_SUCCESS };
 }

@@ -5,6 +5,7 @@ import { getRequestIp } from "@/lib/auth/request-security";
 import { getMonthlyProfitLoss, getQuarterlyProfitLoss } from "@/lib/reports/actions";
 import { ProfitLossPDF } from "@/lib/pdf/profit-loss";
 import { consumeRateLimit } from "@/lib/security/rate-limit-db";
+import { recordSecurityEvent } from "@/lib/security/events";
 
 const MES_SLUG = [
   "",
@@ -38,6 +39,14 @@ export async function GET(req: NextRequest) {
   });
 
   if (!rateLimit.allowed) {
+    await recordSecurityEvent({
+      actorId: authorization.dbUser.id,
+      action: "report.profit_loss.export",
+      entity: "report",
+      result: "blocked",
+      severity: "warning",
+      requestHeaders: req.headers,
+    });
     return NextResponse.json(
       { error: "Demasiados pedidos. Tenta novamente mais tarde." },
       {
@@ -87,6 +96,15 @@ export async function GET(req: NextRequest) {
     periodo === "trimestral"
       ? `pl-t${trimestre}-${ano}.pdf`
       : `pl-${MES_SLUG[mes]}-${ano}.pdf`;
+
+  await recordSecurityEvent({
+    actorId: authorization.dbUser.id,
+    action: "report.profit_loss.export",
+    entity: "report",
+    result: "success",
+    requestHeaders: req.headers,
+    after: { periodo, ano, mes, trimestre },
+  });
 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {

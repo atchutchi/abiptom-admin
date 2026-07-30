@@ -10,6 +10,7 @@ import {
 } from "@/lib/invoices/export";
 import { normalizeInvoiceFilters } from "@/lib/invoices/filters";
 import { consumeRateLimit } from "@/lib/security/rate-limit-db";
+import { recordSecurityEvent } from "@/lib/security/events";
 
 export async function GET(req: NextRequest) {
   const authorization = await authorizeRoles(["ca", "dg"]);
@@ -28,6 +29,14 @@ export async function GET(req: NextRequest) {
   });
 
   if (!rateLimit.allowed) {
+    await recordSecurityEvent({
+      actorId: dbUser.id,
+      action: "invoice.export",
+      entity: "invoice",
+      result: "blocked",
+      severity: "warning",
+      requestHeaders: req.headers,
+    });
     return NextResponse.json(
       { error: "Demasiados pedidos. Tenta novamente mais tarde." },
       {
@@ -99,6 +108,15 @@ export async function GET(req: NextRequest) {
   });
 
   const buf = await createInvoiceExportWorkbook(buildInvoiceExportRows(rows), mes);
+
+  await recordSecurityEvent({
+    actorId: dbUser.id,
+    action: "invoice.export",
+    entity: "invoice",
+    result: "success",
+    requestHeaders: req.headers,
+    after: { filters, rowCount: rows.length },
+  });
 
   return new NextResponse(new Uint8Array(buf), {
     headers: {
