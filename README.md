@@ -481,6 +481,7 @@ Migrations relevantes recentes:
 | `0010_add_chat_messaging.sql` | mensagens internas, grupos, conversas por projecto, presença online, fila de emails offline, RLS e Realtime |
 | `0011_chat_messaging_recovery_safe.sql` | recuperação idempotente do chat quando a migration 10 já existe ou ficou parcialmente aplicada |
 | `0014_security_hardening.sql` | limites persistentes, resultado, severidade, identificador do pedido e índices de auditoria |
+| `0015_update_invoice_bank_account.sql` | actualização da conta bancária ECOBANK nas facturas novas e existentes que ainda usam a conta anterior |
 
 Comandos úteis:
 

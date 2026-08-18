@@ -15,6 +15,7 @@ import {
   pgSequence,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
+import { getDefaultInvoiceBankAccount } from "@/lib/invoices/bank-account";
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
@@ -334,7 +335,7 @@ export const invoices = pgTable("invoices", {
   total: numeric("total", { precision: 14, scale: 2 }).notNull().default("0"),
   formaPagamento: text("forma_pagamento"),
   contaBancaria: text("conta_bancaria").default(
-    "Banque Atlantique GB — Conta nº 020080330007 — IBAN GW68 GW19 5010 0102 0080 3300 0706"
+    getDefaultInvoiceBankAccount(),
   ),
   observacoes: text("observacoes"),
   pdfUrl: text("pdf_url"),
