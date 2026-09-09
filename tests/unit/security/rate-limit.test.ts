@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   hashRateLimitSubject,
   nextRateLimitState,
@@ -86,6 +86,23 @@ describe("nextRateLimitState", () => {
 });
 
 describe("hashRateLimitSubject", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it.each([undefined, "curto", "x".repeat(31)])(
+    "recusa configuração ausente ou curta antes do login (%s)",
+    (secret) => {
+      vi.stubEnv("SECURITY_RATE_LIMIT_SECRET", secret);
+      expect(() => hashRateLimitSubject("teste@example.test")).toThrow(
+        "SECURITY_RATE_LIMIT_SECRET tem de ter pelo menos 32 caracteres.",
+      );
+    },
+  );
+
+  it("aceita um segredo de ambiente com 32 caracteres", () => {
+    vi.stubEnv("SECURITY_RATE_LIMIT_SECRET", "x".repeat(32));
+    expect(hashRateLimitSubject("teste@example.test")).toMatch(/^[a-f0-9]{64}$/);
+  });
+
   it("produz um HMAC estável sem guardar o identificador original", () => {
     const hash = hashRateLimitSubject(
       "The quick brown fox jumps over the lazy dog",
