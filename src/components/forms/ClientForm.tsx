@@ -1,19 +1,33 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import type { Client } from "@/lib/db/schema";
 
 interface Props {
   client?: Client;
-  action: (prev: unknown, formData: FormData) => Promise<{ error?: string; success?: boolean; id?: string }>;
+  action: (prev: unknown, formData: FormData) => Promise<{ error?: string; success?: boolean; id?: string; authRequired?: boolean }>;
   submitLabel?: string;
 }
 
 export default function ClientForm({ client, action, submitLabel = "Guardar" }: Props) {
   const [state, formAction, pending] = useActionState(action, null);
   const router = useRouter();
+  const [values, setValues] = useState({
+    nome: client?.nome ?? "",
+    nif: client?.nif ?? "",
+    pais: client?.pais ?? "Guiné-Bissau",
+    endereco: client?.endereco ?? "",
+    contacto: client?.contacto ?? "",
+    email: client?.email ?? "",
+    notas: client?.notas ?? "",
+  });
+  const field = (name: keyof typeof values) => ({
+    value: values[name],
+    onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setValues((current) => ({ ...current, [name]: event.target.value })),
+  });
 
   useEffect(() => {
     if (state?.success) {
@@ -25,8 +39,13 @@ export default function ClientForm({ client, action, submitLabel = "Guardar" }: 
   return (
     <form action={formAction} className="space-y-5 max-w-xl">
       {state?.error && (
-        <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
+        <div role="alert" className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
           {state.error}
+          {state.authRequired && (
+            <a href="/login" target="_blank" rel="noopener noreferrer" className="mt-2 block underline font-medium">
+              Iniciar sessão numa nova janela. Depois, volta a este formulário.
+            </a>
+          )}
         </div>
       )}
 
@@ -35,7 +54,7 @@ export default function ClientForm({ client, action, submitLabel = "Guardar" }: 
         <input
           name="nome"
           required
-          defaultValue={client?.nome}
+          {...field("nome")}
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
         />
       </div>
@@ -45,7 +64,7 @@ export default function ClientForm({ client, action, submitLabel = "Guardar" }: 
           <label className="text-sm font-medium">NIF</label>
           <input
             name="nif"
-            defaultValue={client?.nif ?? ""}
+            {...field("nif")}
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
           />
         </div>
@@ -53,7 +72,7 @@ export default function ClientForm({ client, action, submitLabel = "Guardar" }: 
           <label className="text-sm font-medium">País</label>
           <input
             name="pais"
-            defaultValue={client?.pais ?? "Guiné-Bissau"}
+            {...field("pais")}
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
           />
         </div>
@@ -64,7 +83,7 @@ export default function ClientForm({ client, action, submitLabel = "Guardar" }: 
         <textarea
           name="endereco"
           rows={2}
-          defaultValue={client?.endereco ?? ""}
+          {...field("endereco")}
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50 resize-none"
         />
       </div>
@@ -74,7 +93,7 @@ export default function ClientForm({ client, action, submitLabel = "Guardar" }: 
           <label className="text-sm font-medium">Telefone</label>
           <input
             name="contacto"
-            defaultValue={client?.contacto ?? ""}
+            {...field("contacto")}
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
           />
         </div>
@@ -83,7 +102,7 @@ export default function ClientForm({ client, action, submitLabel = "Guardar" }: 
           <input
             name="email"
             type="email"
-            defaultValue={client?.email ?? ""}
+            {...field("email")}
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
           />
         </div>
@@ -94,7 +113,7 @@ export default function ClientForm({ client, action, submitLabel = "Guardar" }: 
         <textarea
           name="notas"
           rows={3}
-          defaultValue={client?.notas ?? ""}
+          {...field("notas")}
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50 resize-none"
         />
       </div>

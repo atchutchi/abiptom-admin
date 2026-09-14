@@ -62,7 +62,10 @@ export async function getClient(id: string) {
 
 export async function createClient(_: unknown, formData: FormData) {
   const { user, dbUser } = await getCurrentUser();
-  if (!user || !dbUser) throw new Error("Não autenticado");
+  if (!user || !dbUser) return {
+    authRequired: true,
+    error: "Não foi possível validar a tua sessão. Os dados continuam no formulário. Inicia sessão novamente e volta a guardar.",
+  };
   if (!canManageClients(dbUser.role))
     return { error: "Sem permissão" };
 
@@ -101,7 +104,10 @@ export async function createClient(_: unknown, formData: FormData) {
 
 export async function updateClient(id: string, _: unknown, formData: FormData) {
   const { user, dbUser } = await getCurrentUser();
-  if (!user || !dbUser) throw new Error("Não autenticado");
+  if (!user || !dbUser) return {
+    authRequired: true,
+    error: "Não foi possível validar a tua sessão. Os dados continuam no formulário. Inicia sessão novamente e volta a guardar.",
+  };
   if (!canManageClients(dbUser.role))
     return { error: "Sem permissão" };
 

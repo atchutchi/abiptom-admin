@@ -8,12 +8,25 @@ export async function getCurrentUser() {
     error,
   } = await supabase.auth.getUser();
 
-  if (error || !user) return { user: null, dbUser: null };
+  if (error || !user) {
+    console.warn("auth.session.unavailable", {
+      reason: error ? "auth_error" : "missing_auth_user",
+      code: error?.code,
+      status: error?.status,
+    });
+    return { user: null, dbUser: null };
+  }
 
   const dbUser = await repairInternalUserFromAuth({
     authUserId: user.id,
     email: user.email,
   });
+
+  if (!dbUser?.activo) {
+    console.warn("auth.session.unavailable", {
+      reason: dbUser ? "inactive_profile" : "missing_profile",
+    });
+  }
 
   return { user, dbUser: dbUser?.activo ? dbUser : null };
 }
