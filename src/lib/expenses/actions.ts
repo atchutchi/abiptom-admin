@@ -188,7 +188,10 @@ export async function sumExpensesByMonth(mes: string) {
 
 export async function createExpense(_: unknown, formData: FormData) {
   const { user, dbUser } = await getCurrentUser();
-  if (!user || !dbUser) throw new Error("Não autenticado");
+  if (!user || !dbUser) return {
+    authRequired: true,
+    error: "Não foi possível validar a tua sessão. Os dados continuam no formulário. Inicia sessão novamente e volta a guardar.",
+  };
   if (!canManageExpenses(dbUser.role)) return { error: "Sem permissão" };
 
   const parsed = parseForm(formData);
@@ -231,7 +234,10 @@ export async function createExpense(_: unknown, formData: FormData) {
 
 export async function updateExpense(id: string, _: unknown, formData: FormData) {
   const { user, dbUser } = await getCurrentUser();
-  if (!user || !dbUser) throw new Error("Não autenticado");
+  if (!user || !dbUser) return {
+    authRequired: true,
+    error: "Não foi possível validar a tua sessão. Os dados continuam no formulário. Inicia sessão novamente e volta a guardar.",
+  };
   if (!canManageExpenses(dbUser.role)) return { error: "Sem permissão" };
 
   const parsed = parseForm(formData);

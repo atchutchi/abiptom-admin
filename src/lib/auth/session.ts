@@ -3,10 +3,17 @@ import { repairInternalUserFromAuth } from "@/lib/users/auth-link";
 
 export async function getCurrentUser() {
   const supabase = await createClient();
+  let authResult = await supabase.auth.getUser();
+
+  if (authResult.error?.status && authResult.error.status >= 500) {
+    console.warn("auth.session.retry", { status: authResult.error.status });
+    authResult = await supabase.auth.getUser();
+  }
+
   const {
     data: { user },
     error,
-  } = await supabase.auth.getUser();
+  } = authResult;
 
   if (error || !user) {
     console.warn("auth.session.unavailable", {

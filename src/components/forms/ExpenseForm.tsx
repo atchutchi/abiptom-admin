@@ -7,7 +7,7 @@ import type { Expense } from "@/lib/db/schema";
 import { EXPENSE_CATEGORY_LABEL } from "@/lib/expenses/labels";
 import { toXofInteger } from "@/lib/utils/money";
 
-type ActionResult = { error?: string; success?: boolean; id?: string };
+type ActionResult = { error?: string; success?: boolean; id?: string; authRequired?: boolean };
 
 interface Props {
   expense?: Expense;
@@ -29,6 +29,13 @@ export default function ExpenseForm({
   const [state, formAction, pending] = useActionState(action, null);
   const router = useRouter();
 
+  const [data, setData] = useState(
+    expense?.data ?? new Date().toISOString().split("T")[0],
+  );
+  const [categoria, setCategoria] = useState(expense?.categoria ?? "outros");
+  const [descricao, setDescricao] = useState(expense?.descricao ?? "");
+  const [fornecedor, setFornecedor] = useState(expense?.fornecedor ?? "");
+  const [nifFornecedor, setNifFornecedor] = useState(expense?.nifFornecedor ?? "");
   const [valor, setValor] = useState(expense?.valor ?? "");
   const [moeda, setMoeda] = useState(expense?.moeda ?? "XOF");
   const [taxaCambio, setTaxaCambio] = useState(expense?.taxaCambio ?? "1");
@@ -36,6 +43,11 @@ export default function ExpenseForm({
   const [beneficiarioUserId, setBeneficiarioUserId] = useState(
     expense?.beneficiarioUserId ?? "",
   );
+  const [metodoPagamento, setMetodoPagamento] = useState(
+    expense?.metodoPagamento ?? "",
+  );
+  const [referencia, setReferencia] = useState(expense?.referencia ?? "");
+  const [notas, setNotas] = useState(expense?.notas ?? "");
 
   const valorXof = (() => {
     const v = Number(valor);
@@ -54,8 +66,13 @@ export default function ExpenseForm({
   return (
     <form action={formAction} className="space-y-5 max-w-xl">
       {state?.error && (
-        <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
+        <div role="alert" className="rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
           {state.error}
+          {state.authRequired && (
+            <a href="/login" target="_blank" rel="noopener noreferrer" className="mt-2 block underline font-medium">
+              Iniciar sessão numa nova janela. Depois, volta a este formulário.
+            </a>
+          )}
         </div>
       )}
 
@@ -66,7 +83,8 @@ export default function ExpenseForm({
             type="date"
             name="data"
             required
-            defaultValue={expense?.data ?? new Date().toISOString().split("T")[0]}
+            value={data}
+            onChange={(event) => setData(event.target.value)}
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
           />
         </div>
@@ -75,7 +93,8 @@ export default function ExpenseForm({
           <select
             name="categoria"
             required
-            defaultValue={expense?.categoria ?? "outros"}
+            value={categoria}
+            onChange={(event) => setCategoria(event.target.value as typeof categoria)}
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
           >
             {Object.entries(EXPENSE_CATEGORY_LABEL).map(([v, l]) => (
@@ -92,7 +111,8 @@ export default function ExpenseForm({
         <input
           name="descricao"
           required
-          defaultValue={expense?.descricao ?? ""}
+          value={descricao}
+          onChange={(event) => setDescricao(event.target.value)}
           placeholder="Ex.: Aluguer escritório Novembro 2026"
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
         />
@@ -103,7 +123,8 @@ export default function ExpenseForm({
           <label className="text-sm font-medium">Fornecedor</label>
           <input
             name="fornecedor"
-            defaultValue={expense?.fornecedor ?? ""}
+            value={fornecedor}
+            onChange={(event) => setFornecedor(event.target.value)}
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
           />
         </div>
@@ -111,7 +132,8 @@ export default function ExpenseForm({
           <label className="text-sm font-medium">NIF fornecedor</label>
           <input
             name="nifFornecedor"
-            defaultValue={expense?.nifFornecedor ?? ""}
+            value={nifFornecedor}
+            onChange={(event) => setNifFornecedor(event.target.value)}
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
           />
         </div>
@@ -170,7 +192,8 @@ export default function ExpenseForm({
           <label className="text-sm font-medium">Método de pagamento</label>
           <input
             name="metodoPagamento"
-            defaultValue={expense?.metodoPagamento ?? ""}
+            value={metodoPagamento}
+            onChange={(event) => setMetodoPagamento(event.target.value)}
             placeholder="Transferência, numerário, cheque…"
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
           />
@@ -179,7 +202,8 @@ export default function ExpenseForm({
           <label className="text-sm font-medium">Referência</label>
           <input
             name="referencia"
-            defaultValue={expense?.referencia ?? ""}
+            value={referencia}
+            onChange={(event) => setReferencia(event.target.value)}
             placeholder="Nº factura / recibo"
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50"
           />
@@ -191,7 +215,8 @@ export default function ExpenseForm({
         <textarea
           name="notas"
           rows={3}
-          defaultValue={expense?.notas ?? ""}
+          value={notas}
+          onChange={(event) => setNotas(event.target.value)}
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring/50 resize-none"
         />
       </div>

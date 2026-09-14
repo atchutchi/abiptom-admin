@@ -43,4 +43,24 @@ describe("session diagnostics", () => {
     expect(await getCurrentUser()).toEqual({ user, dbUser });
     expect(warn).not.toHaveBeenCalled();
   });
+
+  it("retries one transient authentication timeout before rejecting the session", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const user = { id: "user-1" };
+    const dbUser = { id: "internal-1", activo: true };
+    mocks.getUser
+      .mockResolvedValueOnce({
+        data: { user: null },
+        error: { code: undefined, status: 504, message: "upstream timeout" },
+      })
+      .mockResolvedValueOnce({ data: { user }, error: null });
+    mocks.repair.mockResolvedValue(dbUser);
+
+    expect(await getCurrentUser()).toEqual({ user, dbUser });
+    expect(mocks.getUser).toHaveBeenCalledTimes(2);
+    expect(warn).not.toHaveBeenCalledWith(
+      "auth.session.unavailable",
+      expect.anything(),
+    );
+  });
 });
